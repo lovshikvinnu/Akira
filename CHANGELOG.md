@@ -7,6 +7,340 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.0] - 2026-06-30
+
+Status: Release Completed (Brain v1.0 Foundation)
+
+Description:
+
+This release marks the completion of AKIRA Brain v1.0, the cognitive foundation upon which all future companion capabilities will be built. It represents the full implementation, validation, and integration of the Adaptive Memory Engine and AI Context Engine.
+
+### Highlights
+
+- **Complete Adaptive Memory Engine**: Unidirectional cognitive pipeline structuring user context.
+- **Event Layer**: Decoupled store mutations from memory validation, making the core fully event-driven.
+- **Memory Candidate Engine**: Intermediate buffering layer evaluating deterministic promotion rules.
+- **Memory Validation Engine**: Promotion of candidates to permanent memories with explainability metadata.
+- **Relationship Engine**: Dynamic relationship building between memory nodes.
+- **Story Engine**: Clustering of related memories and links into long-running project and reflection narratives.
+- **Identity Engine**: Synthesizing traits, values, learning styles, and aspirations from active story evidence, with support for onboarding hypothesis validation and historical confidence logging.
+- **Importance Engine**: Evaluating recency, milestone, density, user intent, and reinforcement signals.
+- **Recall Engine**: Context-based candidate selection matching active story lines and significance.
+- **Context Builder**: ephemerally building Context Packages to feed down prompts.
+- **AI Context Engine**: Standardized provider-agnostic request/response normalizers with dynamic registry adapters, shipping Gemini REST integrations with mock fallbacks.
+- **Explainability & Provenance**: End-to-end trace mapping, logging reasons and origins of all cognitive transformations.
+
+---
+
+## [2.10.0-sprint-10] - 2026-06-30
+
+Status: Implementation Completed (Sprint 10)
+
+Description:
+
+This milestone marks the implementation of the AI Context Engine, establishing a provider-independent interface and dynamic provider registry to dispatch rich, structured requests.
+
+### Added
+
+- **AI Subsystem**: Created `src/services/ai/` containing types, registry, context engines, providers, and normalization adapters.
+- **Provider-Independent API**: Defined the `AIRequest` and `StandardAIResponse` models in `ai/types.ts` and the standard `AIProvider` contract in `ai/provider-interface.ts`.
+- **Response Normalization Layer**: Created `response-normalizer.ts` defining modular `ResponseAdapter` and `responseNormalizer` registry to translate diverse provider outputs into standardized format.
+- **Dynamic Provider Registry**: Created `providerRegistry` to dynamically register AI providers and swap the active provider at runtime, registering `GeminiProvider` as the initial active backend.
+- **AI Context Engine**: Implemented `aiContextEngine` to receive context packages, transform them into provider-agnostic system instructions, attach context metadata, and dispatch them to the active provider.
+- **Gemini Provider REST Implementation**: Built `GeminiProvider` implementing the provider interface, converting standard requests to Gemini API payloads, and including a local mock fallback for testing when API keys are not present.
+
+### Changed
+
+- **StandardAIResponse Adoption**: Updated both `GeminiProvider` and `aiContextEngine` to communicate exclusively via `StandardAIResponse`, eliminating raw provider-specific JSON leaks.
+- **Context Package Session ID Refinement**: Extended the `ContextPackage` model to carry an immutable, unique `contextSessionId` for debugging.
+- **Context Item Provenance**: Refactored `ContextPackage` properties into wrapped `ContextItem<T>` structures carrying the specific, explainable inclusion reasons for every context node.
+- **Context Lifecycle Events**: Extended `contextService` to publish explicit `"Created" | "Updated" | "Expired"` lifecycle events.
+- **Subsystem Integration**: Loaded the AI context engine in `akira-store.ts` to trigger default provider registrations.
+
+---
+
+## [2.9.0-sprint-9] - 2026-06-30
+
+Status: Implementation Completed (Sprint 9)
+
+Description:
+
+This milestone marks the implementation of the Context Builder, enabling the assembly of transient, ephemeral Context Packages from active recall candidates, active stories, identity observations, and onboarding goals.
+
+### Added
+
+- **Context Subsystem**: Created `src/services/context/` containing types, rules, services, and builder modules.
+- **Context Package Model**: Defined the `ContextPackage` schema in `context/types.ts` capturing active recall nodes, active story lines, emergent identity observations, goals, user preferences, constraints, and recent activity summaries.
+- **Context Rules Engine**: Implemented deterministic context assembly and filtering rules in `context/context-rules.ts` (Active Story prioritization, Active Recall Candidate selective filtering, Identity Observation confidence thresholds, goal mapping, and preference extraction).
+- **Context Service**: Manages the transient, active context package view in memory and dispatches `"Updated"` notifications to subscribers.
+- **Context Builder**: Listens to Recall updates, Story changes, and Identity updates to automatically assemble and update the active Context Package.
+
+### Changed
+
+- **Recall Session Identifiers**: Updated `RecallCandidate` and `recallService` to support unique, immutable Recall Session identifiers per cycle to track activation runs.
+- **Recall Audit Trail**: Implemented lightweight audit logging to record activation reasons and timestamped deactivation logs.
+- **Recall Candidate Lifecycle**: Added `Active` and `Inactive` state transitions to the recall cache pipeline to prevent stale candidates from remaining active indefinitely.
+- **Subsystem Integration**: Loaded the context module in `akira-store.ts` to trigger automatic evaluations.
+
+---
+
+## [2.8.0-sprint-8] - 2026-06-30
+
+Status: Implementation Completed (Sprint 8)
+
+Description:
+
+This milestone marks the implementation of the Recall & Retrieval Engine, managing context-based memory activation based on active stories and importance signals.
+
+### Added
+
+- **Recall Subsystem**: Created `src/services/recall/` containing models, rules, services, and builder modules.
+- **Recall Candidates Model**: Defined the `RecallCandidate` structure in `recall/types.ts` capturing memory reference, supporting story IDs, active importance signals, recall reasons, and timestamps.
+- **Recall Rules Engine**: Implemented deterministic recall check rules in `recall/recall-rules.ts` evaluating criteria (Active Story association, high recency, explicit user capture intent, dense relationship nodes, and activity reinforcement logs).
+- **Recall Service**: Tracks active recall candidates and dispatches updates to subscribers.
+- **Recall Builder**: Orchestrates automatic background evaluation by listening to Memory promotions, Story changes, and Importance updates.
+
+### Changed
+
+- **Importance Observations Signal History**: Refactored `MemoryImportance` schema in `importance/types.ts` and `importance-service.ts` to store `signalHistory` tracking historical importance signal changes.
+- **Importance Provenance & Lifecycles**: Configured the importance service to record explicit reasons for signal recalculations (e.g. Memory Promoted, Story Updated) and to publish distinct event types (`Updated` | `Increased` | `Decreased` | `Recalculated`).
+- **Subsystem Integration**: Loaded the recall module in `akira-store.ts` to trigger automatic evaluations.
+
+---
+
+## [2.7.0-sprint-7] - 2026-06-30
+
+Status: Implementation Completed (Sprint 7)
+
+Description:
+
+This milestone marks the implementation of the Memory Importance Engine, providing a decoupled, explainable signals pipeline evaluating the cognitive relevance of stored memories.
+
+### Added
+
+- **Memory Importance Subsystem**: Created `src/services/importance/` containing models, rules, and builder modules.
+- **Importance Signals Model**: Defined the `ImportanceSignal` and `MemoryImportance` structures in `importance/types.ts` capturing signal types (`User Intent`, `Reinforcement`, `Story Influence`, `Milestone`, `Recency`, `Relationships`) with individual strengths and verbal explanations.
+- **Importance Rules Engine**: Implemented deterministic check rules in `importance/importance-rules.ts` calculating raw signal indicators for recency, milestone tags, relationship links, story active focus states, user capture actions, and structural graph reinforcement links (preventing circular coupling to the Identity Engine).
+- **Importance Service**: Tracks signal values per memory node, manages memory caches, and dispatches `"Updated"` notifications to registered subscribers.
+- **Importance Builder**: Automatically orchestrates background evaluation by listening only to Memory promotions and Story changes.
+
+### Changed
+
+- **Identity Observation Confidence History**: Refactored `IdentityObservation` schema in `identity/types.ts` and `identity-service.ts` to store `confidenceHistory` arrays, capturing historical confidence adjustments.
+- **Identity Merger Provenance**: Refactored observation merging to append descriptive, explainable text indicating the reasons and new evidence behind observation mergers.
+- **Identity Event Broadcasting**: Expanded the identity service listener system to publish explicit `"Updated" | "Confirmed" | "Refined"` lifecycle events.
+- **Subsystem Decoupling**: Configured the Importance Engine to remain independent from the Identity Engine, ensuring that Identity is a consumer of understanding rather than an input to importance.
+- **Subsystem Integration**: Loaded the importance module in `akira-store.ts` to trigger automatic evaluations.
+
+---
+
+## [2.6.0-sprint-6] - 2026-06-30
+
+Status: Implementation Completed (Sprint 6)
+
+Description:
+
+This milestone marks the implementation of the Emergent Identity Engine, closing the loop on our cognitive memory pipeline where user traits and values emerge exclusively from Stories.
+
+### Added
+
+- **Identity Subsystem**: Created `src/services/identity/` containing models, rules, services, and hypothesis loaders.
+- **Emergent Identity Model**: Defined the `IdentityObservation` and `IdentityCategory` structures in `identity/types.ts` capturing traits, values, strengths, work styles, confidence, and links back to supporting stories.
+- **Identity Onboarding Hypotheses**: Implemented the `IdentityHypothesis` model and `hypothesesService` to track temporary onboarding assumptions (`Proposed` $\to$ `Confirmed`/`Refined`/`Rejected` lifecycle).
+- **Identity Rules Engine**: Implemented deterministic inference rules in `identity/identity-rules.ts` (Reflective Trait Evaluation, Deep Work Focus Evaluation, Project Completion Hypothesis Confirmation).
+- **Identity Service**: Manages observations, merges duplicates, implements reinforcement increments, and notifies subscribers.
+- **Identity Builder**: Subscribes exclusively to Story events, ensuring that identity characteristics emerge solely from stories and never directly from memories or events.
+
+### Changed
+
+- **Story Lifecycle & Provenance Refinements**: Refactored `story-service.ts` and `story-builder.ts` to assign immutable rule provenance metadata during story creation, and to publish `"Completed"` lifecycle events.
+
+---
+
+## [2.5.0-sprint-5] - 2026-06-30
+
+Status: Implementation Completed (Sprint 5)
+
+Description:
+
+This milestone marks the implementation of the Story Engine, grouping connected memories and relationships into long-running narrative arcs (Stories) that model the user's progress.
+
+### Added
+
+- **Story Subsystem**: Created `src/services/stories/` containing models, rules, and services.
+- **Narrative Story Model**: Defined the `Story` data structure in `stories/types.ts` containing the title, status, summary, and arrays of linked memory IDs and relationship IDs.
+- **Story Rules Engine**: Implemented deterministic clustering rules in `stories/story-rules.ts`:
+  - **Project Clustering Rule**: Automatically routes project memories/relationships to dedicated project narrative arcs.
+  - **Reflection Cluster Rule**: Automatically groups note reflection memories into a central `"Personal Growth Reflections"` Story.
+- **Story Service**: Manages the story cache, supports mutations, and dispatches `"Created" | "Updated"` notifications to registered subscribers.
+- **Story Builder**: Subscribes to memory promotions and relationship detections, automatically executing rules in the background.
+
+### Changed
+
+- **Relationship Search Extensibility**: Refactored `relationship-service.ts` to query comparison targets through a decoupled `getComparisonCandidates(newMemory)` method, preparing the module for future memory indexing.
+- **Subsystem Integration**: Loaded the story subsystem in `akira-store.ts` to trigger story construction dynamically.
+
+---
+
+## [2.4.0-sprint-4] - 2026-06-30
+
+Status: Implementation Completed (Sprint 4)
+
+Description:
+
+This milestone marks the implementation of the Memory Relationship Engine, creating the foundation for establishing graph-based semantic links between validated Memories.
+
+### Added
+
+- **Memory Relationship Subsystem**: Created `src/services/memory/relationships/` containing models, rules, and relationship service modules.
+- **Relationship Data Model**: Defined the `MemoryRelationship` and `RelationshipType` structures, connecting source and target memories with supporting evidence and timestamp markers.
+- **Relationship Discovery Rules**: Implemented deterministic check rules:
+  - **Project Membership Rule (`Part Of`)**: Links memories sharing a non-null project ID.
+  - **Activity Sequence Rule (`Continues`)**: Links sequential work logs for the same project chronologically.
+  - **Milestone Causality Rule (`Caused By`)**: Links project completion milestones back to project creation events.
+  - **Cross-Reference Rule (`References`)**: Links memories pointing to the same entities or notes.
+- **Relationship Service**: Manages relationship cache arrays, exposes query tools (`getRelationshipsForMemory`), and publishes updates to registered subscribers.
+
+### Changed
+
+- **Subsystem Integration**: Loaded the relationship engine in `akira-store.ts` to execute relationship checking upon memory creation notifications.
+
+---
+
+## [2.3.0-sprint-3] - 2026-06-30
+
+Status: Implementation Completed (Sprint 3)
+
+Description:
+
+This milestone marks the implementation of the Memory Validation Engine, introducing the validation subsystem that promotes raw candidates into long-term validated memories.
+
+### Added
+
+- **Memory Validation Subsystem**: Created `src/services/memory/validation/` containing models, rules, and validators.
+- **Validated Memory Model**: Defined the `Memory` data structure in `validation/types.ts` carrying full explainability metadata (`reason`, `explanation`) and provenance tags (`sourceEventId`, `candidateId`).
+- **Deterministic Validator**: Implemented the `validator` module to evaluate candidates, outputting `"Promote" | "Hold" | "Reject"` status results.
+- **Validation Rules**: Implemented modular rules:
+  - **Milestone Validation**: Promotes milestone candidates immediately.
+  - **Goal Progress Validation**: Promotes task/mission completions, rejecting generic or blank titles (e.g. `"test"`, `"untitled"`).
+  - **Reflection Validation**: Promotes note captures, holding empty notes.
+  - **Activity Validation**: Promotes work activity, holding 0-minute tasks.
+- **Memory Service**: Manages validated memory lists, maintains graph mapping, and exposes downstream event publisher subscriptions.
+
+### Changed
+
+- **Subsystem Refinements**: Refactored candidate rules and service layers to support disposable subscription listeners (`initialize` / `dispose` hooks) and dynamic rule registration (`registerRule` helper).
+- **Decoupled Pipeline Flow**: Connected candidate events to validation evaluation triggers, completing the flow: `User Action` $\to$ `Event` $\to$ `Memory Candidate` $\to$ `Validation Engine` $\to$ `Memory`.
+
+---
+
+## [2.2.0-sprint-2] - 2026-06-30
+
+Status: Implementation Completed (Sprint 2)
+
+Description:
+
+This milestone marks the completion of the Memory Candidate Engine, implementing the candidate pipeline as a decoupled transition layer between raw Events and future Memories.
+
+### Added
+
+- **Memory Candidate Subsystem**: Created `src/services/memory/` containing candidate models, rules, and services.
+- **Candidate Data Model**: Defined the `MemoryCandidate` and `CandidateReason` schemas, supporting clear lineage links (provenance) back to original events.
+- **Candidate Rules Engine**: Implemented deterministic evaluation rules for project creation, project completion (progress = 100%), continuous work check-ins, note captures, and daily tasks/mission completions.
+- **Candidate Service**: Established background subscription listener to automatically inspect recorded events, evaluate candidate rules, and trigger callbacks for candidate subscribers.
+
+### Changed
+
+- **Store Loading Integration**: Connected the candidate engine to `akira-store.ts` to ensure automatic background evaluation of workspace events.
+
+---
+
+## [2.1.0-sprint-1] - 2026-06-30
+
+Status: Implementation Completed (Sprint 1)
+
+Description:
+
+This milestone marks the implementation of the first phase of the Adaptive Memory Engine: the Event Layer. It introduces modular event services without memories, stories, or AI.
+
+### Added
+
+- **Modular Event Directory**: Created `src/services/events/` to isolate event logic.
+- **Unified Event Model**: Defined the `MemoryEvent` model structure in `events/types.ts` matching the frozen AME v1.0 specifications.
+- **Centralized Event Service**: Created `eventService` in `events/event-service.ts` to construct events and dispatch notifications to registered listeners.
+
+### Changed
+
+- **Store Decoupling**: Refactored `akira-store.ts` to delegate all event construction to the centralized `eventService.record` module, removing local code dependencies.
+- **Backward Compatibility**: Preserved all state mutation payloads, UI state fields, and dashboard timeline widgets to prevent regressions.
+
+---
+
+## [2.0.0-architecture] - 2026-06-30
+
+Status: Architecture Complete (Not Implemented)
+
+Description:
+
+This milestone marks the completion, review, and approval of AKIRA's foundational architecture before implementation.
+
+No production functionality was added.
+
+Instead, the complete cognitive architecture, companion philosophy, and long-term design principles were finalized and frozen for implementation.
+
+### Added
+
+#### Adaptive Memory Engine Architecture
+
+Completed the architectural specification for:
+
+- Vision
+- Memory Schema
+- Memory Relationships
+- Memory Importance Engine
+- Story Model
+- Memory Lifecycle
+- Memory Retrieval & Recall
+- Context Builder
+- Identity Layer
+
+#### Companion Core
+
+Defined AKIRA's behavioral philosophy including:
+
+- Companion Philosophy
+- Truth over Comfort
+- Humility
+- Accountability
+- Compassion
+- Respect for User Autonomy
+
+#### Core Architectural Principles
+
+Established:
+
+- Events → Memories → Stories → Identity hierarchy
+- Explainable Identity through evidence and provenance
+- Story-centric reasoning
+- Context Builder independent from reasoning models
+- Separation of Memory, Context, AI, and Companion behavior
+- Technology-independent architecture
+- Honest, trustworthy, long-term companionship
+
+### Changed
+
+- Architecture is now frozen for implementation.
+- Future architectural enhancements should be tracked in an Architecture Backlog (AME v2) instead of modifying the approved specification.
+
+### Notes
+
+- This milestone represents the transition from product architecture into engineering.
+- The Adaptive Memory Engine and Companion Core together now serve as the constitutional foundation of AKIRA.
+- No implementation code is included in this milestone.
+- The next milestone begins engineering of the approved architecture.
+
+---
+
 ## [1.0.3] - 2026-06-30
 
 v1.0.3 release. Implemented cascading reference cleanups and memory state export helpers.

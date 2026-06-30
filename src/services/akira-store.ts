@@ -1,5 +1,14 @@
 import { useSyncExternalStore } from "react";
 import { seed } from "./seed";
+import { MemoryEvent } from "./events/types";
+import { eventService } from "./events/event-service";
+import "./memory";
+import "./stories";
+import "./identity";
+import "./importance";
+import "./recall";
+import "./context";
+import "./ai";
 
 export type Project = {
   id: string;
@@ -62,24 +71,6 @@ export type Profile = {
   name: string;
   role: string;
   motto: string;
-};
-
-export type MemoryEvent = {
-  id: string;
-  timestamp: string;
-  eventType:
-    | "project_created"
-    | "project_continued"
-    | "project_updated"
-    | "note_created"
-    | "note_edited"
-    | "task_completed"
-    | "mission_completed";
-  title: string;
-  description: string;
-  relatedProjectId?: string | null;
-  relatedNoteId?: string | null;
-  metadata?: Record<string, unknown>;
 };
 
 export type WorkSession = {
@@ -168,26 +159,6 @@ export function useAkira<T>(selector: (s: AkiraState) => T): T {
   );
 }
 
-function recordMemoryEvent(
-  eventType: MemoryEvent["eventType"],
-  title: string,
-  description: string,
-  relatedProjectId?: string | null,
-  relatedNoteId?: string | null,
-  metadata?: Record<string, unknown>,
-): MemoryEvent {
-  return {
-    id: uid(),
-    timestamp: nowISO(),
-    eventType,
-    title,
-    description,
-    relatedProjectId: relatedProjectId || null,
-    relatedNoteId: relatedNoteId || null,
-    metadata: metadata || {},
-  };
-}
-
 export const akira = {
   getState() {
     return state;
@@ -214,7 +185,7 @@ export const akira = {
       icon: input.icon || "sparkles",
     };
 
-    const mem = recordMemoryEvent(
+    const mem = eventService.record(
       "project_created",
       "Project Created",
       `Started new project: ${p.name}`,
@@ -235,7 +206,7 @@ export const akira = {
       const project = s.projects.find((p) => p.id === id);
       if (!project) return s;
       const p = { ...project, ...patch };
-      const mem = recordMemoryEvent(
+      const mem = eventService.record(
         "project_updated",
         "Project Updated",
         `Updated details for project: ${p.name}`,
@@ -278,7 +249,7 @@ export const akira = {
         lastWorked: nowISO(),
         timeSpentMinutes: project.timeSpentMinutes + 5,
       };
-      const mem = recordMemoryEvent(
+      const mem = eventService.record(
         "project_continued",
         "Project Continued",
         `Logged 5 minutes of work on project: ${p.name}`,
@@ -326,7 +297,7 @@ export const akira = {
       const memories = [...s.memories];
       if (t.done) {
         memories.unshift(
-          recordMemoryEvent(
+          eventService.record(
             "task_completed",
             "Task Completed",
             `Completed task: "${t.title}"`,
@@ -339,7 +310,7 @@ export const akira = {
         const allDone = nextTasks.every((tk) => tk.done) && nextTasks.length > 0;
         if (allDone) {
           memories.unshift(
-            recordMemoryEvent(
+            eventService.record(
               "mission_completed",
               "Daily Mission Completed",
               `Finished all ${nextTasks.length} missions for today!`,
@@ -449,7 +420,7 @@ export const akira = {
     };
 
     set((s) => {
-      const mem = recordMemoryEvent(
+      const mem = eventService.record(
         "note_created",
         "Note Created",
         title ? `Captured thought: "${title}"` : "Captured raw thought",
@@ -475,7 +446,7 @@ export const akira = {
 
       const memories = shouldLog
         ? [
-            recordMemoryEvent(
+            eventService.record(
               "note_edited",
               "Note Edited",
               n.title ? `Updated thought: "${n.title}"` : "Updated raw thought",
