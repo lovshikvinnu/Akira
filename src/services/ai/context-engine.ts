@@ -35,6 +35,45 @@ export const aiContextEngine = {
   },
 
   /**
+   * Transforms context package metadata and prompt variables into provider requests, dispatching via standard streaming interface.
+   */
+  async executeRequestStream(
+    prompt: string,
+    onChunk: (chunk: string) => void,
+    contextPackage?: ContextPackage,
+    options?: Omit<AIRequest, "prompt" | "contextPackage"> & { signal?: AbortSignal },
+  ): Promise<StandardAIResponse> {
+    const provider = providerRegistry.getActiveProvider();
+    if (!provider) {
+      throw new Error("No active AI Provider registered in providerRegistry.");
+    }
+
+    let structuredSystemInstruction =
+      options?.systemInstruction || "You are AKIRA, a helpful desktop AI companion.";
+
+    if (contextPackage) {
+      const contextBlock = this.serializeContextPackage(contextPackage);
+      structuredSystemInstruction += `\n\n[COGNITIVE CONTEXT]\n${contextBlock}`;
+    }
+
+    const request: AIRequest = {
+      prompt,
+      systemInstruction: structuredSystemInstruction,
+      contextPackage,
+      ...options,
+    };
+
+    if (provider.generateContentStream) {
+      return provider.generateContentStream(request, onChunk, options?.signal);
+    } else {
+      // Fallback if provider doesn't support streaming
+      const response = await provider.generateContent(request);
+      onChunk(response.content);
+      return response;
+    }
+  },
+
+  /**
    * Serializes a Context Package, preserving provenance reasons for explainability.
    */
   serializeContextPackage(pkg: ContextPackage): string {

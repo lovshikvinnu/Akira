@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, ComponentType } from "react";
 import { Dumbbell, BookOpen, Moon, Cpu, Sparkles, Rocket } from "lucide-react";
 
 export function ProjectIcon({ icon, className }: { icon: string; className?: string }) {
@@ -109,15 +109,22 @@ export function EmptyState({
   title,
   hint,
   action,
+  icon: Icon,
 }: {
   title: string;
   hint?: string;
   action?: ReactNode;
+  icon?: ComponentType<{ className?: string }>;
 }) {
   return (
-    <div className="grid place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-14 text-center">
-      <h3 className="font-display text-lg font-semibold">{title}</h3>
-      {hint && <p className="mt-2 max-w-sm text-sm text-muted-foreground">{hint}</p>}
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.015] px-6 py-12 text-center animate-fade-in w-full">
+      {Icon && (
+        <span className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.03] text-muted-foreground/60 border border-white/5">
+          <Icon className="h-5 w-5" />
+        </span>
+      )}
+      <h3 className="font-display text-sm font-semibold text-white">{title}</h3>
+      {hint && <p className="mt-1.5 max-w-sm text-xs text-muted-foreground">{hint}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
   );

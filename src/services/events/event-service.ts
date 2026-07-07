@@ -7,7 +7,7 @@ const uid = () =>
 
 const nowISO = () => new Date().toISOString();
 
-type EventCallback = (event: MemoryEvent) => void;
+export type EventCallback = (event: MemoryEvent) => void;
 const callbacks = new Set<EventCallback>();
 
 export const eventService = {

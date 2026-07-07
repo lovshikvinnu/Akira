@@ -1,6 +1,9 @@
 import { Story } from "./types";
 
-type StoryListener = (event: { type: "Created" | "Updated" | "Completed"; story: Story }) => void;
+export type StoryListener = (event: {
+  type: "Created" | "Updated" | "Completed";
+  story: Story;
+}) => void;
 const listeners = new Set<StoryListener>();
 
 const storyCache: Story[] = [];

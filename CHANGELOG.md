@@ -7,6 +7,173 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.0-sprint-9] - 2026-07-08
+
+Status: Implementation Completed (Sprint 9 - Initiative Engine & Sprint 8 Refinement)
+
+Description:
+
+This milestone marks the complete implementation and integration of the Initiative Engine as part of the Companion Intelligence Layer. The Initiative Engine acts as the final decision layer of Companion Intelligence, evaluating whether the companion should take proactive action (Silence, Suggestion, Question, Reminder) based strictly on Resolved Context. Silence is preserved as the default, conservative, non-manipulative behavior. Concurrently, the Context Resolution Engine was refined under the Context Relevance Refinement to remove all prompt/token optimization logic.
+
+### Added
+
+- **Initiative Engine Subsystem**: Created `src/services/companion/initiative/` containing types, constants, rules, builder, events, and service modules.
+- **Initiative Decision API**: Exposed InitiativeDecision model, outcomes, evidence validation, and correction metrics.
+- **No-Action Default & Timing Rules**: Implemented evaluations for opportunity, timing suitability, context confidence limits, and user benefit to enforce silence by default.
+- **Evidence Verification**: Supported user corrections to lock confidence to 1.00 while preserving trace logs.
+- **Testing**: Built comprehensive tests in `initiative.test.ts` passing 100%.
+
+### Changed
+
+- **Context Relevance Refinement**: Modified the Context Resolution Engine (`context-resolution/types.ts` and comments) to replace all prompt-optimization and token-optimization concepts with Contextual Relevance Resolution.
+
+---
+
+## [2.17.0-sprint-8] - 2026-07-08
+
+Status: Implementation Completed (Sprint 8 - Context Resolution Engine & Sprint 7 Refinement)
+
+Description:
+
+This milestone marks the complete implementation and integration of the Context Resolution Engine (CRE) as part of the Companion Intelligence Layer. CRE acts as a centralized orchestrator that resolves and prioritizing outputs from all specialised subsystems (Presence, State, Goals, Knowledge, Habits, Relationships, Reflection) into a single, cohesive, resolved context. Concurrently, the Reflection Engine was refined to remove storage/persistence ownership in favor of platform-level persistence.
+
+### Added
+
+- **Context Resolution Engine (CRE)**: Created `src/services/companion/context-resolution/` containing types, constants, rules, builder, events, and service modules.
+- **Context Resolution API**: Exposed resolution status, ResolvedContext output model, and coordination parameters.
+- **Context Aggregation & Event Subscriptions**: Implemented live updates that automatically rebuild the resolved context whenever any specialized subsystem triggers changes.
+- **Conflict Resolution & Uncertainty Propagation**: Reconciles contradictions (e.g. state focus mismatching goal priorities) by logging conflicts and decaying confidence without discarding raw evidence metrics.
+- **Relevance Prioritization**: Filters context elements (goals, habits, relationships) dynamically to match current focus project.
+- **Testing**: Built unit tests in `context-resolution.test.ts` passing 100%.
+
+### Changed
+
+- **Reflection Persistence Refinement**: Updated `ReflectionService` to remove direct imports and operations of `localStorage` (persistence). The engine now accepts history via injection during initialization and focuses solely on compiling and publishing reports.
+
+---
+
+## [2.16.0-sprint-6] - 2026-07-08
+
+Status: Implementation Completed (Sprint 6 - Habit Intelligence & Sprint 5 Refinement)
+
+Description:
+
+This milestone marks the complete implementation and integration of the Habit Intelligence Engine as part of the Companion Intelligence Layer. It provides AKIRA with behavioral pattern mapping and pattern observation. Concurrently, the Relationship Engine was refined to remove all hardcoded numeric promotion thresholds in favor of the evidence-driven "Sufficient Supporting Evidence" principle.
+
+### Added
+
+- **Habit Intelligence Engine Subsystem**: Created `src/services/companion/habits/` containing types, constants, rules, builder, events, and service modules.
+- **Habit Intelligence API**: Exposed lifecycle status, evidence models, and context outputs.
+- **Habit Lifecycle Rules**: Implemented transitions across `BehaviorObserved` ➔ `RepeatedEvidence` ➔ `PatternDetected` ➔ `HabitEstablished` ➔ `HabitEvolves` ➔ `HabitWeakens` ➔ `HabitArchived` using the non-numeric "Sufficient Supporting Evidence" principle.
+- **Habit Neutrality & Decay Check**: Ensured habits are strictly observational (no Streaks/Gamification/productivity scores) and undergo decay evaluation based on elapsed time since the last event.
+- **Evidence Verification**: Supported user corrections to lock confidence to 1.00 while preserving trace logs.
+- **Testing**: Built comprehensive tests in `habits.test.ts` passing with 100%.
+
+### Changed
+
+- **Relationship Engine Refinement**: Removed all fixed numeric interaction promotion thresholds (e.g. 3 occurrences) from `rules.ts` and `constants.ts`. Replaced them with the evidence-driven "Sufficient Supporting Evidence" principle, promoted by explicit user confirmation or verified corrections.
+- **Boot Integration**: Registered the new `habitService` to initialize on root startup.
+
+---
+
+## [2.15.0-sprint-5] - 2026-07-07
+
+Status: Implementation Completed (Sprint 5 - Relationship Engine)
+
+Description:
+
+This milestone marks the complete implementation and integration of the Relationship Engine as part of the Companion Intelligence Layer, providing AKIRA with interpersonal connection tracking, lifecycle status modeling, and user correction overrides.
+
+### Added
+
+- **Relationship Engine Subsystem**: Created `src/services/companion/relationships/` containing types, constants, rules, builder, events, and service modules.
+- **Interpersonal Data Models**: Maintains connection data logging roles, significance ratings, and shared context.
+- **Testing**: Built unit tests in `relationships.test.ts` running cleanly.
+
+---
+
+## [2.14.0-sprint-4] - 2026-07-07
+
+Status: Implementation Completed (Sprint 4 - Knowledge Engine)
+
+Description:
+
+This milestone marks the complete implementation and integration of the Knowledge Engine as part of the Companion Intelligence Layer, providing AKIRA with structured domain, skill, and concept tracking, prerequisite checking, learning progress computation, and knowledge gap detection, while fully respecting the Goal-Task separation constraint.
+
+### Added
+
+- **Knowledge Engine Subsystem**: Created `src/services/companion/knowledge/` containing types, constants, rules, builder, events, and service modules.
+- **Knowledge Engine API**: Exposed `KnowledgeNodeType`, `KnowledgeStatus`, `KnowledgeNode`, `KnowledgeEvidence`, `KnowledgeRelationship`, and `KnowledgeContext` models in `types.ts`.
+- **Knowledge Lifecycle Rules**: Implemented rules in `rules.ts` that process raw evidence, transition nodes through states (`Observed` ➔ `Inferred` ➔ `Refined` ➔ `Reinforced` ➔ `Updated` ➔ `Deprecated`), and manage confidence scores.
+- **Evidence Verification Principle**: Refined node values using user corrections, updating node confidence to 1.0.
+- **Bootloader & Handoff Integration**: Registered the `knowledgeService` to initialize on root startup.
+- **Testing**: Built unit tests in `knowledge.test.ts` running cleanly.
+
+---
+
+## [2.13.0-sprint-3] - 2026-07-07
+
+Status: Implementation Completed (Sprint 3 - Goal Engine)
+
+Description:
+
+This milestone marks the complete implementation and integration of the Goal Engine as part of the Companion Intelligence Layer, providing AKIRA with structured goal lifecycle modeling, task contribution progression, and user correction overrides.
+
+### Added
+
+- **Goal Engine Subsystem**: Created `src/services/companion/goals/` containing types, constants, rules, builder, events, and service modules.
+- **Goal Engine API**: Exposed `GoalStatus`, `Goal`, `GoalEvidence`, and `GoalContext` models in `types.ts`.
+- **Goal Lifecycle Rules**: Implemented rules in `rules.ts` that transition goals across `Created`, `Clarified`, `Active`, `Progress`, `Paused`, `Resumed`, `Completed`, and `Archived` statuses.
+- **Evidence Verification Principle**: Created user correction rules setting confidence to 1.0 and preserving trace overrides.
+- **Goal-Task Decoupling**: Implemented `supportedTaskIds` mapping to progress contribution without implicit promotion.
+- **Bootloader Integration**: Connected `goalService` to initialize at root boot.
+- **Testing**: Built unit tests in `goals.test.ts` verifying all parameters.
+
+---
+
+## [2.12.0-sprint-2] - 2026-07-07
+
+Status: Implementation Completed (Sprint 2 - Companion State Engine)
+
+Description:
+
+This milestone marks the complete implementation and integration of the Companion State Engine as part of the Companion Intelligence Layer, providing AKIRA with active working context tracking, user correction overrides, and transition snapshot lockouts.
+
+### Added
+
+- **Companion State Engine Subsystem**: Created `src/services/companion/state/` containing types, constants, rules, builder, events, and service modules.
+- **Companion State Engine API**: Exposed `FocusArea`, `SessionIntent`, `AwarenessSnapshot`, `StateEvidence`, `InferenceRecord`, and `CompanionState` models in `types.ts`.
+- **Deterministic State Transition Rules**: Implemented rules in `rules.ts` that process raw evidence, update context confidence, and manage focus and projects.
+- **Evidence Verification Principle**: Implemented user correction logic that preserves previous inferences, records user corrections as verified evidence, and adjusts confidence to 1.0.
+- **Bootloader & Handoff Integration**: Connected bootstrapping handover in `companionStateService.bootstrap` which locks the Awareness Snapshot and establishes active working context ownership.
+- **Decoupling and Testing**: Created unit tests in `state.test.ts` running cleanly.
+
+---
+
+## [2.11.0-sprint-1] - 2026-07-07
+
+Status: Implementation Completed (Sprint 1 - Presence Engine)
+
+Description:
+
+This milestone marks the complete implementation and integration of the Presence Engine as part of the Companion Intelligence Layer, providing AKIRA with deterministic temporal and session awareness.
+
+### Added
+
+- **Presence Engine Subsystem**: Created `src/services/companion/presence/` containing types, constants, rules, builder, events, and service modules.
+- **Presence Engine API**: Exposed `SessionType`, `ReturnState`, `TimePeriod`, and `PresenceContext` models in `types.ts`.
+- **Deterministic Rules Engine**: Implemented logic in `rules.ts` mapping local hours and time durations into descriptive temporal indicators, calculating continuity confidence and decay profiles.
+- **Presence Service**: Manages the runtime lifecycle of the Presence Context, subscribing to akira-store updates and dispatching updates to local subscribers.
+- **Store Updates Subscription**: Refactored `akira-store.ts` to expose `subscribe(l: () => void)` method allowing decoupling of companion state updates from store mutations.
+- **Unidirectional Decoupling**: Implemented native TypeScript unit tests in `presence.test.ts` running cleanly.
+
+### Changed
+
+- **Global Event Layer**: Extended `src/services/events/types.ts` to support `"presence_updated"` system events.
+- **Bootloader Integration**: Mounted `presenceService.initialize()` at root lifecycle in `__root.tsx` to automatically boot companion presence tracking.
+
+---
+
 ## [2.0.0] - 2026-06-30
 
 Status: Release Completed (Brain v1.0 Foundation)

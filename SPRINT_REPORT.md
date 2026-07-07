@@ -217,3 +217,213 @@ This document compiles the implementation progress, validation reports, and tech
 ### 5. Next Sprint Goals
 
 - **Sprint 11**: Integrate the AI Context Engine with the user interface to enable live companion interactions.
+
+---
+
+## Sprint 1 (Companion Intelligence): Presence Engine
+
+### 1. Achievements
+
+- **Companion Intelligence Structure**: Created the modular subsystem directories under `src/services/companion/` with placeholder files for the future engines (State, Goals, Knowledge, Relationships, Habits, Reflection, Context Resolution, Initiative).
+- **Presence Engine Subsystem**: Fully implemented the Presence Engine inside `src/services/companion/presence/` containing type definitions, thresholds, rules, context builder, local event dispatcher, and background service lifecycle monitoring.
+- **Store-Driven Decoupled Synchronization**: Refactored `akira-store.ts` to expose a `subscribe` wrapper. Configured the `presenceService` to subscribe to store updates, ensuring that active session and project transitions are synced in real-time without introducing circular compiler loops.
+- **Deterministic Rules & Calculations**: Implemented deterministic rules in `rules.ts` for time classification, return state tracking, first session today determination, and unusual access checking. Designed confidence decay calculations for continuity and active presence.
+- **Provenance Preservation**: Configured the output `PresenceContext` to preserve detailed evidence (timestamps of current session, last session, last event, and recent project ID) and confidence scores.
+- **Global Event Layer Integration**: Added the `"presence_updated"` system event to `src/services/events/types.ts` and configured the presence service to record update traces automatically in the global event logs.
+- **UI Lifecycle Integration**: Hooked `presenceService.initialize()` and `presenceService.shutdown()` into `RootComponent` in `__root.tsx` to boot companion temporal awareness on application load.
+- **Unit Test Suite**: Built `presence.test.ts` verifying all calculations and boundaries with 100% pass rate.
+
+### 2. Verification & Compliance
+
+- **Linter & Formatting**: Passed with **zero errors**.
+- **Type-Safety Compiler Check**: Ran `npx tsc --noEmit` which completed with **zero errors** across the workspace.
+- **Architectural Integrity**: The Presence Engine remains purely observational, emotionally neutral, and completely decoupled from future intelligence engines (no prompt assemblies, no recommendations, and no habit inferences are executed).
+
+### 3. Next Sprint Goals
+
+- **Sprint 2 (Companion Intelligence)**: Implement the **Companion State Engine** to manage session-scoped volatile focus context.
+
+---
+
+## Sprint 2 (Companion Intelligence): Companion State Engine
+
+### 1. Achievements
+
+- **State Engine Subsystem**: Fully implemented the Companion State Engine inside `src/services/companion/state/` containing types, constants, rules, builder, events, and service modules.
+- **Handoff and Snapshot Lockout**: Integrated the bootstrap lifecycle handover in `companionStateService.bootstrap`, which loads the initial snapshot from the Awareness Session and locks it into an immutable baseline, establishing the Companion State Engine as the sole runtime working context owner.
+- **Evidence Verification Principle**: Fully implemented the user correction logic. Explicit corrections are logged as verified evidence, modifying the active target value, setting confidence to 1.0, and preserving the overridden inferences for trace explainability.
+- **Real-Time Workspace Synchronization**: Subscribed to `akira` store updates inside the state service to automatically capture active projects switch events and active session focus changes.
+- **Provenance Preservation**: Configured the output `CompanionState` package to carry and maintain details about snapshot, presence, evidence logs, and inference traces.
+- **Global Event Layer Integration**: Registered update events in the event history layer using `"note_created"` actions mapping changes back to specific projects.
+- **Unit Test Suite**: Developed the comprehensive test file `state.test.ts` verifying all validations, correct state transitions, bootstrap lockouts, and evidence corrections with a 100% pass rate.
+
+### 2. Verification & Compliance
+
+- **Linter & Formatting**: Passed with **zero errors**.
+- **Type-Safety Compiler Check**: Ran `npx tsc --noEmit` which completed with **zero errors** across the workspace.
+- **Architectural Integrity**: Verified that the State Engine remains purely a temporary context tracking layer, independent from reasoning, goal planning, habit detection, or response generation.
+
+### 3. Next Sprint Goals
+
+- **Sprint 3 (Companion Intelligence)**: Implement the **Goal Engine** to manage user intentions and tasks contribution.
+
+---
+
+## Sprint 3 (Companion Intelligence): Goal Engine
+
+### 1. Achievements
+
+- **Goal Subsystem**: Created the modular subsystem directories under `src/services/companion/goals/` containing types, constants, rules, builder, service, events, and index files.
+- **Task Association & Decoupling**: Implemented `supportedTaskIds` to decouple goals from tasks. Workspace tasks contribute progress, but are never promoted to goals, and goals are never implicitly created from tasks.
+- **Evidence Verification Principle**: Integrated user corrections so overrides on a goal's parameters set its confidence to `1.00`, preserving explainable traces of the previous state.
+- **Unit Test Suite**: Developed `goals.test.ts` covering creation, clarification, pause/resume, task completion contribution, and user overrides. All tests passed.
+
+### 2. Verification & Compliance
+
+- **Linter & Formatting**: Passed with **zero errors**.
+- **Type-Safety Compiler Check**: Completed with **zero errors** across the workspace.
+- **Goal-Task Separation**: Successfully preserved goal ownership within the Goal Engine.
+
+### 3. Next Sprint Goals
+
+- **Sprint 4 (Companion Intelligence)**: Implement the **Knowledge Engine** to track user learning progression.
+
+---
+
+## Sprint 4 (Companion Intelligence): Knowledge Engine
+
+### 1. Achievements
+
+- **Knowledge Subsystem**: Created the modular subsystem directories under `src/services/companion/knowledge/` containing types, constants, rules, builder, service, events, and index files.
+- **Competency Mapping**: Developed a nodes-based knowledge base (`KnowledgeNode`) supporting domains, skills, and concepts, with initial seeding for "Compiler Design".
+- **Prerequisite Checking & Gap Detection**: Connected relationships mapping so that when active goals are parsed, any unmastered prerequisite concepts are automatically flagged as learning gaps.
+- **Progress Tracking**: Domain progress is calculated dynamically as the ratio of mastered concepts to total concepts under that domain.
+- **Evidence Verification Principle**: Updates to concepts or skills via user corrections are recorded as verified evidence, setting confidence to `1.00` and preserving the history log.
+- **Lifecycle Boot Sequence**: Integrated `knowledgeService` to initialize at root boot in `__root.tsx`.
+- **Unit Test Suite**: Built `knowledge.test.ts` verifying observation, lifecycle transitions, prerequisites, gap detections, and Goal-Task separation. All tests passed.
+
+### 2. Verification & Compliance
+
+- **Linter & Formatting**: Passed with **zero errors**.
+- **Type-Safety Compiler Check**: Completed with **zero errors** across the workspace.
+- **Goal-Task Separation**: Verified that seeding or updating knowledge nodes does not implicitly create or update goal records in the Goal Engine.
+
+### 3. Next Sprint Goals
+
+- **Sprint 5 (Companion Intelligence)**: Implement the **Relationship Engine** to track interpersonal context.
+
+---
+
+## Sprint 5 (Companion Intelligence): Relationship Engine
+
+### 1. Achievements
+
+- **Relationship Subsystem**: Created modular directories under `src/services/companion/relationships/` containing types, constants, rules, builder, service, events, and index files.
+- **Interpersonal Data Models**: Logs roles, significance, and shared project/goal context for observed contacts.
+- **Sprint 5 Refinement**: Removed all hardcoded numeric interaction promotion thresholds (e.g. 3 occurrences). Replaced them with the evidence-driven "Sufficient Supporting Evidence" principle where promotions are driven by explicit user confirmation or verified correction.
+- **Lifecycle Boot Sequence**: Integrated `relationshipService` to initialize on root startup.
+- **Unit Test Suite**: Developed `relationships.test.ts` verifying all evidence-driven transitions and user corrections. All tests passed.
+
+### 2. Verification & Compliance
+
+- **Linter & Formatting**: Passed with **zero errors**.
+- **Type-Safety Compiler Check**: Completed with **zero errors** across the workspace.
+- **Relationship Neutrality Invariant**: Verified that no sentiment or qualitative judgments are stored.
+- **Person Identity Constraint**: Verified that mentioned individuals are not promoted to relationships without explicit user confirmation or verified corrections.
+
+### 3. Next Sprint Goals
+
+- **Sprint 6 (Companion Intelligence)**: Implement the **Habit Intelligence Engine** to map behavioral routines.
+
+---
+
+## Sprint 6 (Companion Intelligence): Habit Intelligence
+
+### 1. Achievements
+
+- **Habit Subsystem**: Created the modular subsystem directories under `src/services/companion/habits/` containing types, constants, rules, builder, service, events, and index files.
+- **Behavioral Pattern Mapping**: Logs ObservedHabits with dynamic confidence, stability metrics, evidence logs, and context dependencies.
+- **Habit Lifecycle Rules**: Implemented transitions across `BehaviorObserved` ➔ `RepeatedEvidence` ➔ `PatternDetected` ➔ `HabitEstablished` ➔ `HabitEvolves` ➔ `HabitWeakens` ➔ `HabitArchived` using the non-numeric "Sufficient Supporting Evidence" principle.
+- **Habit Neutrality & Decay Check**: Ensured habits are strictly observational (no Streaks/Gamification/productivity scores) and undergo decay evaluation based on elapsed time since the last event.
+- **Evidence Verification Principle**: Updates to habits via user corrections are recorded as verified evidence, setting confidence to `1.00` and preserving the history log.
+- **Lifecycle Boot Sequence**: Integrated `habitService` to initialize at root boot in `__root.tsx`.
+- **Unit Test Suite**: Built `habits.test.ts` verifying observation, lifecycle transitions, decay evaluation, neutrality, and Goal-Task separation. All tests passed.
+
+### 2. Verification & Compliance
+
+- **Linter & Formatting**: Passed with **zero errors**.
+- **Type-Safety Compiler Check**: Completed with **zero errors** across the workspace.
+- **Habit Neutrality Invariant**: Checked that no good/bad or healthy/unhealthy judgment tags are assigned.
+- **No Streaks or Gamification**: Verified that no streak scoreboards or gamification levels were introduced.
+
+### 3. Next Sprint Goals
+
+- **Sprint 7 (Companion Intelligence)**: Implement the **Reflection Engine** to process session outcomes.
+
+---
+
+## Sprint 7 (Companion Intelligence): Reflection Engine
+
+### 1. Achievements
+
+- **Reflection Subsystem**: Created modular directories under `src/services/companion/reflection/` containing types, constants, rules, builder, service, events, and index files.
+- **Retrospective Synthesis**: Compiles a descriptive and non-judgmental `ReflectionReport` summarizing completed goals, mastered skills, and focus habit metrics.
+- **Reflection Persistence Refinement**: Extracted all `localStorage` operations out of the Reflection subsystem. The engine focuses exclusively on compilation and events, while actual storage is managed by the Platform infrastructure layer.
+- **Temporal Decoupling**: Active session components consume only read-only, previously finalized reflection contexts. New reflections are compiled strictly at session close/finalization.
+- **Evidence Verification Principle**: Updates to reports via user corrections are recorded as verified evidence, setting confidence to `1.00` and preserving history logs.
+- **Unit Test Suite**: Developed `reflection.test.ts` verifying synthesis, decoupling, corrections, and default behaviors. All tests passed.
+
+### 2. Verification & Compliance
+
+- **Linter & Formatting**: Passed with **zero errors**.
+- **Type-Safety Compiler Check**: Completed with **zero errors** across the workspace.
+- **Reflection Neutrality Invariant**: Verified that no motivational remarks, predictions, judgments, or advice are generated.
+
+### 3. Next Sprint Goals
+
+- **Sprint 8 (Companion Intelligence)**: Implement the **Context Resolution Engine** to compile a unified situational context.
+
+---
+
+## Sprint 8 (Companion Intelligence): Context Resolution Engine
+
+### 1. Achievements
+
+- **Context Resolution Subsystem**: Created modular directories under `src/services/companion/context-resolution/` containing types, constants, rules, builder, events, and service modules.
+- **Context Orchestration & Aggregation**: Ingests conceptual outputs from all active engines. Subscribes to events to automatically update the resolved context dynamically.
+- **Conflict Resolution**: Detects alignment mismatches (e.g. conversational focus contradicting active goal priorities) and logs them into `conflictsExposed` while decaying context confidence, without discarding evidence.
+- **Provenance Preservation**: Retains originating subsystem references, evidence counts, and confidence metrics for all consolidated elements.
+- **Unit Test Suite**: Developed `context-resolution.test.ts` verifying aggregation, conflict exposure, provenance preservation, and event triggers. All tests passed.
+
+### 2. Verification & Compliance
+
+- **Linter & Formatting**: Passed with **zero errors**.
+- **Type-Safety Compiler Check**: Completed with **zero errors** across the workspace.
+- **Orchestration-Only Boundary**: Checked that the engine does not perform independent context generation, memory mutations, or prompt compiling.
+
+### 3. Next Sprint Goals
+
+- **Sprint 9 (Companion Intelligence)**: Implement the **Initiative Engine** to evaluate check-in triggers.
+
+---
+
+## Sprint 9 (Companion Intelligence): Initiative Engine
+
+### 1. Achievements
+
+- **Initiative Subsystem**: Created modular directories under `src/services/companion/initiative/` containing types, constants, rules, builder, service, events, and index files.
+- **Context Relevance Refinement (Sprint 8 Refinement)**: Applied the refinement to Context Resolution Engine (`types.ts` and comments), replacing prompt/token/LLM optimization concepts with Contextual Relevance Resolution.
+- **Proactivity Evaluation**: Evaluates opportunities, confidence constraints, user benefits, and timing suitability strictly from the Resolved Context.
+- **No-Action Default Invariant**: Enforces Silence by default when context confidence is low, evidence is weak, or deep focus is active, preserving user autonomy and preventing manipulative engagement loops.
+- **Evidence Verification**: Supported user corrections to lock confidence to `1.00` while preserving trace logs.
+- **Unit Test Suite**: Developed `initiative.test.ts` verifying no-action default, timing/focus suppression, low-confidence suppression, conflicts, blocked goals, and overrides. All tests passed.
+
+### 2. Verification & Compliance
+
+- **Linter & Formatting**: Passed with **zero errors**.
+- **Type-Safety Compiler Check**: Completed with **zero errors** across the workspace.
+- **Initiative Invariants**: Confirmed that the engine never generates messages/prompts, updates user identity, executes actions, or mutates database memory nodes.
+
+### 3. Next Sprint Goals
+
+- **Sprint 10 (Companion Intelligence)**: Implement the **Initiative Execution** / dialogue injection layer.

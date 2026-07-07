@@ -1,6 +1,16 @@
-import { Home, Rocket, Brain, Target, MessageSquare, Settings } from "lucide-react";
+import {
+  Home,
+  Rocket,
+  Brain,
+  Target,
+  MessageSquare,
+  Settings,
+  Terminal,
+  Clock,
+} from "lucide-react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useAkira } from "@/services/akira-store";
+import { useState, useEffect } from "react";
 
 const items = [
   { icon: Home, label: "Home", to: "/" as const },
@@ -8,12 +18,32 @@ const items = [
   { icon: Brain, label: "Brain Dump", to: "/brain-dump" as const },
   { icon: Target, label: "Daily Mission", to: "/daily-mission" as const },
   { icon: MessageSquare, label: "Chat", to: "/chat" as const },
+  { icon: Clock, label: "Sessions", to: "/sessions" as const },
   { icon: Settings, label: "Settings", to: "/settings" as const },
 ];
 
 export function Sidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const profile = useAkira((s) => s.profile);
+  const [devMode, setDevMode] = useState(false);
+
+  useEffect(() => {
+    const checkDevMode = () => {
+      setDevMode(localStorage.getItem("akira:dev_mode") === "true");
+    };
+    checkDevMode();
+    window.addEventListener("storage", checkDevMode);
+    window.addEventListener("akira:dev_mode_change", checkDevMode);
+    return () => {
+      window.removeEventListener("storage", checkDevMode);
+      window.removeEventListener("akira:dev_mode_change", checkDevMode);
+    };
+  }, []);
+
+  const navItems = [...items];
+  if (devMode) {
+    navItems.push({ icon: Terminal, label: "Brain Inspector", to: "/brain" as "/settings" });
+  }
 
   return (
     <aside className="glass-panel sticky top-6 ml-6 mt-6 hidden h-[calc(100vh-3rem)] w-[244px] flex-col p-5 md:flex">
@@ -35,7 +65,7 @@ export function Sidebar() {
       <div className="hairline mb-4" />
 
       <nav className="flex flex-1 flex-col gap-1">
-        {items.map(({ icon: Icon, label, to }) => {
+        {navItems.map(({ icon: Icon, label, to }) => {
           const active =
             to === "/" ? pathname === "/" : pathname === to || pathname.startsWith(to + "/");
           return (

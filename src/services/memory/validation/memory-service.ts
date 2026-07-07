@@ -3,7 +3,7 @@ import { MemoryCandidate } from "../candidate";
 import { Memory } from "./types";
 import { validator } from "./validator";
 
-type MemoryListener = (memory: Memory) => void;
+export type MemoryListener = (memory: Memory) => void;
 const listeners = new Set<MemoryListener>();
 
 // In-memory array of validated, long-term preserved memories

@@ -1,6 +1,6 @@
 import { IdentityObservation } from "./types";
 
-type IdentityListener = (event: {
+export type IdentityListener = (event: {
   type: "Updated" | "Confirmed" | "Refined";
   observation: IdentityObservation;
 }) => void;

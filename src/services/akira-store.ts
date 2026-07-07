@@ -163,6 +163,12 @@ export const akira = {
   getState() {
     return state;
   },
+  subscribe(l: () => void) {
+    listeners.add(l);
+    return () => {
+      listeners.delete(l);
+    };
+  },
   addProject(input: {
     name: string;
     tag?: string;
@@ -470,6 +476,27 @@ export const akira = {
       ...s,
       notes: s.notes.filter((n) => n.id !== id),
       memories: s.memories.map((m) => (m.relatedNoteId === id ? { ...m, relatedNoteId: null } : m)),
+    }));
+  },
+
+  addChatMessage(role: "user" | "akira", text: string): ChatMessage {
+    const msg: ChatMessage = {
+      id: uid(),
+      role,
+      text,
+      createdAt: nowISO(),
+    };
+    set((s) => ({
+      ...s,
+      chat: [...s.chat, msg],
+    }));
+    return msg;
+  },
+
+  updateChatMessage(id: string, text: string): void {
+    set((s) => ({
+      ...s,
+      chat: s.chat.map((m) => (m.id === id ? { ...m, text } : m)),
     }));
   },
 

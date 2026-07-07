@@ -1,0 +1,1 @@
+export const BASELINE_CONFIDENCE_THRESHOLD = 0.6;

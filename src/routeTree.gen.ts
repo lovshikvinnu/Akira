@@ -10,16 +10,23 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SessionsRouteImport } from './routes/sessions'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as DailyMissionRouteImport } from './routes/daily-mission'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as BrainDumpRouteImport } from './routes/brain-dump'
+import { Route as BrainRouteImport } from './routes/brain'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProjectsIdRouteImport } from './routes/projects.$id'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionsRoute = SessionsRouteImport.update({
+  id: '/sessions',
+  path: '/sessions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectsRoute = ProjectsRouteImport.update({
@@ -42,6 +49,11 @@ const BrainDumpRoute = BrainDumpRouteImport.update({
   path: '/brain-dump',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BrainRoute = BrainRouteImport.update({
+  id: '/brain',
+  path: '/brain',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -55,29 +67,35 @@ const ProjectsIdRoute = ProjectsIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/brain': typeof BrainRoute
   '/brain-dump': typeof BrainDumpRoute
   '/chat': typeof ChatRoute
   '/daily-mission': typeof DailyMissionRoute
   '/projects': typeof ProjectsRouteWithChildren
+  '/sessions': typeof SessionsRoute
   '/settings': typeof SettingsRoute
   '/projects/$id': typeof ProjectsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/brain': typeof BrainRoute
   '/brain-dump': typeof BrainDumpRoute
   '/chat': typeof ChatRoute
   '/daily-mission': typeof DailyMissionRoute
   '/projects': typeof ProjectsRouteWithChildren
+  '/sessions': typeof SessionsRoute
   '/settings': typeof SettingsRoute
   '/projects/$id': typeof ProjectsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/brain': typeof BrainRoute
   '/brain-dump': typeof BrainDumpRoute
   '/chat': typeof ChatRoute
   '/daily-mission': typeof DailyMissionRoute
   '/projects': typeof ProjectsRouteWithChildren
+  '/sessions': typeof SessionsRoute
   '/settings': typeof SettingsRoute
   '/projects/$id': typeof ProjectsIdRoute
 }
@@ -85,38 +103,46 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/brain'
     | '/brain-dump'
     | '/chat'
     | '/daily-mission'
     | '/projects'
+    | '/sessions'
     | '/settings'
     | '/projects/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/brain'
     | '/brain-dump'
     | '/chat'
     | '/daily-mission'
     | '/projects'
+    | '/sessions'
     | '/settings'
     | '/projects/$id'
   id:
     | '__root__'
     | '/'
+    | '/brain'
     | '/brain-dump'
     | '/chat'
     | '/daily-mission'
     | '/projects'
+    | '/sessions'
     | '/settings'
     | '/projects/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BrainRoute: typeof BrainRoute
   BrainDumpRoute: typeof BrainDumpRoute
   ChatRoute: typeof ChatRoute
   DailyMissionRoute: typeof DailyMissionRoute
   ProjectsRoute: typeof ProjectsRouteWithChildren
+  SessionsRoute: typeof SessionsRoute
   SettingsRoute: typeof SettingsRoute
 }
 
@@ -127,6 +153,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sessions': {
+      id: '/sessions'
+      path: '/sessions'
+      fullPath: '/sessions'
+      preLoaderRoute: typeof SessionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/projects': {
@@ -155,6 +188,13 @@ declare module '@tanstack/react-router' {
       path: '/brain-dump'
       fullPath: '/brain-dump'
       preLoaderRoute: typeof BrainDumpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/brain': {
+      id: '/brain'
+      path: '/brain'
+      fullPath: '/brain'
+      preLoaderRoute: typeof BrainRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -188,10 +228,12 @@ const ProjectsRouteWithChildren = ProjectsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BrainRoute: BrainRoute,
   BrainDumpRoute: BrainDumpRoute,
   ChatRoute: ChatRoute,
   DailyMissionRoute: DailyMissionRoute,
   ProjectsRoute: ProjectsRouteWithChildren,
+  SessionsRoute: SessionsRoute,
   SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport

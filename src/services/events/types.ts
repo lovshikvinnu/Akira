@@ -8,7 +8,8 @@ export type MemoryEvent = {
     | "note_created"
     | "note_edited"
     | "task_completed"
-    | "mission_completed";
+    | "mission_completed"
+    | "presence_updated";
   title: string;
   description: string;
   relatedProjectId?: string | null;

@@ -3,7 +3,7 @@ import { MemoryEvent } from "../events/types";
 import { MemoryCandidate } from "./candidate";
 import { rules } from "./candidate-rules";
 
-type CandidateListener = (candidate: MemoryCandidate) => void;
+export type CandidateListener = (candidate: MemoryCandidate) => void;
 const listeners = new Set<CandidateListener>();
 
 // In-memory array cache for keeping track of candidates generated during runtime

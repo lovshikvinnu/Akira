@@ -7,11 +7,21 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
+import { BootSequence } from "@/components/akira/BootSequence";
+import { presenceService } from "@/services/companion/presence";
+import { goalService } from "@/services/companion/goals";
+import { knowledgeService } from "@/services/companion/knowledge";
+import { relationshipService } from "@/services/companion/relationships";
+import { habitService } from "@/services/companion/habits";
+import { reflectionService } from "@/services/companion/reflection";
+import { contextResolutionService } from "@/services/companion/context-resolution";
+import { initiativeService } from "@/services/companion/initiative";
 
 function NotFoundComponent() {
   return (
@@ -38,36 +48,91 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+  const [copied, setCopied] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+
+  const isDevMode =
+    typeof window !== "undefined" && localStorage.getItem("akira:dev_mode") === "true";
+
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
+  const handleCopyDetails = () => {
+    const details = `${error.toString()}\n\nStack:\n${error.stack || "No stack trace available"}`;
+    navigator.clipboard.writeText(details);
+    setCopied(true);
+    toast.success("Error details copied to clipboard!");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
-        </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
+    <div className="flex min-h-screen items-center justify-center bg-[#05070b] px-4 text-foreground relative">
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 h-[400px] w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500/5 blur-[120px]" />
+      </div>
+
+      <div className="glass-panel relative max-w-md w-full p-8 text-center animate-fade-in border-red-500/10">
+        <div className="flex flex-col items-center">
+          <div className="grid h-12 w-12 place-items-center rounded-xl bg-red-500/10 text-red-400 border border-red-500/15">
+            <span className="text-xl font-bold font-mono">!</span>
+          </div>
+          <h1 className="mt-4 font-display text-xl font-bold tracking-tight text-white">
+            Application Interruption
+          </h1>
+          <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+            AKIRA encountered an unexpected boundary crash. You can safely trigger recovery or head
+            back home.
+          </p>
+        </div>
+
+        <div className="mt-6 flex flex-wrap justify-center gap-2.5">
           <button
             onClick={() => {
               router.invalidate();
               reset();
             }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="btn-glow inline-flex items-center gap-2 px-5 h-10 text-xs font-semibold"
           >
-            Try again
+            Recover & Retry
           </button>
           <a
             href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-5 h-10 text-xs font-semibold text-foreground/90 transition-all hover:bg-white/[0.06] hover:border-white/20"
           >
-            Go home
+            Return Home
           </a>
         </div>
+
+        {isDevMode && (
+          <div className="mt-6 border-t border-white/5 pt-6 text-left">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-red-400 font-mono">
+                Developer Debug Info
+              </span>
+              <button
+                onClick={handleCopyDetails}
+                className="rounded border border-white/10 bg-white/[0.02] px-2 py-1 text-[9px] font-mono text-muted-foreground hover:bg-white/[0.05] hover:text-white"
+              >
+                {copied ? "Copied!" : "Copy Details"}
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowDetails(!showDetails)}
+              className="mt-2.5 flex w-full items-center justify-between text-xs text-muted-foreground hover:text-foreground"
+            >
+              <span>{showDetails ? "Hide Stack Trace" : "Show Stack Trace"}</span>
+              <span className="text-[10px]">{showDetails ? "▲" : "▼"}</span>
+            </button>
+
+            {showDetails && (
+              <pre className="mt-2 rounded-lg bg-black/40 border border-white/5 p-3 text-[9px] font-mono text-red-400/90 overflow-x-auto max-h-48 scrollbar leading-normal">
+                {error.stack || error.toString()}
+              </pre>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -128,9 +193,38 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const [isBooting, setIsBooting] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return !sessionStorage.getItem("akira:booted");
+  });
+
+  useEffect(() => {
+    // Initialize the Presence, Goal, Knowledge, Relationship, Habit, Reflection, Context Resolution, and Initiative Engines at application/session boot
+    presenceService.initialize();
+    goalService.initialize();
+    knowledgeService.initialize();
+    relationshipService.initialize();
+    habitService.initialize();
+    reflectionService.initialize();
+    contextResolutionService.initialize();
+    initiativeService.initialize();
+
+    return () => {
+      // Wind down decay loops and clean context
+      presenceService.shutdown();
+      goalService.shutdown();
+      knowledgeService.shutdown();
+      relationshipService.shutdown();
+      habitService.shutdown();
+      reflectionService.shutdown();
+      contextResolutionService.shutdown();
+      initiativeService.shutdown();
+    };
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
+      {isBooting && <BootSequence onComplete={() => setIsBooting(false)} />}
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster theme="dark" position="bottom-right" richColors closeButton />

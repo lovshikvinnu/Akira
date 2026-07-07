@@ -22,7 +22,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <div className="relative flex">
         <Sidebar />
-        <main className="min-w-0 flex-1 px-6 pb-12 pt-6 md:px-10">
+        <main className="min-w-0 flex-1 px-6 pb-12 pt-6 md:px-10 animate-page-enter">
           <Topbar />
           {children}
         </main>

@@ -7,6 +7,7 @@ export * from "./provider-registry";
 export * from "./response-normalizer";
 export * from "./context-engine";
 export * from "./providers/gemini-provider";
+export * from "./provider-manager";
 
 // Register default provider configurations
 providerRegistry.registerProvider(new GeminiProvider());
