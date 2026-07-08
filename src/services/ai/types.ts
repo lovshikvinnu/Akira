@@ -1,11 +1,17 @@
 import { ContextPackage } from "../context/types";
 
+export type AIHistoryMessage = {
+  role: "user" | "akira" | "model";
+  text: string;
+};
+
 export type AIRequest = {
   prompt: string;
   systemInstruction?: string;
   contextPackage?: ContextPackage;
   temperature?: number;
   maxTokens?: number;
+  history?: AIHistoryMessage[];
 };
 
 export type StandardAIResponse = {

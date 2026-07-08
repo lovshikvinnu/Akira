@@ -103,20 +103,44 @@ You have ${request.contextPackage?.activeStories.length || 0} active stories and
 
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
+    const contents: { role?: string; parts: { text: string }[] }[] = [];
+
+    if (request.history && request.history.length > 0) {
+      for (const msg of request.history) {
+        contents.push({
+          role: msg.role === "akira" ? "model" : "user",
+          parts: [
+            {
+              text: msg.text,
+            },
+          ],
+        });
+      }
+    }
+
+    // Append current prompt (latest user message) if not already the last item in history
+    const lastHistoryItem = request.history?.[request.history.length - 1];
+    if (
+      !lastHistoryItem ||
+      lastHistoryItem.text !== request.prompt ||
+      (lastHistoryItem.role !== "user" && lastHistoryItem.role !== "model")
+    ) {
+      contents.push({
+        role: "user",
+        parts: [
+          {
+            text: request.prompt,
+          },
+        ],
+      });
+    }
+
     const payload: {
-      contents: { parts: { text: string }[] }[];
+      contents: { role?: string; parts: { text: string }[] }[];
       generationConfig: { temperature: number; maxOutputTokens?: number };
       systemInstruction?: { parts: { text: string }[] };
     } = {
-      contents: [
-        {
-          parts: [
-            {
-              text: request.prompt,
-            },
-          ],
-        },
-      ],
+      contents,
       generationConfig: {
         temperature: request.temperature ?? 0.7,
       },
@@ -224,20 +248,44 @@ Let me know what else I can help you with!`;
 
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}`;
 
+    const contents: { role?: string; parts: { text: string }[] }[] = [];
+
+    if (request.history && request.history.length > 0) {
+      for (const msg of request.history) {
+        contents.push({
+          role: msg.role === "akira" ? "model" : "user",
+          parts: [
+            {
+              text: msg.text,
+            },
+          ],
+        });
+      }
+    }
+
+    // Append current prompt (latest user message) if not already the last item in history
+    const lastHistoryItem = request.history?.[request.history.length - 1];
+    if (
+      !lastHistoryItem ||
+      lastHistoryItem.text !== request.prompt ||
+      (lastHistoryItem.role !== "user" && lastHistoryItem.role !== "model")
+    ) {
+      contents.push({
+        role: "user",
+        parts: [
+          {
+            text: request.prompt,
+          },
+        ],
+      });
+    }
+
     const payload: {
-      contents: { parts: { text: string }[] }[];
+      contents: { role?: string; parts: { text: string }[] }[];
       generationConfig: { temperature: number; maxOutputTokens?: number };
       systemInstruction?: { parts: { text: string }[] };
     } = {
-      contents: [
-        {
-          parts: [
-            {
-              text: request.prompt,
-            },
-          ],
-        },
-      ],
+      contents,
       generationConfig: {
         temperature: request.temperature ?? 0.7,
       },

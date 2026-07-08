@@ -55,18 +55,24 @@ function SettingsPage() {
   );
 
   const providerState = useAIProviderManager();
-  const [selectedProvider, setSelectedProvider] = useState("Gemini");
-  const [apiKeyInput, setApiKeyInput] = useState(() => aiProviderManager.getApiKey("Gemini"));
+  const [selectedProvider, setSelectedProvider] = useState(() =>
+    aiProviderManager.getActiveProviderName(),
+  );
+  const [apiKeyInput, setApiKeyInput] = useState(() =>
+    aiProviderManager.getApiKey(selectedProvider),
+  );
+  const [modelInput, setModelInput] = useState(() => aiProviderManager.getModel(selectedProvider));
   const [showKey, setShowKey] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Sync apiKeyInput when selectedProvider changes or when providerState updates key
+  // Sync apiKeyInput and modelInput when selectedProvider changes or when providerState updates keys
   useEffect(() => {
     setApiKeyInput(aiProviderManager.getApiKey(selectedProvider));
+    setModelInput(aiProviderManager.getModel(selectedProvider));
     setTestResult(null);
     setShowKey(false);
-  }, [selectedProvider, providerState.geminiKey]);
+  }, [selectedProvider, providerState.geminiKey, providerState.openRouterKey]);
 
   const handleTabChange = (tab: "general" | "providers") => {
     setActiveTab(tab);
@@ -317,7 +323,12 @@ function SettingsPage() {
                 { name: "Claude", logo: "C", desc: "Anthropic Claude models", enabled: false },
                 { name: "Ollama", logo: "OL", desc: "Local Ollama models", enabled: false },
                 { name: "LM Studio", logo: "LM", desc: "Local LM Studio host", enabled: false },
-                { name: "OpenRouter", logo: "OR", desc: "Aggregated APIs", enabled: false },
+                {
+                  name: "OpenRouter",
+                  logo: "OR",
+                  desc: "Aggregated APIs (Nvidia Nemotron)",
+                  enabled: true,
+                },
               ].map((p) => {
                 const active = selectedProvider === p.name;
                 const isActiveInStore = providerState.activeProvider === p.name;
@@ -364,7 +375,7 @@ function SettingsPage() {
 
           {/* Config Details Column */}
           <div className="col-span-12 lg:col-span-7">
-            {selectedProvider !== "Gemini" ? (
+            {selectedProvider !== "Gemini" && selectedProvider !== "OpenRouter" ? (
               <CardShell>
                 <CardLabel accent="electric">{selectedProvider}</CardLabel>
                 <div className="mt-8 flex flex-col items-center justify-center text-center p-8 border border-dashed border-white/10 rounded-2xl bg-white/[0.01]">
@@ -376,7 +387,8 @@ function SettingsPage() {
                   </h3>
                   <p className="mt-2 max-w-sm text-xs text-muted-foreground leading-normal">
                     AKIRA will support {selectedProvider} API and model endpoints in an upcoming
-                    release. Currently, only Google Gemini cognitive services are fully operational.
+                    release. Currently, only Google Gemini and OpenRouter cognitive services are
+                    fully operational.
                   </p>
                 </div>
               </CardShell>
@@ -384,17 +396,41 @@ function SettingsPage() {
               <CardShell>
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
                   <CardLabel accent="cyan">{selectedProvider} Configuration</CardLabel>
-                  <StatusBadge status={providerState.geminiStatus} />
+                  <StatusBadge
+                    status={
+                      selectedProvider === "OpenRouter"
+                        ? providerState.openRouterStatus
+                        : providerState.geminiStatus
+                    }
+                  />
                 </div>
 
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
-                    aiProviderManager.setApiKey("Gemini", apiKeyInput.trim());
-                    toast.success("Gemini API key saved");
+                    aiProviderManager.setApiKey(selectedProvider, apiKeyInput.trim());
+                    if (selectedProvider === "OpenRouter") {
+                      aiProviderManager.setModel("OpenRouter", modelInput.trim());
+                    }
+                    toast.success(`${selectedProvider} settings saved`);
                   }}
                   className="space-y-5"
                 >
+                  {selectedProvider === "OpenRouter" && (
+                    <div className="relative">
+                      <span className="mb-1.5 block text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                        Model ID
+                      </span>
+                      <input
+                        type="text"
+                        value={modelInput}
+                        onChange={(e) => setModelInput(e.target.value)}
+                        placeholder="nvidia/nemotron-3-nano-30b-a3b:free"
+                        className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-violet/60 focus:bg-white/[0.06]"
+                      />
+                    </div>
+                  )}
+
                   <div className="relative">
                     <span className="mb-1.5 block text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                       API Key
@@ -404,7 +440,7 @@ function SettingsPage() {
                         type={showKey ? "text" : "password"}
                         value={apiKeyInput}
                         onChange={(e) => setApiKeyInput(e.target.value)}
-                        placeholder="Enter Gemini API Key..."
+                        placeholder={`Enter ${selectedProvider} API Key...`}
                         className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-3.5 pr-24 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-violet/60 focus:bg-white/[0.06]"
                       />
                       <div className="absolute right-2 flex items-center gap-1">
@@ -424,12 +460,17 @@ function SettingsPage() {
                     <div className="flex gap-2">
                       <button
                         type="submit"
-                        disabled={!apiKeyInput.trim()}
+                        disabled={
+                          !apiKeyInput.trim() ||
+                          (selectedProvider === "OpenRouter" && !modelInput.trim())
+                        }
                         className="btn-glow inline-flex h-10 items-center justify-center px-4 text-xs font-semibold disabled:opacity-50"
                       >
-                        Save Key
+                        Save Settings
                       </button>
-                      {providerState.geminiKey && (
+                      {(selectedProvider === "OpenRouter"
+                        ? providerState.openRouterKey
+                        : providerState.geminiKey) && (
                         <button
                           type="button"
                           onClick={handleRemoveKey}
@@ -438,6 +479,21 @@ function SettingsPage() {
                           Remove Key
                         </button>
                       )}
+                      {providerState.activeProvider !== selectedProvider &&
+                        (selectedProvider === "OpenRouter"
+                          ? providerState.openRouterKey
+                          : providerState.geminiKey) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              aiProviderManager.setActiveProviderName(selectedProvider);
+                              toast.success(`${selectedProvider} activated`);
+                            }}
+                            className="inline-flex h-10 items-center justify-center rounded-xl border border-violet/20 bg-violet/10 px-4 text-xs font-semibold text-violet-400 transition-all hover:bg-violet/20"
+                          >
+                            Activate
+                          </button>
+                        )}
                     </div>
 
                     <button
@@ -486,7 +542,9 @@ function SettingsPage() {
                           Active Model
                         </span>
                         <span className="mt-1 block font-mono font-medium text-foreground truncate">
-                          {providerState.geminiMetrics.model}
+                          {selectedProvider === "OpenRouter"
+                            ? providerState.openRouterMetrics.model
+                            : providerState.geminiMetrics.model}
                         </span>
                       </div>
                       <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-3">
@@ -494,7 +552,10 @@ function SettingsPage() {
                           Request Count
                         </span>
                         <span className="mt-1 block font-mono font-medium text-foreground">
-                          {providerState.geminiMetrics.requestCount} requests
+                          {selectedProvider === "OpenRouter"
+                            ? providerState.openRouterMetrics.requestCount
+                            : providerState.geminiMetrics.requestCount}{" "}
+                          requests
                         </span>
                       </div>
                       <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-3">
@@ -502,7 +563,9 @@ function SettingsPage() {
                           Stream Status
                         </span>
                         <span className="mt-1 block font-mono font-medium text-foreground">
-                          {providerState.geminiMetrics.streamStatus}
+                          {selectedProvider === "OpenRouter"
+                            ? providerState.openRouterMetrics.streamStatus
+                            : providerState.geminiMetrics.streamStatus}
                         </span>
                       </div>
                       <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-3 col-span-2 md:col-span-1">
@@ -510,7 +573,9 @@ function SettingsPage() {
                           Last Response Time
                         </span>
                         <span className="mt-1 block font-mono font-medium text-foreground">
-                          {providerState.geminiMetrics.lastResponseTime}
+                          {selectedProvider === "OpenRouter"
+                            ? providerState.openRouterMetrics.lastResponseTime
+                            : providerState.geminiMetrics.lastResponseTime}
                         </span>
                       </div>
                     </div>
