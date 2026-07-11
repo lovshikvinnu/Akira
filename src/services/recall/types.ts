@@ -1,5 +1,7 @@
 import { ImportanceSignal } from "../importance/types";
 
+export type RecallContext = "BOOTSTRAP" | "QUERY" | "CONTINUATION";
+
 export type RecallCandidate = {
   memoryId: string;
   supportingStoryIds: string[];
@@ -20,4 +22,6 @@ export type RecallSession = {
   candidates: RecallCandidate[];
   auditTrail: RecallAuditEntry[];
   timestamp: string;
+  context?: RecallContext;
 };
+

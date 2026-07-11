@@ -40,6 +40,16 @@ export function resolveUnifiedContext(
     state.evidence.evidenceLog.forEach((ev) => {
       supportingEvidence.push(`[CompanionState] ${ev.description}`);
     });
+
+    if (
+      state.evidence.snapshot.relevantMemories &&
+      state.evidence.snapshot.relevantMemories.length > 0
+    ) {
+      state.evidence.snapshot.relevantMemories.forEach((mem) => {
+        relevantContext.push(`Recalled Memory: ${mem}`);
+        supportingEvidence.push(`[GENESIS Recall] Recalled memory: ${mem}`);
+      });
+    }
   }
 
   // Ingest Goals Context

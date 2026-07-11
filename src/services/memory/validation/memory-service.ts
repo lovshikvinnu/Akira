@@ -2,9 +2,15 @@ import { candidateService } from "../candidate-service";
 import { MemoryCandidate } from "../candidate";
 import { Memory } from "./types";
 import { validator } from "./validator";
+import { recallService } from "../../recall/recall-service";
+import { getMemories } from "../../genesis-provider";
 
 export type MemoryListener = (memory: Memory) => void;
+export type ClearListener = () => void;
 const listeners = new Set<MemoryListener>();
+const clearListeners = new Set<ClearListener>();
+
+let rebuildRecallIndexCallback: (() => void) | null = null;
 
 // In-memory array of validated, long-term preserved memories
 const memories: Memory[] = [];
@@ -50,7 +56,7 @@ export const memoryService = {
         id: uid(),
         sourceEventId: candidate.sourceEventId,
         candidateId: candidate.id,
-        timestamp: new Date().toISOString(),
+        timestamp: candidate.timestamp || new Date().toISOString(),
         reason: candidate.reason,
         explanation: result.explanation || candidate.explanation,
         title: candidate.title,
@@ -72,6 +78,72 @@ export const memoryService = {
       return memory;
     }
     return null;
+  },
+
+  /**
+   * Initialize GENESIS lifecycle.
+   * Reconstructs runtime memory from storage and rebuilds the recall index.
+   */
+  initialize(): void {
+    // 1. Reconstruct Runtime Memory
+    this.reconstructRuntimeMemory();
+    // 2. Build Recall Index
+    this.buildRecallIndex();
+  },
+
+  /**
+   * Reconstructs runtime memory from persistent storage (store.memories)
+   * while ensuring clean state across related cognitive services.
+   */
+  reconstructRuntimeMemory(): void {
+    const storeMemories = getMemories();
+    if (storeMemories && storeMemories.length > 0) {
+      // Clear in-memory history/caches to prevent duplicate nodes on reloading
+      candidateService.clearHistory();
+      this.clearHistory();
+      recallService.clearHistory();
+
+      // Trigger clear event so downstream services clear their state synchronously
+      clearListeners.forEach((listener) => {
+        try {
+          listener();
+        } catch (err) {
+          console.error("Error executing memory clear listener callback:", err);
+        }
+      });
+
+      // Evaluate historical events chronologically (oldest to newest) to rebuild state
+      const events = [...storeMemories].reverse();
+      for (const event of events) {
+        candidateService.evaluateEvent(event);
+      }
+    }
+  },
+
+  /**
+   * Rebuilds the candidate recall index.
+   */
+  buildRecallIndex(): void {
+    if (rebuildRecallIndexCallback) {
+      rebuildRecallIndexCallback();
+    }
+  },
+
+  /**
+   * Registers the recall builder indexer callback to avoid circular dependencies at load time.
+   */
+  registerRecallBuilder(callback: () => void): void {
+    rebuildRecallIndexCallback = callback;
+  },
+
+  /**
+   * Subscribe to memory clear events.
+   */
+  subscribeClear(listener: ClearListener): () => void {
+    clearListeners.add(listener);
+    return () => {
+      clearListeners.delete(listener);
+    };
   },
 };
 
@@ -101,4 +173,4 @@ export const validationEngine = {
 };
 
 // Automatic integration: initialize on load
-validationEngine.initialize();
+// validationEngine.initialize();

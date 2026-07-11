@@ -5,6 +5,11 @@ import { addEvidence, applyUserCorrection } from "./rules";
 import { presenceService } from "../presence/service";
 import { akira } from "../../akira-store";
 import { eventService } from "../../events/event-service";
+import { recallService } from "../../recall/recall-service";
+import { memoryService, validationEngine } from "../../memory/validation/memory-service";
+import { Memory } from "../../memory/validation/types";
+import { registerCompanionStateProvider } from "../../genesis-provider";
+import { recallBuilder } from "../../recall/recall-builder";
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
@@ -18,6 +23,11 @@ class CompanionStateService {
    * Hands over context ownership from the Awareness Session snapshot to the State Engine.
    */
   public bootstrap(snapshot?: AwarenessSnapshot): CompanionState {
+    // 1. Initialize GENESIS lifecycle
+    validationEngine.initialize();
+    recallBuilder.initialize();
+    memoryService.initialize();
+
     const presenceContext = presenceService.getContext();
     if (!presenceContext) {
       throw new Error("Cannot bootstrap Companion State: Presence Engine is not initialized.");
@@ -142,6 +152,10 @@ class CompanionStateService {
       this.storeUnsubscribe = null;
     }
 
+    // Clean up GENESIS active subscriptions
+    recallBuilder.dispose();
+    validationEngine.dispose();
+
     return finalState;
   }
 
@@ -178,9 +192,22 @@ class CompanionStateService {
       .slice(0, 3)
       .map((t) => t.title);
 
-    const relevantMemories = store.memories.slice(0, 5).map((m) => m.description);
+    // Ask GENESIS for recalled memories (unidirectional pull)
+    const activeCandidates = recallService
+      .getRecallCandidates()
+      .filter((c) => c.status === "Active");
+    const memories = memoryService.getMemories();
 
-    const recentActivity = store.memories.slice(0, 3).map((m) => `${m.title}: ${m.description}`);
+    const relevantMemories = activeCandidates
+      .map((c) => memories.find((m) => m.id === c.memoryId))
+      .filter((m): m is Memory => !!m)
+      .map((m) => m.description);
+
+    const recentActivity = activeCandidates
+      .map((c) => memories.find((m) => m.id === c.memoryId))
+      .filter((m): m is Memory => !!m)
+      .slice(0, 3)
+      .map((m) => `${m.title}: ${m.description}`);
 
     return {
       sessionIdentifier: uid(),
@@ -239,3 +266,6 @@ class CompanionStateService {
 
 export const companionStateService = new CompanionStateService();
 export type { CompanionStateService };
+
+registerCompanionStateProvider(() => companionStateService.getState());
+

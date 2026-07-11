@@ -1,4 +1,4 @@
-import type { AkiraState, Project } from "./akira-store";
+import type { AkiraState, Project } from "./store-types";
 
 const uid = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto

@@ -98,6 +98,7 @@ export const relationshipService = {
 };
 
 let memorySub: (() => void) | null = null;
+let clearSub: (() => void) | null = null;
 
 export const relationshipEngine = {
   /**
@@ -109,6 +110,12 @@ export const relationshipEngine = {
         relationshipService.detectRelationships(memory);
       });
     }
+
+    if (!clearSub) {
+      clearSub = memoryService.subscribeClear(() => {
+        relationshipService.clearHistory();
+      });
+    }
   },
 
   /**
@@ -118,6 +125,10 @@ export const relationshipEngine = {
     if (memorySub) {
       memorySub();
       memorySub = null;
+    }
+    if (clearSub) {
+      clearSub();
+      clearSub = null;
     }
   },
 };

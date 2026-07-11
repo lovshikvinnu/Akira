@@ -22,6 +22,8 @@ import { habitService } from "@/services/companion/habits";
 import { reflectionService } from "@/services/companion/reflection";
 import { contextResolutionService } from "@/services/companion/context-resolution";
 import { initiativeService } from "@/services/companion/initiative";
+import { companionStateService } from "@/services/companion/state";
+import "@/services/ai";
 
 function NotFoundComponent() {
   return (
@@ -201,6 +203,7 @@ function RootComponent() {
   useEffect(() => {
     // Initialize the Presence, Goal, Knowledge, Relationship, Habit, Reflection, Context Resolution, and Initiative Engines at application/session boot
     presenceService.initialize();
+    companionStateService.bootstrap();
     goalService.initialize();
     knowledgeService.initialize();
     relationshipService.initialize();
@@ -212,6 +215,7 @@ function RootComponent() {
     return () => {
       // Wind down decay loops and clean context
       presenceService.shutdown();
+      companionStateService.closeSession();
       goalService.shutdown();
       knowledgeService.shutdown();
       relationshipService.shutdown();

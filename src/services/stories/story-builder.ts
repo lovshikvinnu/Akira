@@ -7,6 +7,7 @@ import { MemoryRelationship } from "../memory/relationships/types";
 
 let memorySub: (() => void) | null = null;
 let relationshipSub: (() => void) | null = null;
+let clearSub: (() => void) | null = null;
 
 export const storyBuilder = {
   /**
@@ -24,6 +25,12 @@ export const storyBuilder = {
         this.processNewRelationship(relationship);
       });
     }
+
+    if (!clearSub) {
+      clearSub = memoryService.subscribeClear(() => {
+        storyService.clearHistory();
+      });
+    }
   },
 
   /**
@@ -37,6 +44,10 @@ export const storyBuilder = {
     if (relationshipSub) {
       relationshipSub();
       relationshipSub = null;
+    }
+    if (clearSub) {
+      clearSub();
+      clearSub = null;
     }
   },
 

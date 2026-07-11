@@ -22,6 +22,7 @@ class AIProviderManager {
     OpenRouter: "nvidia/nemotron-3-nano-30b-a3b:free",
   };
   private listeners = new Set<() => void>();
+  private configLoaded = false;
 
   constructor() {
     this.loadConfig();
@@ -29,68 +30,183 @@ class AIProviderManager {
 
   private loadConfig() {
     if (typeof window === "undefined") return;
+
+    let loadedActiveProvider = "Gemini";
+    let loadedKeys: Record<string, string> = {};
+    let loadedStatuses: Record<string, ProviderStatus> = {};
+    let loadedModels: Record<string, string> = {};
+
+    let activeProviderParsed = false;
+    let keysParsed = false;
+    let statusesParsed = false;
+    let modelsParsed = false;
+
+    // Active provider
     try {
-      this.activeProvider = localStorage.getItem("akira:ai:active_provider") || "Gemini";
-
-      // Load keys
-      const storedKeys = localStorage.getItem("akira:ai:keys");
-      if (storedKeys) {
-        this.keys = JSON.parse(storedKeys);
-      }
-
-      // Load statuses
-      const storedStatuses = localStorage.getItem("akira:ai:statuses");
-      if (storedStatuses) {
-        this.statuses = JSON.parse(storedStatuses);
-      }
-
-      // Load models
-      const storedModels = localStorage.getItem("akira:ai:models");
-      if (storedModels) {
-        this.models = { ...this.models, ...JSON.parse(storedModels) };
-      }
-
-      // Initialize metrics for Gemini
-      this.metrics["Gemini"] = {
-        providerName: "Gemini",
-        model: this.getModel("Gemini"),
-        requestCount: 0,
-        streamStatus: "Idle",
-        lastResponseTime: "-",
-      };
-
-      // Set initial status based on key presence
-      if (!this.statuses["Gemini"]) {
-        const hasKey = this.getApiKey("Gemini");
-        this.statuses["Gemini"] = hasKey ? "Connected" : "Missing API Key";
-      }
-
-      // Initialize metrics for OpenRouter
-      this.metrics["OpenRouter"] = {
-        providerName: "OpenRouter",
-        model: this.getModel("OpenRouter"),
-        requestCount: 0,
-        streamStatus: "Idle",
-        lastResponseTime: "-",
-      };
-
-      // Set initial status based on key presence
-      if (!this.statuses["OpenRouter"]) {
-        const hasKey = this.getApiKey("OpenRouter");
-        this.statuses["OpenRouter"] = hasKey ? "Connected" : "Missing API Key";
+      const active = localStorage.getItem("akira:ai:active_provider");
+      if (active) {
+        loadedActiveProvider = active;
+        activeProviderParsed = true;
+      } else {
+        activeProviderParsed = true;
       }
     } catch (e) {
-      console.error("Failed to load provider config:", e);
+      console.error("Failed to load active provider config:", e);
+    }
+
+    // Load keys
+    try {
+      const storedKeys = localStorage.getItem("akira:ai:keys");
+      if (storedKeys) {
+        const parsed = JSON.parse(storedKeys);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          loadedKeys = parsed;
+          keysParsed = true;
+        }
+      } else {
+        keysParsed = true;
+      }
+    } catch (e) {
+      console.error("Failed to load provider keys:", e);
+    }
+
+    // Load statuses
+    try {
+      const storedStatuses = localStorage.getItem("akira:ai:statuses");
+      if (storedStatuses) {
+        const parsed = JSON.parse(storedStatuses);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          loadedStatuses = parsed;
+          statusesParsed = true;
+        }
+      } else {
+        statusesParsed = true;
+      }
+    } catch (e) {
+      console.error("Failed to load provider statuses:", e);
+    }
+
+    // Load models
+    try {
+      const storedModels = localStorage.getItem("akira:ai:models");
+      if (storedModels) {
+        const parsed = JSON.parse(storedModels);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          loadedModels = parsed;
+          modelsParsed = true;
+        }
+      } else {
+        modelsParsed = true;
+      }
+    } catch (e) {
+      console.error("Failed to load provider models:", e);
+    }
+
+    // Persist loaded configurations as authoritative, merging only for missing fields
+    if (activeProviderParsed) {
+      this.activeProvider = loadedActiveProvider;
+    }
+    if (keysParsed) {
+      this.keys = { ...this.keys, ...loadedKeys };
+    }
+    if (statusesParsed) {
+      this.statuses = { ...this.statuses, ...loadedStatuses };
+    }
+    if (modelsParsed) {
+      this.models = { ...this.models, ...loadedModels };
+    }
+
+    // Initialize metrics for Gemini
+    this.metrics["Gemini"] = {
+      providerName: "Gemini",
+      model: this.getModel("Gemini"),
+      requestCount: 0,
+      streamStatus: "Idle",
+      lastResponseTime: "-",
+    };
+
+    // Set initial status based on key presence
+    if (!this.statuses["Gemini"]) {
+      const hasKey = this.getApiKey("Gemini");
+      this.statuses["Gemini"] = hasKey ? "Connected" : "Missing API Key";
+    }
+
+    // Initialize metrics for OpenRouter
+    this.metrics["OpenRouter"] = {
+      providerName: "OpenRouter",
+      model: this.getModel("OpenRouter"),
+      requestCount: 0,
+      streamStatus: "Idle",
+      lastResponseTime: "-",
+    };
+
+    // Set initial status based on key presence
+    if (!this.statuses["OpenRouter"]) {
+      const hasKey = this.getApiKey("OpenRouter");
+      this.statuses["OpenRouter"] = hasKey ? "Connected" : "Missing API Key";
+    }
+
+    // Successfully loaded or intentionally initialized
+    if (activeProviderParsed && keysParsed && statusesParsed && modelsParsed) {
+      this.configLoaded = true;
+    } else {
+      console.error("Provider manager initialization incomplete due to parsing failures.");
     }
   }
 
   private saveConfig() {
     if (typeof window === "undefined") return;
+    if (!this.configLoaded) {
+      console.warn("Attempted to save provider config before loading completed. Aborting save.");
+      return;
+    }
+
     try {
-      localStorage.setItem("akira:ai:active_provider", this.activeProvider);
-      localStorage.setItem("akira:ai:keys", JSON.stringify(this.keys));
-      localStorage.setItem("akira:ai:statuses", JSON.stringify(this.statuses));
-      localStorage.setItem("akira:ai:models", JSON.stringify(this.models));
+      const currentActive = localStorage.getItem("akira:ai:active_provider");
+      const currentKeysRaw = localStorage.getItem("akira:ai:keys");
+      const currentStatusesRaw = localStorage.getItem("akira:ai:statuses");
+      const currentModelsRaw = localStorage.getItem("akira:ai:models");
+
+      // Validation check: Do not overwrite non-empty stored API keys with empty configuration
+      if (currentKeysRaw) {
+        try {
+          const parsedExistingKeys = JSON.parse(currentKeysRaw);
+          if (
+            parsedExistingKeys &&
+            typeof parsedExistingKeys === "object" &&
+            Object.keys(parsedExistingKeys).length > 0 &&
+            Object.keys(this.keys).length === 0
+          ) {
+            console.warn(
+              "Prevented overwriting non-empty stored API keys with empty configuration.",
+            );
+            return;
+          }
+        } catch (_) {
+          // Ignore errors parsing existing keys
+        }
+      }
+
+      const nextActive = this.activeProvider;
+      const nextKeysStr = JSON.stringify(this.keys);
+      const nextStatusesStr = JSON.stringify(this.statuses);
+      const nextModelsStr = JSON.stringify(this.models);
+
+      // Only save when configuration has changed
+      const hasChanged =
+        currentActive !== nextActive ||
+        currentKeysRaw !== nextKeysStr ||
+        currentStatusesRaw !== nextStatusesStr ||
+        currentModelsRaw !== nextModelsStr;
+
+      if (!hasChanged) {
+        return;
+      }
+
+      localStorage.setItem("akira:ai:active_provider", nextActive);
+      localStorage.setItem("akira:ai:keys", nextKeysStr);
+      localStorage.setItem("akira:ai:statuses", nextStatusesStr);
+      localStorage.setItem("akira:ai:models", nextModelsStr);
     } catch (e) {
       console.error("Failed to save provider config:", e);
     }

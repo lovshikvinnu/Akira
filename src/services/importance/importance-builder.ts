@@ -7,6 +7,7 @@ import { ImportanceSignal } from "./types";
 
 let memorySub: (() => void) | null = null;
 let storySub: (() => void) | null = null;
+let clearSub: (() => void) | null = null;
 
 export const importanceBuilder = {
   /**
@@ -28,6 +29,12 @@ export const importanceBuilder = {
         );
       });
     }
+
+    if (!clearSub) {
+      clearSub = memoryService.subscribeClear(() => {
+        importanceService.clearHistory();
+      });
+    }
   },
 
   /**
@@ -41,6 +48,10 @@ export const importanceBuilder = {
     if (storySub) {
       storySub();
       storySub = null;
+    }
+    if (clearSub) {
+      clearSub();
+      clearSub = null;
     }
   },
 

@@ -33,6 +33,7 @@ import { useAkira, akira, type ChatMessage } from "@/services/akira-store";
 import { eventService } from "@/services/events/event-service";
 import { candidateService } from "@/services/memory/candidate-service";
 import { memoryService } from "@/services/memory/validation/memory-service";
+import { companionStateService } from "@/services/companion/state";
 import { storyService } from "@/services/stories/story-service";
 import { identityService } from "@/services/identity/identity-service";
 import { contextService } from "@/services/context/context-service";
@@ -107,6 +108,113 @@ function generateTitle(firstMessage: string): string {
   return text || "New Conversation";
 }
 
+interface LegacyChatMessage {
+  id?: string;
+  role: string;
+  text: string;
+  createdAt?: string;
+}
+
+function migrateLegacyChatHistory() {
+  if (typeof window === "undefined") return;
+
+  const MIGRATIONS_KEY = "akira:migrations";
+  const MAIN_STATE_STORAGE_KEY = "akira:state:v1";
+
+  // Check if migration is already complete
+  try {
+    const rawMigrations = localStorage.getItem(MIGRATIONS_KEY);
+    if (rawMigrations) {
+      const migrations = JSON.parse(rawMigrations) as Record<string, unknown>;
+      if (migrations && migrations.chatHistoryV1Migrated === true) {
+        return; // Already migrated
+      }
+    }
+  } catch (e) {
+    console.error("Failed to parse migrations state:", e);
+  }
+
+  // Perform migration
+  try {
+    const rawState = localStorage.getItem(MAIN_STATE_STORAGE_KEY);
+    if (rawState) {
+      const parsedState = JSON.parse(rawState) as { chat?: LegacyChatMessage[] };
+      if (parsedState && Array.isArray(parsedState.chat) && parsedState.chat.length > 0) {
+        const legacyChat = parsedState.chat;
+        const hasUserMessages = legacyChat.some((msg) => msg.role === "user");
+        if (hasUserMessages) {
+          const firstUserMsg = legacyChat.find((msg) => msg.role === "user");
+          const title = firstUserMsg ? generateTitle(firstUserMsg.text) : "Imported Conversation";
+
+          let earliestTime = new Date().toISOString();
+          let latestTime = new Date().toISOString();
+
+          const validTimestamps = legacyChat
+            .map((msg) => msg.createdAt)
+            .filter((t): t is string => typeof t === "string" && !isNaN(Date.parse(t)));
+
+          if (validTimestamps.length > 0) {
+            const parsedTimes = validTimestamps.map((t) => Date.parse(t));
+            earliestTime = new Date(Math.min(...parsedTimes)).toISOString();
+            latestTime = new Date(Math.max(...parsedTimes)).toISOString();
+          }
+
+          const migratedConv: ChatConversation = {
+            id: uid(),
+            title,
+            messages: legacyChat.map((msg) => ({
+              id: msg.id || uid(),
+              role: msg.role === "user" ? "user" : "akira",
+              text: msg.text,
+              createdAt: msg.createdAt || new Date().toISOString(),
+            })),
+            createdAt: earliestTime,
+            updatedAt: latestTime,
+          };
+
+          const existingHistoryRaw = localStorage.getItem(CHAT_HISTORY_STORAGE_KEY);
+          let existingHistory: ChatConversation[] = [];
+          if (existingHistoryRaw) {
+            try {
+              existingHistory = JSON.parse(existingHistoryRaw) as ChatConversation[];
+            } catch (e) {
+              console.error("Failed to parse existing chat history during migration:", e);
+            }
+          }
+
+          const isDuplicate = existingHistory.some((conv) => {
+            if (conv.messages.length !== migratedConv.messages.length) return false;
+            return conv.messages.every(
+              (m, idx) =>
+                m.text === migratedConv.messages[idx].text &&
+                m.role === migratedConv.messages[idx].role,
+            );
+          });
+
+          if (!isDuplicate) {
+            const updatedHistory = [migratedConv, ...existingHistory];
+            localStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(updatedHistory));
+          }
+        }
+      }
+    }
+
+    let migrationsObj: Record<string, unknown> = {};
+    const rawMigrations = localStorage.getItem(MIGRATIONS_KEY);
+    if (rawMigrations) {
+      try {
+        migrationsObj = JSON.parse(rawMigrations) as Record<string, unknown>;
+      } catch (_) {
+        // Ignore
+      }
+    }
+    migrationsObj.chatHistoryV1Migrated = true;
+    localStorage.setItem(MIGRATIONS_KEY, JSON.stringify(migrationsObj));
+  } catch (e) {
+    console.error("Error during chat history migration:", e);
+  }
+}
+
 interface GroupedConversations {
   today: ChatConversation[];
   yesterday: ChatConversation[];
@@ -165,6 +273,7 @@ function CompanionWorkspacePage() {
   const [conversations, setConversations] = useState<ChatConversation[]>(() => {
     if (typeof window === "undefined") return [];
     try {
+      migrateLegacyChatHistory();
       const raw = window.localStorage.getItem(CHAT_HISTORY_STORAGE_KEY);
       return raw ? JSON.parse(raw) : [];
     } catch {
@@ -237,7 +346,6 @@ function CompanionWorkspacePage() {
   useEffect(() => {
     setActiveConversationId(null);
     setIsConversing(false);
-    akira.clearChat();
     setDraft("");
   }, []);
 
@@ -459,6 +567,10 @@ function CompanionWorkspacePage() {
     setIsConversing(false);
     akira.clearChat();
     setDraft("");
+
+    // Close the current Companion Session and bootstrap a new one (GENESIS Startup integration)
+    companionStateService.closeSession();
+    companionStateService.bootstrap();
   };
 
   // Handle message sending via real AI Context Engine

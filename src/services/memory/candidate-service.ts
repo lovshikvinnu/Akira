@@ -50,7 +50,7 @@ export const candidateService = {
         const candidate: MemoryCandidate = {
           id: uid(),
           sourceEventId: event.id,
-          timestamp: new Date().toISOString(),
+          timestamp: event.timestamp || new Date().toISOString(),
           reason: result.reason,
           explanation: result.explanation,
           title: event.title,

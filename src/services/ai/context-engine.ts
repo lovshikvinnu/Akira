@@ -2,6 +2,7 @@ import { providerRegistry } from "./provider-registry";
 import { AIRequest, StandardAIResponse } from "./types";
 import { ContextPackage } from "../context/types";
 import { contextResolutionService, ResolvedContext } from "../companion/context-resolution";
+import { memoryService } from "../memory/validation/memory-service";
 
 export const aiContextEngine = {
   /**
@@ -32,10 +33,10 @@ export const aiContextEngine = {
     }
 
     const request: AIRequest = {
+      ...options,
       prompt,
       systemInstruction: structuredSystemInstruction,
       contextPackage,
-      ...options,
     };
 
     return provider.generateContent(request);
@@ -70,10 +71,10 @@ export const aiContextEngine = {
     }
 
     const request: AIRequest = {
+      ...options,
       prompt,
       systemInstruction: structuredSystemInstruction,
       contextPackage,
-      ...options,
     };
 
     if (provider.generateContentStream) {
@@ -91,6 +92,17 @@ export const aiContextEngine = {
    */
   serializeContextPackage(pkg: ContextPackage): string {
     let block = `Session ID: ${pkg.contextSessionId}\n`;
+
+    if (pkg.activeCandidates.length > 0) {
+      block += `\nRelevant Long-Term Memories:\n`;
+      for (const item of pkg.activeCandidates) {
+        const candidate = item.data;
+        const memory = memoryService.getMemories().find((m) => m.id === candidate.memoryId);
+        if (memory) {
+          block += `- ${memory.description} (Reason: ${item.inclusionReason} | ID: ${memory.id})\n`;
+        }
+      }
+    }
 
     if (pkg.currentGoals.length > 0) {
       block +=
@@ -132,10 +144,22 @@ export const aiContextEngine = {
     }
 
     if (pkg.recentActivitySummary.length > 0) {
-      block +=
-        `\nRecent Activity History:\n` +
-        pkg.recentActivitySummary.map((a) => `- ${a}`).join("\n") +
-        "\n";
+      block += `\nRecent Activity History:\n`;
+      for (const summary of pkg.recentActivitySummary) {
+        let resolvedSummary = summary;
+        const idMatch = summary.match(/Recall active memory node \(([^)]+)\)/);
+        if (idMatch && idMatch[1]) {
+          const memoryId = idMatch[1];
+          const memory = memoryService.getMemories().find((m) => m.id === memoryId);
+          if (memory) {
+            resolvedSummary = summary.replace(
+              `Recall active memory node (${memoryId})`,
+              `Recall active memory node [${memory.description}]`,
+            );
+          }
+        }
+        block += `- ${resolvedSummary}\n`;
+      }
     }
 
     return block.trim();

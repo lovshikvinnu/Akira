@@ -3,8 +3,10 @@ import { Story } from "../stories/types";
 import { identityService } from "./identity-service";
 import { identityRules } from "./identity-rules";
 import { hypothesesService } from "./hypotheses";
+import { memoryService } from "../memory/validation/memory-service";
 
 let storySub: (() => void) | null = null;
+let clearSub: (() => void) | null = null;
 
 export const identityBuilder = {
   /**
@@ -16,6 +18,13 @@ export const identityBuilder = {
         this.processStoryEvent(event.story);
       });
     }
+
+    if (!clearSub) {
+      clearSub = memoryService.subscribeClear(() => {
+        identityService.clearHistory();
+        hypothesesService.clearHistory();
+      });
+    }
   },
 
   /**
@@ -25,6 +34,10 @@ export const identityBuilder = {
     if (storySub) {
       storySub();
       storySub = null;
+    }
+    if (clearSub) {
+      clearSub();
+      clearSub = null;
     }
   },
 

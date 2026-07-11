@@ -2,103 +2,36 @@ import { useSyncExternalStore } from "react";
 import { seed } from "./seed";
 import { MemoryEvent } from "./events/types";
 import { eventService } from "./events/event-service";
+import { registerStoreProvider } from "./genesis-provider";
 import "./memory";
 import "./stories";
 import "./identity";
 import "./importance";
 import "./recall";
 import "./context";
-import "./ai";
 
-export type Project = {
-  id: string;
-  name: string;
-  tag: string;
-  description: string;
-  progress: number;
-  color: string;
-  nextTask: string;
-  notes: string;
-  timeSpentMinutes: number;
-  lastWorked: string;
-  createdAt: string;
-  icon: string;
+import type {
+  Project,
+  Task,
+  Note,
+  ChatMessage,
+  HabitStreak,
+  Profile,
+  WorkSession,
+  AkiraState,
+} from "./store-types";
+
+export type {
+  Project,
+  Task,
+  Note,
+  ChatMessage,
+  HabitStreak,
+  Profile,
+  WorkSession,
+  AkiraState,
 };
 
-export type Task = {
-  id: string;
-  title: string;
-  description: string;
-  priority: "Low" | "Medium" | "High";
-  estimatedDuration: number;
-  dueDate?: string | null;
-  done: boolean;
-  completed: boolean;
-  projectId?: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type Note = {
-  id: string;
-  title: string;
-  content: string;
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
-  pinned: boolean;
-  favorite: boolean;
-  projectId?: string | null;
-};
-
-export type ChatMessage = {
-  id: string;
-  role: "user" | "akira";
-  text: string;
-  createdAt: string;
-};
-
-export type HabitStreak = {
-  id: string;
-  label: string;
-  icon: "dumbbell" | "cpu" | "book" | "sparkles" | "moon";
-  days: number;
-  pct: number;
-  color: string;
-};
-
-export type Profile = {
-  name: string;
-  role: string;
-  motto: string;
-};
-
-export type WorkSession = {
-  id: string;
-  projectId: string;
-  task: string;
-  startedAt: string;
-  endedAt: string;
-  duration: number;
-  notes?: string;
-};
-
-export type AkiraState = {
-  projects: Project[];
-  tasks: Task[];
-  notes: Note[];
-  chat: ChatMessage[];
-  streaks: HabitStreak[];
-  profile: Profile;
-  lastProjectId: string | null;
-  memories: MemoryEvent[];
-  sessions: WorkSession[];
-  activeSession: {
-    projectId: string;
-    task: string;
-    startedAt: string;
-  } | null;
-};
 
 const STORAGE_KEY = "akira:state:v1";
 
@@ -142,6 +75,14 @@ function set(updater: (s: AkiraState) => AkiraState) {
   state = updater(state);
   emit();
 }
+
+// Register the persistence handler on eventService to own MemoryEvent persistence globally
+eventService.registerPersistHandler((event) => {
+  set((s) => ({
+    ...s,
+    memories: [event, ...s.memories],
+  }));
+});
 
 const subscribe = (l: () => void) => {
   listeners.add(l);
@@ -191,7 +132,7 @@ export const akira = {
       icon: input.icon || "sparkles",
     };
 
-    const mem = eventService.record(
+    eventService.record(
       "project_created",
       "Project Created",
       `Started new project: ${p.name}`,
@@ -202,7 +143,6 @@ export const akira = {
     set((s) => ({
       ...s,
       projects: [p, ...s.projects],
-      memories: [mem, ...s.memories],
       lastProjectId: p.id,
     }));
     return p.id;
@@ -212,7 +152,7 @@ export const akira = {
       const project = s.projects.find((p) => p.id === id);
       if (!project) return s;
       const p = { ...project, ...patch };
-      const mem = eventService.record(
+      eventService.record(
         "project_updated",
         "Project Updated",
         `Updated details for project: ${p.name}`,
@@ -223,7 +163,6 @@ export const akira = {
       return {
         ...s,
         projects: s.projects.map((item) => (item.id === id ? p : item)),
-        memories: [mem, ...s.memories],
       };
     });
   },
@@ -255,7 +194,7 @@ export const akira = {
         lastWorked: nowISO(),
         timeSpentMinutes: project.timeSpentMinutes + 5,
       };
-      const mem = eventService.record(
+      eventService.record(
         "project_continued",
         "Project Continued",
         `Logged 5 minutes of work on project: ${p.name}`,
@@ -267,7 +206,6 @@ export const akira = {
         ...s,
         lastProjectId: id,
         projects: s.projects.map((item) => (item.id === id ? p : item)),
-        memories: [mem, ...s.memories],
       };
     });
   },
@@ -300,30 +238,25 @@ export const akira = {
       const t = { ...task, done: doneValue, completed: doneValue, updatedAt: nowISO() };
       const nextTasks = s.tasks.map((item) => (item.id === id ? t : item));
 
-      const memories = [...s.memories];
       if (t.done) {
-        memories.unshift(
-          eventService.record(
-            "task_completed",
-            "Task Completed",
-            `Completed task: "${t.title}"`,
-            t.projectId,
-            null,
-            { title: t.title },
-          ),
+        eventService.record(
+          "task_completed",
+          "Task Completed",
+          `Completed task: "${t.title}"`,
+          t.projectId,
+          null,
+          { title: t.title },
         );
 
         const allDone = nextTasks.every((tk) => tk.done) && nextTasks.length > 0;
         if (allDone) {
-          memories.unshift(
-            eventService.record(
-              "mission_completed",
-              "Daily Mission Completed",
-              `Finished all ${nextTasks.length} missions for today!`,
-              null,
-              null,
-              { totalTasks: nextTasks.length },
-            ),
+          eventService.record(
+            "mission_completed",
+            "Daily Mission Completed",
+            `Finished all ${nextTasks.length} missions for today!`,
+            null,
+            null,
+            { totalTasks: nextTasks.length },
           );
         }
       }
@@ -331,7 +264,6 @@ export const akira = {
       return {
         ...s,
         tasks: nextTasks,
-        memories,
       };
     });
   },
@@ -426,7 +358,7 @@ export const akira = {
     };
 
     set((s) => {
-      const mem = eventService.record(
+      eventService.record(
         "note_created",
         "Note Created",
         title ? `Captured thought: "${title}"` : "Captured raw thought",
@@ -434,7 +366,7 @@ export const akira = {
         n.id,
         { title, tags },
       );
-      return { ...s, notes: [n, ...s.notes], memories: [mem, ...s.memories] };
+      return { ...s, notes: [n, ...s.notes] };
     });
     return n.id;
   },
@@ -450,24 +382,20 @@ export const akira = {
       const shouldLog =
         !lastEdit || Date.now() - new Date(lastEdit.timestamp).getTime() > 5 * 60 * 1000;
 
-      const memories = shouldLog
-        ? [
-            eventService.record(
-              "note_edited",
-              "Note Edited",
-              n.title ? `Updated thought: "${n.title}"` : "Updated raw thought",
-              n.projectId,
-              n.id,
-              { title: n.title },
-            ),
-            ...s.memories,
-          ]
-        : s.memories;
+      if (shouldLog) {
+        eventService.record(
+          "note_edited",
+          "Note Edited",
+          n.title ? `Updated thought: "${n.title}"` : "Updated raw thought",
+          n.projectId,
+          n.id,
+          { title: n.title },
+        );
+      }
 
       return {
         ...s,
         notes: s.notes.map((item) => (item.id === id ? n : item)),
-        memories,
       };
     });
   },
@@ -628,3 +556,9 @@ export const selectors = {
     return Math.round((s.tasks.filter((t) => t.done).length / s.tasks.length) * 100);
   },
 };
+
+registerStoreProvider({
+  getMemories: () => state.memories,
+  getChat: () => state.chat,
+});
+

@@ -1,4 +1,5 @@
-import { RecallCandidate, RecallSession, RecallAuditEntry } from "./types";
+import { RecallCandidate, RecallSession, RecallAuditEntry, RecallContext } from "./types";
+
 
 type RecallListener = (event: { type: "Updated"; session: RecallSession }) => void;
 const listeners = new Set<RecallListener>();
@@ -56,7 +57,10 @@ export const recallService = {
   /**
    * Evaluate a recall cycle, creating an immutable session and updating statuses.
    */
-  startRecallSession(newActiveCandidates: Omit<RecallCandidate, "status">[]): RecallSession {
+  startRecallSession(
+    newActiveCandidates: Omit<RecallCandidate, "status">[],
+    context?: RecallContext,
+  ): RecallSession {
     const sessionId = uid();
     const timestamp = new Date().toISOString();
 
@@ -104,7 +108,9 @@ export const recallService = {
       candidates: recallCache,
       auditTrail,
       timestamp,
+      context,
     };
+
 
     activeSession = session;
     sessionHistory.push(session);

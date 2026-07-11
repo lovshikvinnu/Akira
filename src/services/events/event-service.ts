@@ -7,10 +7,20 @@ const uid = () =>
 
 const nowISO = () => new Date().toISOString();
 
+export type PersistHandler = (event: MemoryEvent) => void;
 export type EventCallback = (event: MemoryEvent) => void;
+
 const callbacks = new Set<EventCallback>();
+let persistHandler: PersistHandler | null = null;
 
 export const eventService = {
+  /**
+   * Register a persistence handler responsible for saving MemoryEvents to a storage adapter.
+   */
+  registerPersistHandler(handler: PersistHandler): void {
+    persistHandler = handler;
+  },
+
   /**
    * Subscribe to new events being recorded in the system.
    * Useful for decoupling downstream processes (e.g., consolidation, metrics) from the store.
@@ -44,6 +54,16 @@ export const eventService = {
       metadata: metadata || {},
     };
 
+    // 1. Persist the event first if a handler exists (e.g., writing to state store/localStorage)
+    if (persistHandler) {
+      try {
+        persistHandler(event);
+      } catch (err) {
+        console.error("Error executing event persistence handler:", err);
+      }
+    }
+
+    // 2. Publish the event to subscribers (e.g., candidate engine, runtime caches)
     callbacks.forEach((cb) => {
       try {
         cb(event);
