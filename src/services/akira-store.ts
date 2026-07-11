@@ -21,17 +21,7 @@ import type {
   AkiraState,
 } from "./store-types";
 
-export type {
-  Project,
-  Task,
-  Note,
-  ChatMessage,
-  HabitStreak,
-  Profile,
-  WorkSession,
-  AkiraState,
-};
-
+export type { Project, Task, Note, ChatMessage, HabitStreak, Profile, WorkSession, AkiraState };
 
 const STORAGE_KEY = "akira:state:v1";
 
@@ -561,4 +551,3 @@ registerStoreProvider({
   getMemories: () => state.memories,
   getChat: () => state.chat,
 });
-

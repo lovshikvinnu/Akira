@@ -24,4 +24,3 @@ export type RecallSession = {
   timestamp: string;
   context?: RecallContext;
 };
-

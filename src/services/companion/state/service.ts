@@ -268,4 +268,3 @@ export const companionStateService = new CompanionStateService();
 export type { CompanionStateService };
 
 registerCompanionStateProvider(() => companionStateService.getState());
-

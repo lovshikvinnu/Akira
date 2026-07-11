@@ -1,6 +1,5 @@
 import { RecallCandidate, RecallSession, RecallAuditEntry, RecallContext } from "./types";
 
-
 type RecallListener = (event: { type: "Updated"; session: RecallSession }) => void;
 const listeners = new Set<RecallListener>();
 
@@ -110,7 +109,6 @@ export const recallService = {
       timestamp,
       context,
     };
-
 
     activeSession = session;
     sessionHistory.push(session);

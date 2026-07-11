@@ -12,7 +12,7 @@ const mockLocalStorage = {
   },
   clear() {
     this.store = {};
-  }
+  },
 };
 
 const mockSessionStorage = {
@@ -28,7 +28,7 @@ const mockSessionStorage = {
   },
   clear() {
     this.store = {};
-  }
+  },
 };
 
 global.window = global as any;
@@ -71,7 +71,7 @@ function test(name: string, fn: () => void) {
 function assertEquals<T>(actual: T, expected: T, message: string) {
   if (actual !== expected) {
     throw new Error(
-      `${message} -> Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`
+      `${message} -> Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
     );
   }
 }
@@ -81,7 +81,7 @@ function resetEnvironment() {
   localStorage.clear();
   akira.clearChat();
   memoryService.clearHistory();
-  
+
   // Clean store arrays directly to avoid residuals
   const state = akira.getState();
   state.memories = [];
@@ -113,12 +113,12 @@ test("Scenario 1: Long-term dream (Goal memory) is recalled on Bootstrap", () =>
 
   // Conversation A: User submits their dream
   akira.addChatMessage("user", "My dream is to become a pilot.");
-  
+
   // Record the workspace/chat interaction which promotes the memory
   eventService.record(
     "note_created",
     "Workspace Interaction",
-    "User query submitted to AKIRA: \"My dream is to become a pilot.\""
+    'User query submitted to AKIRA: "My dream is to become a pilot."',
   );
 
   // Re-run builder to process memory
@@ -127,18 +127,22 @@ test("Scenario 1: Long-term dream (Goal memory) is recalled on Bootstrap", () =>
   // Restart / New Chat: Clear active chat logs and bootstrap a brand-new session
   akira.clearChat();
   companionStateService.closeSession();
-  
+
   // Bootstrap runs in BOOTSTRAP context because chat is empty
   const state = companionStateService.bootstrap();
 
   // Retrieve the snapshot built during bootstrap
   const snapshot = (companionStateService as any).compileSnapshotFromStore();
-  
-  const hasDreamMemory = snapshot.relevantMemories.some((desc: string) => 
-    desc.includes("My dream is to become a pilot")
+
+  const hasDreamMemory = snapshot.relevantMemories.some((desc: string) =>
+    desc.includes("My dream is to become a pilot"),
   );
 
-  assertEquals(hasDreamMemory, true, "Dream memory must be resolved and present in the initial bootstrap snapshot");
+  assertEquals(
+    hasDreamMemory,
+    true,
+    "Dream memory must be resolved and present in the initial bootstrap snapshot",
+  );
 });
 
 test("Scenario 2: Project building (Project memory) is recalled on Bootstrap", () => {
@@ -148,7 +152,7 @@ test("Scenario 2: Project building (Project memory) is recalled on Bootstrap", (
   akira.addProject({
     name: "AKIRA",
     tag: "AKI",
-    description: "Personal AI Companion"
+    description: "Personal AI Companion",
   });
   const proj = akira.getState().projects[0];
   akira.touchProject(proj.id);
@@ -157,10 +161,10 @@ test("Scenario 2: Project building (Project memory) is recalled on Bootstrap", (
   eventService.record(
     "project_continued",
     "Project Arc: Project Continued",
-    "Continuous work logged on project \"AKIRA\".",
+    'Continuous work logged on project "AKIRA".',
     proj.id,
     null,
-    { name: "AKIRA" }
+    { name: "AKIRA" },
   );
 
   // Re-run builder to process memory
@@ -169,16 +173,20 @@ test("Scenario 2: Project building (Project memory) is recalled on Bootstrap", (
   // Restart / New Chat
   akira.clearChat();
   companionStateService.closeSession();
-  
+
   // Bootstrap the session
   const state = companionStateService.bootstrap();
   const snapshot = (companionStateService as any).compileSnapshotFromStore();
 
-  const hasProjectMemory = snapshot.relevantMemories.some((desc: string) => 
-    desc.includes("Continuous work logged on project \"AKIRA\"")
+  const hasProjectMemory = snapshot.relevantMemories.some((desc: string) =>
+    desc.includes('Continuous work logged on project "AKIRA"'),
   );
 
-  assertEquals(hasProjectMemory, true, "Project building memory must be present in the initial bootstrap snapshot");
+  assertEquals(
+    hasProjectMemory,
+    true,
+    "Project building memory must be present in the initial bootstrap snapshot",
+  );
 });
 
 test("Scenario 3: Coffee preference (low significance) is excluded on Bootstrap", () => {
@@ -189,7 +197,7 @@ test("Scenario 3: Coffee preference (low significance) is excluded on Bootstrap"
   eventService.record(
     "note_created",
     "Workspace Interaction",
-    "User query submitted to AKIRA: \"I like coffee.\""
+    'User query submitted to AKIRA: "I like coffee."',
   );
 
   // Re-run builder to process memory
@@ -198,22 +206,46 @@ test("Scenario 3: Coffee preference (low significance) is excluded on Bootstrap"
   // Restart / New Chat
   akira.clearChat();
   companionStateService.closeSession();
-  
+
   // Bootstrap the session
   const state = companionStateService.bootstrap();
   const snapshot = (companionStateService as any).compileSnapshotFromStore();
 
-  console.log("Bootstrap Recall Candidates:", JSON.stringify((companionStateService as any).compileSnapshotFromStore().relevantMemories, null, 2));
-  console.log("Memory List inside memoryService:", JSON.stringify(memoryService.getMemories(), null, 2));
-  console.log("Recall Session candidates:", JSON.stringify(recallBuilder.rebuildRecallCandidates("BOOTSTRAP"), null, 2)); // wait, rebuildRecallCandidates returns void but we can check recallService
-  console.log("Active Recall Candidates:", JSON.stringify(recallService.getRecallCandidates(), null, 2));
-
-  const hasCoffeeMemory = snapshot.relevantMemories.some((desc: string) => 
-    desc.includes("I like coffee")
+  console.log(
+    "Bootstrap Recall Candidates:",
+    JSON.stringify(
+      (companionStateService as any).compileSnapshotFromStore().relevantMemories,
+      null,
+      2,
+    ),
+  );
+  console.log(
+    "Memory List inside memoryService:",
+    JSON.stringify(memoryService.getMemories(), null, 2),
+  );
+  console.log(
+    "Recall Session candidates:",
+    JSON.stringify(recallBuilder.rebuildRecallCandidates("BOOTSTRAP"), null, 2),
+  ); // wait, rebuildRecallCandidates returns void but we can check recallService
+  console.log(
+    "Active Recall Candidates:",
+    JSON.stringify(recallService.getRecallCandidates(), null, 2),
   );
 
-  assertEquals(hasCoffeeMemory, false, "Coffee preference memory must be excluded from the initial bootstrap snapshot");
+  const hasCoffeeMemory = snapshot.relevantMemories.some((desc: string) =>
+    desc.includes("I like coffee"),
+  );
+
+  assertEquals(
+    hasCoffeeMemory,
+    false,
+    "Coffee preference memory must be excluded from the initial bootstrap snapshot",
+  );
 });
 
-
 console.log(`\nValidation Complete: ${passedTests} / ${totalTests} Passed.`);
+if (passedTests < totalTests) {
+  process.exit(1);
+} else {
+  process.exit(0);
+}

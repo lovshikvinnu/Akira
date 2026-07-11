@@ -3,6 +3,7 @@ import { AIRequest, StandardAIResponse } from "./types";
 import { ContextPackage } from "../context/types";
 import { contextResolutionService, ResolvedContext } from "../companion/context-resolution";
 import { memoryService } from "../memory/validation/memory-service";
+import { getUnderstandingContext, getInsightContext } from "../understanding";
 
 export const aiContextEngine = {
   /**
@@ -24,6 +25,16 @@ export const aiContextEngine = {
     if (contextPackage) {
       const contextBlock = this.serializeContextPackage(contextPackage);
       structuredSystemInstruction += `\n\n[COGNITIVE CONTEXT]\n${contextBlock}`;
+    }
+
+    const understandingsBlock = getUnderstandingContext(prompt);
+    if (understandingsBlock) {
+      structuredSystemInstruction += `\n\n${understandingsBlock}`;
+    }
+
+    const insightsBlock = getInsightContext(prompt);
+    if (insightsBlock) {
+      structuredSystemInstruction += `\n\n${insightsBlock}`;
     }
 
     const resolvedContext = contextResolutionService.getContext();
@@ -62,6 +73,16 @@ export const aiContextEngine = {
     if (contextPackage) {
       const contextBlock = this.serializeContextPackage(contextPackage);
       structuredSystemInstruction += `\n\n[COGNITIVE CONTEXT]\n${contextBlock}`;
+    }
+
+    const understandingsBlock = getUnderstandingContext(prompt);
+    if (understandingsBlock) {
+      structuredSystemInstruction += `\n\n${understandingsBlock}`;
+    }
+
+    const insightsBlock = getInsightContext(prompt);
+    if (insightsBlock) {
+      structuredSystemInstruction += `\n\n${insightsBlock}`;
     }
 
     const resolvedContext = contextResolutionService.getContext();

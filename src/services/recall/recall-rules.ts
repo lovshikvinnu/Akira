@@ -17,7 +17,6 @@ export interface RecallRule {
   };
 }
 
-
 export type MemoryCategory =
   | "Goal"
   | "Project"
@@ -33,7 +32,7 @@ export type MemoryCategory =
  */
 export function classifyMemory(memory: Memory): MemoryCategory {
   const text = `${memory.title} ${memory.description}`.toLowerCase();
-  
+
   if (
     memory.reason === "Goal Progress" ||
     text.includes("dream") ||
@@ -144,7 +143,19 @@ function getStems(word: string): string[] {
 function computeSemanticRelevance(memory: Memory, currentContext: string): number {
   if (!currentContext) return 0;
 
-  const ignoreWords = ["what", "whats", "where", "when", "your", "with", "that", "this", "have", "the", "and"];
+  const ignoreWords = [
+    "what",
+    "whats",
+    "where",
+    "when",
+    "your",
+    "with",
+    "that",
+    "this",
+    "have",
+    "the",
+    "and",
+  ];
   const queryWords = currentContext
     .toLowerCase()
     .replace(/[^\w\s]/g, "")
@@ -154,7 +165,7 @@ function computeSemanticRelevance(memory: Memory, currentContext: string): numbe
   if (queryWords.length === 0) return 0;
 
   const memoryText = `${memory.title} ${memory.description}`.toLowerCase();
-  
+
   let matches = 0;
   for (const word of queryWords) {
     const stems = getStems(word);
@@ -259,28 +270,32 @@ export const recallRules: RecallRule[] = [
       }
 
       // 6. Compute Multi-Factor Scoring Model with context-aware weights
-      let wSemantic = 0.40;
-      let wStability = 0.30;
-      let wRecency = 0.10;
-      let wIntent = 0.10;
-      let wReinforce = 0.10;
+      let wSemantic = 0.4;
+      let wStability = 0.3;
+      let wRecency = 0.1;
+      let wIntent = 0.1;
+      let wReinforce = 0.1;
 
       if (resolvedContext === "BOOTSTRAP") {
         wSemantic = 0.0;
-        wStability = 0.60;
-        wRecency = 0.10;
+        wStability = 0.6;
+        wRecency = 0.1;
         wIntent = 0.15;
         wReinforce = 0.15;
       } else if (resolvedContext === "CONTINUATION") {
-        wSemantic = 0.30;
-        wStability = 0.30;
+        wSemantic = 0.3;
+        wStability = 0.3;
         wRecency = 0.15;
-        wIntent = 0.10;
+        wIntent = 0.1;
         wReinforce = 0.15;
       }
 
       const scoreIntent = Math.max(userIntentStrength, milestoneStrength);
-      const scoreReinforce = Math.max(reinforcementStrength, relationshipStrength, contextMatchScore);
+      const scoreReinforce = Math.max(
+        reinforcementStrength,
+        relationshipStrength,
+        contextMatchScore,
+      );
 
       const compositeScore =
         wSemantic * semanticScore +
@@ -289,12 +304,11 @@ export const recallRules: RecallRule[] = [
         wIntent * scoreIntent +
         wReinforce * scoreReinforce;
 
-      const threshold = 0.60;
+      const threshold = 0.6;
       const isExtremelyRecent = recencyStrength >= 0.8 && resolvedContext !== "BOOTSTRAP";
       const isHighIntentUserNote = userIntentStrength >= 0.8 && semanticScore > 0;
-      
-      const shouldRecall = compositeScore >= threshold || isExtremelyRecent || isHighIntentUserNote;
 
+      const shouldRecall = compositeScore >= threshold || isExtremelyRecent || isHighIntentUserNote;
 
       if (shouldRecall) {
         const factors = [
@@ -304,7 +318,7 @@ export const recallRules: RecallRule[] = [
           `SemanticMatch: ${semanticScore > 0 ? "Yes" : "No"}`,
           `Recency: ${recencyStrength.toFixed(1)}`,
           `Intent: ${scoreIntent.toFixed(1)}`,
-          `Reinforce: ${scoreReinforce.toFixed(1)}`
+          `Reinforce: ${scoreReinforce.toFixed(1)}`,
         ];
         return {
           shouldRecall: true,
@@ -320,4 +334,3 @@ export const recallRules: RecallRule[] = [
 export function registerRecallRule(rule: RecallRule) {
   recallRules.unshift(rule);
 }
-

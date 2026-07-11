@@ -41,7 +41,6 @@ export const recallBuilder = {
     this.rebuildRecallCandidates();
   },
 
-
   /**
    * Dispose subscriptions.
    */
@@ -75,7 +74,6 @@ export const recallBuilder = {
     }
     return "CONTINUATION";
   },
-
 
   /**
    * Scan validated memories, check active signals/narratives, and compile candidate recall profiles.
