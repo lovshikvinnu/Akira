@@ -27,32 +27,32 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Shell, PageHeader } from "@/components/akira/Shell";
-import { akira } from "@/services/akira-store";
-import { eventService } from "@/services/events/event-service";
-import { candidateService } from "@/services/memory/candidate-service";
-import { memoryService } from "@/services/memory/validation/memory-service";
-import { relationshipService } from "@/services/memory/relationships/relationship-service";
-import { storyService } from "@/services/stories/story-service";
-import { identityService } from "@/services/identity/identity-service";
-import { hypothesesService } from "@/services/identity/hypotheses";
-import { importanceService } from "@/services/importance/importance-service";
-import { recallService } from "@/services/recall/recall-service";
-import { contextService } from "@/services/context/context-service";
-import { validator } from "@/services/memory/validation/validator";
+import { Shell, PageHeader } from "@/app/shell/Shell";
+import { akira } from "@/akira-os";
+import { eventService } from "@/genesis";
+import { candidateService } from "@/genesis";
+import { memoryService } from "@/genesis";
+import { memoryRelationshipService as relationshipService } from "@/genesis";
+import { storyService } from "@/genesis";
+import { identityService } from "@/genesis";
+import { hypothesesService } from "@/genesis";
+import { importanceService } from "@/genesis";
+import { recallService } from "@/genesis";
+import { contextService } from "@/genesis";
+import { validator } from "@/genesis";
 import { logger, type LogEntry } from "@/lib/logger";
-import { EmptyState } from "@/components/akira/primitives";
+import { EmptyState } from "@/app/ui/primitives";
 
 // Types
-import { MemoryEvent } from "@/services/events/types";
-import { MemoryCandidate } from "@/services/memory/candidate";
-import { Memory } from "@/services/memory/validation/types";
-import { MemoryRelationship } from "@/services/memory/relationships/types";
-import { Story } from "@/services/stories/types";
-import { IdentityObservation, IdentityHypothesis } from "@/services/identity/types";
-import { MemoryImportance } from "@/services/importance/types";
-import { RecallCandidate, RecallSession } from "@/services/recall/types";
-import { ContextPackage } from "@/services/context/types";
+import { MemoryEvent } from "@/genesis";
+import { MemoryCandidate } from "@/genesis";
+import { Memory } from "@/genesis";
+import { MemoryRelationship } from "@/genesis";
+import { Story } from "@/genesis";
+import { IdentityObservation, IdentityHypothesis } from "@/genesis";
+import { MemoryImportance } from "@/genesis";
+import { RecallCandidate, RecallSession } from "@/genesis";
+import { ContextPackage } from "@/genesis";
 
 export const Route = createFileRoute("/brain")({
   head: () => ({

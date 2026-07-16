@@ -3,18 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, Edit3, Trash2, Mic, Sparkles, Pin, Heart, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
-import { Shell, PageHeader } from "@/components/akira/Shell";
-import {
-  CardShell,
-  EmptyState,
-  FieldInput,
-  FieldTextarea,
-  GhostButton,
-} from "@/components/akira/primitives";
-import { GlassDialog } from "@/components/akira/dialogs/glass-dialog";
-import { VoiceComingSoonDialog } from "@/components/akira/dialogs/VoiceComingSoonDialog";
-import { ConfirmDialog } from "@/components/akira/dialogs/ConfirmDialog";
-import { useAkira, akira, type Note } from "@/services/akira-store";
+import { Shell, PageHeader } from "@/app/shell/Shell";
+import { CardShell, EmptyState, FieldInput, FieldTextarea, GhostButton } from "@/app/ui/primitives";
+import { GlassDialog } from "@/app/ui/dialogs/glass-dialog";
+import { VoiceComingSoonDialog } from "@/app/ui/dialogs/VoiceComingSoonDialog";
+import { ConfirmDialog } from "@/app/ui/dialogs/ConfirmDialog";
+import { useAkira, akira, type Note } from "@/akira-os";
 
 export const Route = createFileRoute("/brain-dump")({
   head: () => ({

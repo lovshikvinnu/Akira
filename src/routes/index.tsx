@@ -16,13 +16,13 @@ import {
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { Shell } from "@/components/akira/Shell";
-import { AiCore } from "@/components/akira/AiCore";
-import { CardShell, CardLabel, ProjectIcon } from "@/components/akira/primitives";
-import { StreakIcon } from "@/components/akira/streak-icon";
-import { CaptureThoughtDialog } from "@/components/akira/dialogs/CaptureThoughtDialog";
-import { VoiceComingSoonDialog } from "@/components/akira/dialogs/VoiceComingSoonDialog";
-import { useAkira, akira, selectors } from "@/services/akira-store";
+import { Shell } from "@/app/shell/Shell";
+import { AiCore } from "@/app/ui/AiCore";
+import { CardShell, CardLabel, ProjectIcon } from "@/app/ui/primitives";
+import { StreakIcon } from "@/app/ui/streak-icon";
+import { CaptureThoughtDialog } from "@/app/ui/dialogs/CaptureThoughtDialog";
+import { VoiceComingSoonDialog } from "@/app/ui/dialogs/VoiceComingSoonDialog";
+import { useAkira, akira, selectors } from "@/akira-os";
 
 export const Route = createFileRoute("/")({
   head: () => ({

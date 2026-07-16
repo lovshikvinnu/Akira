@@ -27,22 +27,22 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Shell, PageHeader } from "@/components/akira/Shell";
-import { GhostButton } from "@/components/akira/primitives";
-import { useAkira, akira, type ChatMessage } from "@/services/akira-store";
-import { eventService } from "@/services/events/event-service";
-import { candidateService } from "@/services/memory/candidate-service";
-import { memoryService } from "@/services/memory/validation/memory-service";
-import { companionStateService } from "@/services/companion/state";
-import { storyService } from "@/services/stories/story-service";
-import { identityService } from "@/services/identity/identity-service";
-import { contextService } from "@/services/context/context-service";
-import { contextBuilder } from "@/services/context/context-builder";
-import { hypothesesService } from "@/services/identity/hypotheses";
-import { aiContextEngine } from "@/services/ai/context-engine";
-import { ContextPackage } from "@/services/context/types";
-import { MarkdownRenderer } from "@/components/akira/MarkdownRenderer";
-import { useAIProviderManager } from "@/services/ai/provider-manager";
+import { Shell, PageHeader } from "@/app/shell/Shell";
+import { GhostButton } from "@/app/ui/primitives";
+import { useAkira, akira, type ChatMessage } from "@/akira-os";
+import { eventService } from "@/genesis";
+import { candidateService } from "@/genesis";
+import { memoryService } from "@/genesis";
+import { companionStateService } from "@/genesis";
+import { storyService } from "@/genesis";
+import { identityService } from "@/genesis";
+import { contextService } from "@/genesis";
+import { contextBuilder } from "@/genesis";
+import { hypothesesService } from "@/genesis";
+import { aiContextEngine } from "@/genesis";
+import { ContextPackage } from "@/genesis";
+import { MarkdownRenderer } from "@/app/ui/MarkdownRenderer";
+import { useAIProviderManager } from "@/genesis";
 
 export const Route = createFileRoute("/chat")({
   head: () => ({
@@ -115,11 +115,13 @@ interface LegacyChatMessage {
   createdAt?: string;
 }
 
-function migrateLegacyChatHistory() {
+async function migrateLegacyChatHistory() {
   if (typeof window === "undefined") return;
 
   const MIGRATIONS_KEY = "akira:migrations";
   const MAIN_STATE_STORAGE_KEY = "akira:state:v1";
+
+  const { settingsService } = await import("@/akira-os");
 
   // Check if migration is already complete
   try {
@@ -172,7 +174,7 @@ function migrateLegacyChatHistory() {
             updatedAt: latestTime,
           };
 
-          const existingHistoryRaw = localStorage.getItem(CHAT_HISTORY_STORAGE_KEY);
+          const existingHistoryRaw = await settingsService.get(CHAT_HISTORY_STORAGE_KEY);
           let existingHistory: ChatConversation[] = [];
           if (existingHistoryRaw) {
             try {
@@ -193,7 +195,7 @@ function migrateLegacyChatHistory() {
 
           if (!isDuplicate) {
             const updatedHistory = [migratedConv, ...existingHistory];
-            localStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(updatedHistory));
+            await settingsService.set(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(updatedHistory));
           }
         }
       }
@@ -270,16 +272,37 @@ function CompanionWorkspacePage() {
   const [isLoading, setIsLoading] = useState(false);
 
   // Local state for ChatGPT-like conversation lifecycle
-  const [conversations, setConversations] = useState<ChatConversation[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      migrateLegacyChatHistory();
-      const raw = window.localStorage.getItem(CHAT_HISTORY_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [conversations, setConversations] = useState<ChatConversation[]>([]);
+
+  // Helper to update and persist conversation history to the SQLite database
+  const saveConversations = async (
+    updater: ChatConversation[] | ((prev: ChatConversation[]) => ChatConversation[]),
+  ) => {
+    setConversations((prev) => {
+      const updated = typeof updater === "function" ? updater(prev) : updater;
+      import("@/akira-os").then(({ settingsService }) => {
+        settingsService.set(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(updated));
+      });
+      return updated;
+    });
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const loadConversations = async () => {
+      try {
+        await migrateLegacyChatHistory();
+        const { settingsService } = await import("@/akira-os");
+        const raw = await settingsService.get(CHAT_HISTORY_STORAGE_KEY);
+        if (raw) {
+          setConversations(JSON.parse(raw));
+        }
+      } catch (e) {
+        console.error("Failed to load chat history:", e);
+      }
+    };
+    loadConversations();
+  }, []);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(true);
 
@@ -515,7 +538,7 @@ function CompanionWorkspacePage() {
 
       // Update locally as well
       if (activeConversationId) {
-        setConversations((prev) => {
+        saveConversations((prev) => {
           const updated = prev.map((c) => {
             if (c.id === activeConversationId) {
               return {
@@ -528,7 +551,6 @@ function CompanionWorkspacePage() {
             }
             return c;
           });
-          localStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(updated));
           return updated;
         });
       }
@@ -552,8 +574,7 @@ function CompanionWorkspacePage() {
 
   const handleDeleteConversation = (id: string) => {
     const updated = conversations.filter((c) => c.id !== id);
-    setConversations(updated);
-    localStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(updated));
+    saveConversations(updated);
 
     if (activeConversationId === id) {
       setActiveConversationId(null);
@@ -603,9 +624,8 @@ function CompanionWorkspacePage() {
       };
 
       // Update conversations state
-      setConversations((prev) => {
+      saveConversations((prev) => {
         const updated = [newConv, ...prev];
-        localStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(updated));
         return updated;
       });
 
@@ -623,7 +643,7 @@ function CompanionWorkspacePage() {
     };
 
     // Append user message locally
-    setConversations((prev) => {
+    saveConversations((prev) => {
       const updated = prev.map((c) => {
         if (c.id === convId) {
           return {
@@ -634,7 +654,6 @@ function CompanionWorkspacePage() {
         }
         return c;
       });
-      localStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });
 
@@ -691,7 +710,7 @@ function CompanionWorkspacePage() {
       createdAt: new Date().toISOString(),
     };
 
-    setConversations((prev) => {
+    saveConversations((prev) => {
       const updated = prev.map((c) => {
         if (c.id === convId) {
           return {
@@ -702,7 +721,6 @@ function CompanionWorkspacePage() {
         }
         return c;
       });
-      localStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });
 
@@ -720,7 +738,7 @@ function CompanionWorkspacePage() {
           akira.updateChatMessage(aiMessage.id, currentResponseTextRef.current);
 
           // Update message locally
-          setConversations((prev) => {
+          saveConversations((prev) => {
             const updated = prev.map((c) => {
               if (c.id === convId) {
                 return {
@@ -733,7 +751,6 @@ function CompanionWorkspacePage() {
               }
               return c;
             });
-            localStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(updated));
             return updated;
           });
 
@@ -762,7 +779,7 @@ function CompanionWorkspacePage() {
       } else {
         console.error("AI engine stream query failed:", err);
         let errorMessage =
-          "I encountered an issue connecting to my cognitive core. Please verify your network or retry.";
+          `I encountered an issue connecting to my cognitive core: ${error.message || String(error)}. Please verify your network or retry.`;
 
         const activeProvider = providerState.activeProvider;
         const apiKey =
@@ -782,7 +799,7 @@ function CompanionWorkspacePage() {
         akira.updateChatMessage(aiMessage.id, `⚠️ **System Note:** ${errorMessage}`);
 
         // Update locally with error message
-        setConversations((prev) => {
+        saveConversations((prev) => {
           const updated = prev.map((c) => {
             if (c.id === convId) {
               return {
@@ -795,7 +812,6 @@ function CompanionWorkspacePage() {
             }
             return c;
           });
-          localStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(updated));
           return updated;
         });
       }

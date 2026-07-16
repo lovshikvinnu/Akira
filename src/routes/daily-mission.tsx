@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Shell, PageHeader } from "@/components/akira/Shell";
+import { Shell, PageHeader } from "@/app/shell/Shell";
 import {
   CardShell,
   CardLabel,
@@ -24,9 +24,9 @@ import {
   FieldInput,
   FieldTextarea,
   GhostButton,
-} from "@/components/akira/primitives";
-import { GlassDialog } from "@/components/akira/dialogs/glass-dialog";
-import { useAkira, akira, selectors, type Task } from "@/services/akira-store";
+} from "@/app/ui/primitives";
+import { GlassDialog } from "@/app/ui/dialogs/glass-dialog";
+import { useAkira, akira, selectors, type Task } from "@/akira-os";
 
 export const Route = createFileRoute("/daily-mission")({
   head: () => ({

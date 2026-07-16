@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { Plus, Search, Edit3, Trash2, ArrowRight, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
-import { Shell, PageHeader } from "@/components/akira/Shell";
+import { Shell, PageHeader } from "@/app/shell/Shell";
 import {
   CardShell,
   CardLabel,
@@ -12,10 +12,10 @@ import {
   FieldTextarea,
   EmptyState,
   ProjectIcon,
-} from "@/components/akira/primitives";
-import { GlassDialog } from "@/components/akira/dialogs/glass-dialog";
-import { ConfirmDialog } from "@/components/akira/dialogs/ConfirmDialog";
-import { useAkira, akira, type Project } from "@/services/akira-store";
+} from "@/app/ui/primitives";
+import { GlassDialog } from "@/app/ui/dialogs/glass-dialog";
+import { ConfirmDialog } from "@/app/ui/dialogs/ConfirmDialog";
+import { useAkira, akira, type Project } from "@/akira-os";
 
 export const Route = createFileRoute("/projects")({
   head: () => ({

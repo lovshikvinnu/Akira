@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Shell } from "@/components/akira/Shell";
+import { Shell } from "@/app/shell/Shell";
 import {
   CardShell,
   CardLabel,
@@ -21,10 +21,10 @@ import {
   FieldInput,
   FieldTextarea,
   ProjectIcon,
-} from "@/components/akira/primitives";
-import { GlassDialog } from "@/components/akira/dialogs/glass-dialog";
-import { ConfirmDialog } from "@/components/akira/dialogs/ConfirmDialog";
-import { useAkira, akira } from "@/services/akira-store";
+} from "@/app/ui/primitives";
+import { GlassDialog } from "@/app/ui/dialogs/glass-dialog";
+import { ConfirmDialog } from "@/app/ui/dialogs/ConfirmDialog";
+import { useAkira, akira } from "@/akira-os";
 
 export const Route = createFileRoute("/projects/$id")({
   head: ({ params }) => ({

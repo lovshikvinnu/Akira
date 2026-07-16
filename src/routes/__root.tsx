@@ -12,18 +12,17 @@ import { toast } from "sonner";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { Toaster } from "@/components/ui/sonner";
-import { BootSequence } from "@/components/akira/BootSequence";
-import { presenceService } from "@/services/companion/presence";
-import { goalService } from "@/services/companion/goals";
-import { knowledgeService } from "@/services/companion/knowledge";
-import { relationshipService } from "@/services/companion/relationships";
-import { habitService } from "@/services/companion/habits";
-import { reflectionService } from "@/services/companion/reflection";
-import { contextResolutionService } from "@/services/companion/context-resolution";
-import { initiativeService } from "@/services/companion/initiative";
-import { companionStateService } from "@/services/companion/state";
-import "@/services/ai";
+import { Toaster } from "@/app/ui/sonner";
+import { BootSequence } from "@/app/shell/BootSequence";
+import { presenceService, useAkiraHydrated } from "@/akira-os";
+import { goalService } from "@/genesis";
+import { knowledgeService } from "@/genesis";
+import { relationshipService } from "@/genesis";
+import { habitService } from "@/genesis";
+import { reflectionService } from "@/genesis";
+import { contextResolutionService } from "@/genesis";
+import { initiativeService } from "@/genesis";
+import { companionStateService } from "@/genesis";
 
 function NotFoundComponent() {
   return (
@@ -195,10 +194,52 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const hydrated = useAkiraHydrated();
   const [isBooting, setIsBooting] = useState(() => {
     if (typeof window === "undefined") return false;
     return !sessionStorage.getItem("akira:booted");
   });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const initializeDatabaseState = async () => {
+      // 1. Perform migration if legacy data is found
+      const legacyData = localStorage.getItem("akira:state:v1");
+      if (legacyData) {
+        try {
+          const { migrateLegacyState } = await import("../persistence/migration");
+          const res = await migrateLegacyState({ data: legacyData });
+          if (res.success) {
+            localStorage.setItem("akira:state:v1:migrated", legacyData);
+            localStorage.removeItem("akira:state:v1");
+            toast.success("Legacy state successfully migrated to SQLite database!");
+          } else {
+            console.error("Legacy state migration failed:", res.error);
+            toast.error(`Legacy state migration failed: ${res.error}`);
+          }
+        } catch (err) {
+          console.error("Migration coordinator error:", err);
+          const errMsg = err instanceof Error ? err.message : String(err);
+          toast.error(`Migration coordinator failed: ${errMsg}`);
+        }
+      }
+
+      // 2. Hydrate client akira-store from the SQLite database
+      try {
+        const { getInitialState } = await import("../persistence/store-init");
+        const { akira } = await import("../persistence/akira-store");
+        const state = await getInitialState();
+        akira.initializeState(state);
+      } catch (err) {
+        console.error("Failed to load initial state from SQLite:", err);
+        const errMsg = err instanceof Error ? err.message : String(err);
+        toast.error(`Failed to load initial state from SQLite: ${errMsg}`);
+      }
+    };
+
+    initializeDatabaseState();
+  }, []);
 
   useEffect(() => {
     // Initialize the Presence, Goal, Knowledge, Relationship, Habit, Reflection, Context Resolution, and Initiative Engines at application/session boot
@@ -230,7 +271,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {isBooting && <BootSequence onComplete={() => setIsBooting(false)} />}
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      {hydrated ? <Outlet /> : null}
       <Toaster theme="dark" position="bottom-right" richColors closeButton />
     </QueryClientProvider>
   );

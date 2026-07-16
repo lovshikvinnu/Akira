@@ -2,6 +2,14 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { initializeDatabase } from "./persistence/initializer";
+
+// Initialize SQLite database on server startup
+try {
+  initializeDatabase();
+} catch (error) {
+  console.error("Critical: Failed to initialize SQLite database on startup:", error);
+}
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;

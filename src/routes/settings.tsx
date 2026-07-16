@@ -16,11 +16,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Shell, PageHeader } from "@/components/akira/Shell";
-import { CardShell, CardLabel, FieldInput, GhostButton } from "@/components/akira/primitives";
-import { ConfirmDialog } from "@/components/akira/dialogs/ConfirmDialog";
-import { useAkira, akira } from "@/services/akira-store";
-import { useAIProviderManager, aiProviderManager } from "@/services/ai/provider-manager";
+import { Shell, PageHeader } from "@/app/shell/Shell";
+import { CardShell, CardLabel, FieldInput, GhostButton } from "@/app/ui/primitives";
+import { ConfirmDialog } from "@/app/ui/dialogs/ConfirmDialog";
+import { useAkira, akira } from "@/akira-os";
+import { useAIProviderManager, aiProviderManager } from "@/genesis";
 
 export const Route = createFileRoute("/settings")({
   validateSearch: (search: Record<string, unknown>): { tab?: string } => {

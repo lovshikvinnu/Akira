@@ -14,13 +14,13 @@ import {
   UserCheck,
 } from "lucide-react";
 
-import { Shell, PageHeader } from "@/components/akira/Shell";
-import { CardShell, CardLabel, EmptyState, GhostButton } from "@/components/akira/primitives";
-import { useAkira } from "@/services/akira-store";
-import { candidateService } from "@/services/memory/candidate-service";
-import { memoryService } from "@/services/memory/validation/memory-service";
-import { storyService } from "@/services/stories/story-service";
-import { identityService } from "@/services/identity/identity-service";
+import { Shell, PageHeader } from "@/app/shell/Shell";
+import { CardShell, CardLabel, EmptyState, GhostButton } from "@/app/ui/primitives";
+import { useAkira } from "@/akira-os";
+import { candidateService } from "@/genesis";
+import { memoryService } from "@/genesis";
+import { storyService } from "@/genesis";
+import { identityService } from "@/genesis";
 
 export const Route = createFileRoute("/sessions")({
   head: () => ({

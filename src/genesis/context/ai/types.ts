@@ -1,0 +1,32 @@
+import { ContextPackage } from "../types";
+
+export type AIHistoryMessage = {
+  role: "user" | "akira" | "model";
+  text: string;
+};
+
+export type AIRequest = {
+  prompt: string;
+  systemInstruction?: string;
+  contextPackage?: ContextPackage;
+  temperature?: number;
+  maxTokens?: number;
+  history?: AIHistoryMessage[];
+};
+
+export type StandardAIResponse = {
+  responseId: string;
+  provider: string;
+  model: string;
+  content: string;
+  finishReason: "stop" | "length" | "content_filter" | "tool_calls" | "other" | "unknown";
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  };
+  timestamp: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type AIResponse = StandardAIResponse;
