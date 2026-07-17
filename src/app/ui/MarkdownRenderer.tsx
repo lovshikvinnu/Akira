@@ -402,6 +402,11 @@ function highlightCodeLine(line: string, lang: string): React.ReactNode {
   );
 }
 
+const CodeLine = React.memo(({ line, lang }: { line: string; lang: string }) => {
+  return <>{highlightCodeLine(line, lang)}</>;
+});
+CodeLine.displayName = "CodeLine";
+
 /**
  * Renders a full code block with numbers, line wrapping, and copy button.
  */
@@ -450,7 +455,7 @@ export function CodeBlock({ code, lang }: { code: string; lang: string }) {
                 {idx + 1}
               </span>
               <span className="table-cell pl-4 font-mono text-xs whitespace-pre-wrap break-all leading-relaxed align-top">
-                {highlightCodeLine(line, lang)}
+                <CodeLine line={line} lang={lang} />
               </span>
             </div>
           ))}
@@ -464,7 +469,7 @@ export function CodeBlock({ code, lang }: { code: string; lang: string }) {
  * Main Markdown rendering component.
  */
 export function MarkdownRenderer({ content }: { content: string }) {
-  const blocks = parseMarkdown(content || "");
+  const blocks = React.useMemo(() => parseMarkdown(content || ""), [content]);
 
   return (
     <div className="space-y-4 text-foreground/90 leading-relaxed text-sm">
