@@ -261,7 +261,6 @@ function CompanionWorkspacePage() {
   const profile = useAkira((s) => s.profile);
   const activeSession = useAkira((s) => s.activeSession);
   const projects = useAkira((s) => s.projects);
-  const messages = useAkira((s) => s.chat);
   const scrollRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const providerState = useAIProviderManager();
