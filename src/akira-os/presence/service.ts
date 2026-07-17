@@ -33,15 +33,33 @@ class PresenceService {
       if (this.currentContext) {
         const freshInputs = this.resolveInputsFromStore();
         const freshContext = buildPresenceContext(freshInputs);
-        this.currentContext = freshContext;
-        presenceEvents.publish(freshContext);
+        if (this.isContextChanged(this.currentContext, freshContext)) {
+          this.currentContext = freshContext;
+          presenceEvents.publish(freshContext);
+          eventBus.publish(Events.PRESENCE_UPDATED, { context: freshContext });
+        }
       }
     });
 
-    // Run active decay timer loops
+    // Run active decay decay timer loops
     this.startDecayMonitoring();
 
     return context;
+  }
+
+  private isContextChanged(prev: PresenceContext | null, next: PresenceContext): boolean {
+    if (!prev) return true;
+    return (
+      prev.sessionType !== next.sessionType ||
+      prev.returnState !== next.returnState ||
+      prev.timePeriod !== next.timePeriod ||
+      prev.firstSessionToday !== next.firstSessionToday ||
+      prev.resumedConversation !== next.resumedConversation ||
+      prev.recentProjectReference !== next.recentProjectReference ||
+      prev.unusualAccessTime !== next.unusualAccessTime ||
+      prev.continuityConfidence !== next.continuityConfidence ||
+      prev.presenceConfidence !== next.presenceConfidence
+    );
   }
 
   /**
@@ -77,8 +95,11 @@ class PresenceService {
     };
 
     const newContext = buildPresenceContext(inputs);
-    this.currentContext = newContext;
-    presenceEvents.publish(newContext);
+    if (this.isContextChanged(this.currentContext, newContext)) {
+      this.currentContext = newContext;
+      presenceEvents.publish(newContext);
+      eventBus.publish(Events.PRESENCE_UPDATED, { context: newContext });
+    }
   }
 
   /**
