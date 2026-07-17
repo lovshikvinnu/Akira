@@ -277,12 +277,15 @@ function CompanionWorkspacePage() {
   // Helper to update and persist conversation history to the SQLite database
   const saveConversations = async (
     updater: ChatConversation[] | ((prev: ChatConversation[]) => ChatConversation[]),
+    persist = true,
   ) => {
     setConversations((prev) => {
       const updated = typeof updater === "function" ? updater(prev) : updater;
-      import("@/akira-os").then(({ settingsService }) => {
-        settingsService.set(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(updated));
-      });
+      if (persist) {
+        import("@/akira-os").then(({ settingsService }) => {
+          settingsService.set(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(updated));
+        });
+      }
       return updated;
     });
   };
@@ -734,10 +737,10 @@ function CompanionWorkspacePage() {
           setCompanionState("responding");
           currentResponseTextRef.current += chunk;
 
-          // Update message in global store
-          akira.updateChatMessage(aiMessage.id, currentResponseTextRef.current);
+          // Update message in global store without executing settingsService.updateChat database write
+          akira.updateChatMessage(aiMessage.id, currentResponseTextRef.current, true);
 
-          // Update message locally
+          // Update message locally without writing history to settings database
           saveConversations((prev) => {
             const updated = prev.map((c) => {
               if (c.id === convId) {
@@ -752,7 +755,7 @@ function CompanionWorkspacePage() {
               return c;
             });
             return updated;
-          });
+          }, false);
 
           // Auto-scroll if appropriate
           if (isNearBottomRef.current && scrollRef.current) {
@@ -818,6 +821,11 @@ function CompanionWorkspacePage() {
     } finally {
       setIsLoading(false);
       setCompanionState("idle");
+      
+      // Perform final batched SQLite database updates after streaming terminates
+      akira.updateChatMessage(aiMessage.id, currentResponseTextRef.current, false);
+      saveConversations((prev) => prev, true);
+
       abortControllerRef.current = null;
       activeMessageIdRef.current = null;
 

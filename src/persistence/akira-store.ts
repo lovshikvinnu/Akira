@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { seed } from "./seed";
 import { registerStoreProvider } from "../shared/genesis-provider";
+import { registerWorkspaceProvider } from "../contracts/workspace-provider";
 import { eventBus } from "../shared/infrastructure/event-bus";
 import { Events } from "../contracts/events";
 
@@ -455,12 +456,14 @@ export const akira = {
     return msg;
   },
 
-  updateChatMessage(id: string, text: string): void {
+  updateChatMessage(id: string, text: string, skipPersist = false): void {
     set((s) => {
       const nextChat = s.chat.map((m) => (m.id === id ? { ...m, text } : m));
-      import("../akira-os/settings").then(({ settingsService }) => {
-        settingsService.updateChat(nextChat);
-      });
+      if (!skipPersist) {
+        import("../akira-os/settings").then(({ settingsService }) => {
+          settingsService.updateChat(nextChat);
+        });
+      }
       return {
         ...s,
         chat: nextChat,
@@ -658,3 +661,5 @@ registerStoreProvider({
     }));
   },
 });
+
+registerWorkspaceProvider(akira);
