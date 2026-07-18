@@ -12,7 +12,7 @@ import {
   recordInteraction,
   applyUserCorrection,
 } from "./rules";
-import { akira } from "../../../akira-os";
+import { getWorkspaceProvider } from "../../../contracts/workspace-provider";
 import { eventService } from "../../events/event-service";
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -38,7 +38,7 @@ class RelationshipService {
     if (this.storeUnsubscribe) {
       this.storeUnsubscribe();
     }
-    this.storeUnsubscribe = akira.subscribe(() => {
+    this.storeUnsubscribe = getWorkspaceProvider().subscribe(() => {
       this.processNewChatMessages();
     });
 
@@ -155,7 +155,7 @@ class RelationshipService {
    * Matches capitalized names following markers like "with", "asked", "told", or direct "@mentions".
    */
   private processNewChatMessages(): void {
-    const store = akira.getState();
+    const store = getWorkspaceProvider().getState();
     const chat = store.chat || [];
     let hasChanges = false;
 

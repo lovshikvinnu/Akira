@@ -2,7 +2,7 @@ import { Goal, GoalContext, GoalEvidence, GoalStatus } from "./types";
 import { buildGoalContext } from "./builder";
 import { goalEvents } from "./events";
 import { createGoal, updateGoalStatus, updateGoalProgress, applyUserCorrection } from "./rules";
-import { akira } from "../../../akira-os";
+import { getWorkspaceProvider } from "../../../contracts/workspace-provider";
 import { eventService } from "../../events/event-service";
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -27,7 +27,7 @@ class GoalService {
     if (this.storeUnsubscribe) {
       this.storeUnsubscribe();
     }
-    this.storeUnsubscribe = akira.subscribe(() => {
+    this.storeUnsubscribe = getWorkspaceProvider().subscribe(() => {
       this.syncFromStore(false);
     });
 
@@ -180,7 +180,7 @@ class GoalService {
    * Tasks are NEVER automatically promoted to Goals, and Goals are NEVER implicitly created from Tasks.
    */
   private syncFromStore(isInitial: boolean): void {
-    const store = akira.getState();
+    const store = getWorkspaceProvider().getState();
     let hasChanges = false;
 
     this.goals.forEach((goal, index) => {

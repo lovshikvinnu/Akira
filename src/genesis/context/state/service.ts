@@ -2,8 +2,10 @@ import { CompanionState, AwarenessSnapshot, SessionIntent, FocusArea } from "./t
 import { buildCompanionState } from "./builder";
 import { stateEvents } from "./events";
 import { addEvidence, applyUserCorrection } from "./rules";
-import { presenceService } from "../../../akira-os/presence/service";
-import { akira } from "../../../akira-os";
+import type { PresenceContext } from "../../../akira-os/presence/types";
+import { getWorkspaceProvider } from "../../../contracts/workspace-provider";
+import { eventBus } from "../../../shared/infrastructure/event-bus";
+import { Events } from "../../../contracts/events";
 import { eventService } from "../../events/event-service";
 import { recallService } from "../../recall/recall-service";
 import { memoryService, validationEngine } from "../../memory/memory-service";
@@ -17,6 +19,14 @@ class CompanionStateService {
   private currentState: CompanionState | null = null;
   private isSnapshotImmutable = false;
   private storeUnsubscribe: (() => void) | null = null;
+  private latestPresenceContext: PresenceContext | null = null;
+  private presenceUnsubscribe: (() => void) | null = null;
+
+  constructor() {
+    this.presenceUnsubscribe = eventBus.subscribe(Events.PRESENCE_UPDATED, (event) => {
+      this.latestPresenceContext = event.payload.context;
+    });
+  }
 
   /**
    * Bootstraps the active session state.
@@ -28,7 +38,7 @@ class CompanionStateService {
     recallBuilder.initialize();
     memoryService.initialize();
 
-    const presenceContext = presenceService.getContext();
+    const presenceContext = this.latestPresenceContext;
     if (!presenceContext) {
       throw new Error("Cannot bootstrap Companion State: Presence Engine is not initialized.");
     }
@@ -163,7 +173,7 @@ class CompanionStateService {
    * Generates a snapshot of the workspace state.
    */
   private compileSnapshotFromStore(): AwarenessSnapshot {
-    const store = akira.getState();
+    const store = getWorkspaceProvider().getState();
     const now = Date.now();
 
     // Map intent category
@@ -231,9 +241,9 @@ class CompanionStateService {
       this.storeUnsubscribe();
     }
 
-    this.storeUnsubscribe = akira.subscribe(() => {
+    this.storeUnsubscribe = getWorkspaceProvider().subscribe(() => {
       if (!this.currentState) return;
-      const store = akira.getState();
+      const store = getWorkspaceProvider().getState();
 
       // Check if project changed
       const lastProjId = store.lastProjectId;

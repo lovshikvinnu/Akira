@@ -9,7 +9,7 @@ import {
 import { buildKnowledgeContext } from "./builder";
 import { knowledgeEvents } from "./events";
 import { observeNode, updateNodeStatus, applyUserCorrection } from "./rules";
-import { akira } from "../../../akira-os";
+import { getWorkspaceProvider } from "../../../contracts/workspace-provider";
 import { goalService } from "../goals/service";
 import { eventService } from "../../events/event-service";
 
@@ -33,7 +33,7 @@ class KnowledgeService {
     if (this.storeUnsubscribe) {
       this.storeUnsubscribe();
     }
-    this.storeUnsubscribe = akira.subscribe(() => {
+    this.storeUnsubscribe = getWorkspaceProvider().subscribe(() => {
       this.processWorkspaceActivities();
     });
 
@@ -164,7 +164,7 @@ class KnowledgeService {
    * Analyzes workspace events (completed tasks) to refine skill and concepts.
    */
   private processWorkspaceActivities(): void {
-    const store = akira.getState();
+    const store = getWorkspaceProvider().getState();
     const completedTasks = store.tasks.filter((t) => t.completed || t.done);
     let hasChanges = false;
 

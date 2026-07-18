@@ -7,7 +7,7 @@ import {
   evaluateHabitDecay,
   applyUserHabitCorrection,
 } from "./rules";
-import { akira } from "../../../akira-os";
+import { getWorkspaceProvider } from "../../../contracts/workspace-provider";
 import { eventService } from "../../events/event-service";
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -34,10 +34,10 @@ class HabitService {
       this.storeUnsubscribe();
     }
 
-    const initialStoreState = akira.getState();
+    const initialStoreState = getWorkspaceProvider().getState();
     this.lastProjectId = initialStoreState.lastProjectId;
 
-    this.storeUnsubscribe = akira.subscribe(() => {
+    this.storeUnsubscribe = getWorkspaceProvider().subscribe(() => {
       this.processWorkspaceEvents();
     });
 
@@ -163,7 +163,7 @@ class HabitService {
    * Analyzes state changes in the store to infer behavioral context dependencies.
    */
   private processWorkspaceEvents(): void {
-    const state = akira.getState();
+    const state = getWorkspaceProvider().getState();
     const activeProject = state.lastProjectId;
 
     // Detect project transitions (Workspace Focus Switch)

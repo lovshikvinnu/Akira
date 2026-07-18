@@ -1,0 +1,28 @@
+# CODEOWNERS Configuration
+# This file automatically requests reviews from owners when files are modified in PRs.
+
+# ----------------------------------------------------
+# Shared & Contracts (Joint Approval Required)
+# ----------------------------------------------------
+/src/contracts/     @founder-cto @platform-lead
+/src/shared/        @founder-cto @platform-lead
+/src/lib/           @founder-cto @platform-lead
+/OWNERSHIP.md       @founder-cto @platform-lead
+/CONTRIBUTING.md    @founder-cto @platform-lead
+/CODEOWNERS         @founder-cto @platform-lead
+/.github/CODEOWNERS @founder-cto @platform-lead
+
+# ----------------------------------------------------
+# GENESIS Subsystem (Owned by Founder / CTO)
+# ----------------------------------------------------
+/src/genesis/       @founder-cto
+/docs/GENESIS/      @founder-cto
+
+# ----------------------------------------------------
+# AKIRA OS & UI Subsystem (Owned by Platform Lead)
+# ----------------------------------------------------
+/src/akira-os/      @platform-lead
+/src/persistence/   @platform-lead
+/src/routes/        @platform-lead
+/src/app/           @platform-lead
+/docs/AKIRA-OS/     @platform-lead

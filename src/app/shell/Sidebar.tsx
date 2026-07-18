@@ -7,6 +7,7 @@ import {
   Settings,
   Terminal,
   Clock,
+  History,
 } from "lucide-react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useAkira } from "@/akira-os";
@@ -19,6 +20,7 @@ const items = [
   { icon: Target, label: "Daily Mission", to: "/daily-mission" as const },
   { icon: MessageSquare, label: "Chat", to: "/chat" as const },
   { icon: Clock, label: "Sessions", to: "/sessions" as const },
+  { icon: History, label: "Timeline", to: "/timeline" as const },
   { icon: Settings, label: "Settings", to: "/settings" as const },
 ];
 

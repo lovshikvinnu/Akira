@@ -14,7 +14,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/app/ui/sonner";
 import { BootSequence } from "@/app/shell/BootSequence";
-import { presenceService, useAkiraHydrated } from "@/akira-os";
+import { presenceService, useAkiraHydrated, timelineService } from "@/akira-os";
 import { goalService } from "@/genesis";
 import { knowledgeService } from "@/genesis";
 import { relationshipService } from "@/genesis";
@@ -244,6 +244,7 @@ function RootComponent() {
   useEffect(() => {
     // Initialize the Presence, Goal, Knowledge, Relationship, Habit, Reflection, Context Resolution, and Initiative Engines at application/session boot
     presenceService.initialize();
+    timelineService.initialize();
     companionStateService.bootstrap();
     goalService.initialize();
     knowledgeService.initialize();
@@ -256,6 +257,7 @@ function RootComponent() {
     return () => {
       // Wind down decay loops and clean context
       presenceService.shutdown();
+      timelineService.shutdown();
       companionStateService.closeSession();
       goalService.shutdown();
       knowledgeService.shutdown();

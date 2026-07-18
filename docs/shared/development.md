@@ -20,33 +20,13 @@ AKIRA is built with a lightweight, high-performance, and offline-first frontend 
 
 ```text
 src/
-├── components/
-│   ├── akira/                 # App-specific custom components
-│   │   ├── dialogs/           # Modal dialog boxes (Capture, Confirm, Voice placeholders)
-│   │   ├── AiCore.tsx         # The animated SVG concentric orbital visual
-│   │   ├── primitives.tsx     # Domain-specific UI elements (CardShell, CardLabel, FieldInput)
-│   │   ├── Shell.tsx          # Master layout frame wrap
-│   │   ├── Sidebar.tsx        # Left navigation panel
-│   │   └── Topbar.tsx         # Top universal search & profile link wrapper
-│   └── ui/                    # Raw shadcn/ui components (Radix primitives)
-├── hooks/
-│   └── use-mobile.tsx         # Responsive mobile viewport hook
-├── lib/
-│   ├── error-capture.ts       # SSR crash-prevention intercepts
-│   ├── error-page.ts          # Catastrophic UI fallback renderer
-│   ├── lovable-error-reporting.ts # Error telemetry interfaces
-│   └── utils.ts               # Class utility merger
-├── routes/                    # File-based route path endpoints
-│   ├── __root.tsx             # HTML shell, React Query client context, global Toaster
-│   ├── index.tsx              # Main dashboard view
-│   ├── projects.tsx           # Projects dashboard, creation dialog, search & filter
-│   ├── projects.$id.tsx       # Detailed project inspector, stat metrics, blur-saved notes
-│   ├── daily-mission.tsx      # Daily tasks, radial completion metrics, check/uncheck actions
-│   ├── brain-dump.tsx         # Captured thoughts search, listing, and updates
-│   ├── chat.tsx               # Conversations screen with AKIRA
-│   └── settings.tsx           # User settings, theme selections, local state JSON backups
-└── services/
-    └── akira-store.ts         # Central local storage state management & mutations
+├── akira-os/            # AKIRA OS Pillar (Reality core logic: sessions, notes, projects, search, tasks)
+├── genesis/             # GENESIS Pillar (Interpretation cognitive core logic: memory, stories, insights, AI context)
+├── contracts/           # Shared subsystem interfaces, event names, and repository contracts
+├── persistence/         # SQLite DB, Migrations, schemas, seed data, and Repository implementations
+├── shared/              # Shared utilities, Event Bus, feature flags, infrastructure components
+├── app/                 # UI setup, routing client setup, layout Shell, Sidebar, Topbar, and base UI primitives
+└── routes/              # TanStack file-based client route views (Dashboard, Chat, Brain Dump, etc.)
 ```
 
 ---

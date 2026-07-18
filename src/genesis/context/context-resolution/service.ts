@@ -1,8 +1,9 @@
 import { ResolvedContext } from "./types";
 import { buildResolvedContext } from "./builder";
 import { contextResolutionEvents } from "./events";
-import { presenceService } from "../../../akira-os/presence/service";
-import { presenceEvents } from "../../../akira-os/presence/events";
+import type { PresenceContext } from "../../../akira-os/presence/types";
+import { eventBus } from "../../../shared/infrastructure/event-bus";
+import { Events } from "../../../contracts/events";
 import { companionStateService } from "../state/service";
 import { stateEvents } from "../state/events";
 import { goalService } from "../goals/service";
@@ -19,6 +20,13 @@ import { reflectionEvents } from "../../insights/reflection/events";
 class ContextResolutionService {
   private currentResolvedContext: ResolvedContext | null = null;
   private unsubscribers: (() => void)[] = [];
+  private latestPresenceContext: PresenceContext | null = null;
+
+  constructor() {
+    eventBus.subscribe(Events.PRESENCE_UPDATED, (event) => {
+      this.latestPresenceContext = event.payload.context;
+    });
+  }
 
   /**
    * Initializes the Context Resolution Engine and registers real-time event subscriptions
@@ -29,7 +37,12 @@ class ContextResolutionService {
     this.rebuildResolvedContext();
 
     // Subscribe to all upstream events to re-run coordination rules dynamically
-    this.unsubscribers.push(presenceEvents.subscribe(() => this.rebuildResolvedContext()));
+    this.unsubscribers.push(
+      eventBus.subscribe(Events.PRESENCE_UPDATED, (event) => {
+        this.latestPresenceContext = event.payload.context;
+        this.rebuildResolvedContext();
+      })
+    );
     this.unsubscribers.push(stateEvents.subscribe(() => this.rebuildResolvedContext()));
     this.unsubscribers.push(goalEvents.subscribe(() => this.rebuildResolvedContext()));
     this.unsubscribers.push(knowledgeEvents.subscribe(() => this.rebuildResolvedContext()));
@@ -51,7 +64,7 @@ class ContextResolutionService {
    * Gathers latest conceptual outputs from all active engines and executes the reconciliation rules.
    */
   public rebuildResolvedContext(): void {
-    const presence = presenceService.getContext();
+    const presence = this.latestPresenceContext;
     const state = companionStateService.getState();
     const goals = goalService.getContext();
     const knowledge = knowledgeService.getContext();
