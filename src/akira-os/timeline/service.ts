@@ -1,4 +1,3 @@
-import { eventBus } from "../../shared/infrastructure/event-bus";
 import { Events } from "../../contracts/events";
 import { TimelineEvent, TimelineQueryRequest, TimelineQueryResult } from "./types";
 import { TimelineRepository } from "../../contracts/repositories/TimelineRepository";
@@ -20,34 +19,24 @@ export class TimelineService {
 
   /**
    * Initializes the Timeline Service.
-   * Connects event bus subscriptions.
+   * Connects the new Instrumentation Event Bus subscription.
    */
   public async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
     this.unsubscribers = [];
 
-    const domainEvents = [
-      Events.PROJECT_CREATED,
-      Events.PROJECT_UPDATED,
-      Events.PROJECT_CONTINUED,
-      Events.PROJECT_DELETED,
-      Events.TASK_CREATED,
-      Events.TASK_COMPLETED,
-      Events.TASK_UPDATED,
-      Events.TASK_DELETED,
-      Events.NOTE_CREATED,
-      Events.NOTE_EDITED,
-      Events.NOTE_DELETED,
-      Events.SESSION_STARTED,
-      Events.SESSION_ENDED,
-    ];
+    // Dynamically load the globalEventBus and TimelineSubscriber to prevent client leaks
+    const { globalEventBus } = await import("../../instrumentation");
+    const { TimelineSubscriber } =
+      await import("../../instrumentation/subscribers/timeline-subscriber");
+    const repo = await this.getRepo();
 
-    domainEvents.forEach((eventName) => {
-      const unsub = eventBus.subscribe(eventName, (event) => {
-        this.handleDomainEvent(event.type, event.payload, event.timestamp);
-      });
-      this.unsubscribers.push(unsub);
+    const timelineSub = new TimelineSubscriber(repo);
+    globalEventBus.subscribe(timelineSub);
+
+    this.unsubscribers.push(() => {
+      globalEventBus.unsubscribe(timelineSub);
     });
 
     this.isInitialized = true;
@@ -59,47 +48,6 @@ export class TimelineService {
       } catch (err) {
         console.error("Failed to seed development timeline events:", err);
       }
-    }
-  }
-
-  /**
-   * Translates an incoming domain event into a TimelineEvent and stores it.
-   */
-  private async handleDomainEvent(
-    eventType: string,
-    payload: any,
-    eventTimestamp?: string
-  ): Promise<void> {
-    try {
-      const repo = await this.getRepo();
-      const timestamp = eventTimestamp || new Date().toISOString();
-
-      let projectId: string | null = null;
-      if (payload) {
-        if (typeof payload.projectId === "string") {
-          projectId = payload.projectId;
-        } else if (typeof payload.relatedProjectId === "string") {
-          projectId = payload.relatedProjectId;
-        } else if (typeof payload.id === "string" && (payload.color || payload.icon)) {
-          // Payload is a project entity itself
-          projectId = payload.id;
-        }
-      }
-
-      // Preserve an immutable copy of the entity snapshot
-      const timelineEvent: TimelineEvent = {
-        id: uid(),
-        eventType,
-        projectId,
-        payload: payload ? { ...payload } : {},
-        payloadVersion: 1,
-        timestamp,
-      };
-
-      repo.insert(timelineEvent);
-    } catch (err) {
-      // Supress and log to preserve main transaction execution
-      console.error(`TimelineService failed to log event "${eventType}":`, err);
     }
   }
 
@@ -142,7 +90,12 @@ export class TimelineService {
         id: uid(),
         eventType: Events.SESSION_ENDED,
         projectId: "proj-1",
-        payload: { projectId: "proj-1", task: "Database separation refactor", duration: 45, notes: "Complete clean code isolation" },
+        payload: {
+          projectId: "proj-1",
+          task: "Database separation refactor",
+          duration: 45,
+          notes: "Complete clean code isolation",
+        },
         payloadVersion: 1,
         timestamp: new Date(baseTime - 30 * 60000).toISOString(), // 30m ago
       },
@@ -162,13 +115,18 @@ export class TimelineService {
         payloadVersion: 1,
         timestamp: new Date(baseTime - 3 * 3600000).toISOString(), // 3h ago
       },
-      
+
       // Yesterday events
       {
         id: uid(),
         eventType: Events.TASK_CREATED,
         projectId: "proj-1",
-        payload: { id: "task-1", title: "Refactor database boundaries", projectId: "proj-1", priority: "High" },
+        payload: {
+          id: "task-1",
+          title: "Refactor database boundaries",
+          projectId: "proj-1",
+          priority: "High",
+        },
         payloadVersion: 1,
         timestamp: new Date(baseTime - 25 * 3600000).toISOString(), // 25h ago
       },
@@ -176,7 +134,13 @@ export class TimelineService {
         id: uid(),
         eventType: Events.PROJECT_CREATED,
         projectId: "proj-1",
-        payload: { id: "proj-1", name: "Project Akira Master", tag: "AK-MASTER", icon: "cpu", color: "from-blue-500 to-indigo-600" },
+        payload: {
+          id: "proj-1",
+          name: "Project Akira Master",
+          tag: "AK-MASTER",
+          icon: "cpu",
+          color: "from-blue-500 to-indigo-600",
+        },
         payloadVersion: 1,
         timestamp: new Date(baseTime - 28 * 3600000).toISOString(), // 28h ago
       },
@@ -197,11 +161,11 @@ export class TimelineService {
         payload: { title: "Complete design constitution check" },
         payloadVersion: 1,
         timestamp: new Date(baseTime - 8 * 24 * 3600000).toISOString(), // 8 days ago
-      }
+      },
     ];
 
     await dbTransaction(() => {
-      mockEvents.forEach(evt => repo.insert(evt));
+      mockEvents.forEach((evt) => repo.insert(evt));
     });
 
     console.log(`Seeded ${mockEvents.length} mock timeline events for development.`);

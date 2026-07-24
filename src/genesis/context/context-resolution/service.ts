@@ -41,7 +41,7 @@ class ContextResolutionService {
       eventBus.subscribe(Events.PRESENCE_UPDATED, (event) => {
         this.latestPresenceContext = event.payload.context;
         this.rebuildResolvedContext();
-      })
+      }),
     );
     this.unsubscribers.push(stateEvents.subscribe(() => this.rebuildResolvedContext()));
     this.unsubscribers.push(goalEvents.subscribe(() => this.rebuildResolvedContext()));

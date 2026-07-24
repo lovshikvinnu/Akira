@@ -26,6 +26,12 @@ export { hypothesesService } from "./understanding/hypotheses";
 export * from "./understanding/types";
 export * from "./understanding/identity-types";
 
+// Identity Foundation & Graph module
+export { identityService as identityFoundationService, identityGraphService, identityEvolutionService, identityInterestService, identitySkillService, identityGoalService, identityHabitService, identityPreferenceService, identityValueService, identityRelationshipService, identityPersonalityService, identityValidationService, identityContextProvider } from "./identity";
+export * from "./identity/types";
+export * from "./identity/repositories/IdentityRepository";
+export * from "./identity/repositories/InMemoryIdentityRepository";
+
 // Insights & Reflection
 export { insightEngine } from "./insights/insight-engine";
 export { reflectionService } from "./insights/reflection/service";

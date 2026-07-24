@@ -1,10 +1,14 @@
 if (typeof window !== "undefined") {
   throw new Error(
-    "persistence/repositories/SqliteTimelineRepository.ts must only be loaded on the server side."
+    "persistence/repositories/SqliteTimelineRepository.ts must only be loaded on the server side.",
   );
 }
 
-import { TimelineEvent, TimelineQueryRequest, TimelineQueryResult } from "../../akira-os/timeline/types";
+import {
+  TimelineEvent,
+  TimelineQueryRequest,
+  TimelineQueryResult,
+} from "../../akira-os/timeline/types";
 import { TimelineRepository } from "../../contracts/repositories/TimelineRepository";
 import { getDatabaseConnection } from "../connection";
 
@@ -46,7 +50,7 @@ export class SqliteTimelineRepository implements TimelineRepository {
           INSERT INTO timeline_events (
             id, event_type, project_id, payload, timestamp, payload_version
           ) VALUES (?, ?, ?, ?, ?, ?)
-        `
+        `,
         )
         .run(
           event.id,
@@ -54,10 +58,13 @@ export class SqliteTimelineRepository implements TimelineRepository {
           event.projectId,
           JSON.stringify(event.payload),
           event.timestamp,
-          event.payloadVersion
+          event.payloadVersion,
         );
     } catch (err: any) {
-      console.warn("Timeline SQL write failed (DB locked/offline). Buffering event in-memory:", err);
+      console.warn(
+        "Timeline SQL write failed (DB locked/offline). Buffering event in-memory:",
+        err,
+      );
       fallbackQueue.push(event);
     }
   }
@@ -75,11 +82,11 @@ export class SqliteTimelineRepository implements TimelineRepository {
       params.cursor_id = cursor.id;
       if (sortDirection === "desc") {
         conditions.push(
-          "(timestamp < :cursor_timestamp OR (timestamp = :cursor_timestamp AND id < :cursor_id))"
+          "(timestamp < :cursor_timestamp OR (timestamp = :cursor_timestamp AND id < :cursor_id))",
         );
       } else {
         conditions.push(
-          "(timestamp > :cursor_timestamp OR (timestamp = :cursor_timestamp AND id > :cursor_id))"
+          "(timestamp > :cursor_timestamp OR (timestamp = :cursor_timestamp AND id > :cursor_id))",
         );
       }
     }
@@ -106,7 +113,7 @@ export class SqliteTimelineRepository implements TimelineRepository {
             "task.completed",
             "task.updated",
             "task.deleted",
-            "mission.completed"
+            "mission.completed",
           );
         } else if (cat === "notes") {
           targetTypes.push("note.created", "note.edited", "note.deleted");
@@ -188,10 +195,7 @@ export class SqliteTimelineRepository implements TimelineRepository {
             ["note.created", "note.edited", "note.deleted"].includes(evt.eventType)
           )
             matchCat = true;
-          if (
-            cat === "sessions" &&
-            ["session.started", "session.ended"].includes(evt.eventType)
-          )
+          if (cat === "sessions" && ["session.started", "session.ended"].includes(evt.eventType))
             matchCat = true;
         });
         if (!matchCat) return false;
@@ -261,8 +265,7 @@ export class SqliteTimelineRepository implements TimelineRepository {
     let dbCount = 0;
     try {
       const row = this.getDb().prepare("SELECT COUNT(*) as count FROM timeline_events").get() as
-        | { count: number }
-        | undefined;
+        { count: number } | undefined;
       dbCount = row ? row.count : 0;
     } catch {}
     return dbCount + fallbackQueue.length;

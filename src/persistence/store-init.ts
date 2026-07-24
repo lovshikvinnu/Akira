@@ -10,12 +10,16 @@ export const getInitialState = createServerFn({ method: "GET" }).handler(async (
     sessionRepository,
     taskRepository,
     settingsRepository,
+    vaultFileRepository,
+    vaultFolderRepository,
   } = await import("./repositories");
 
   const projects = projectRepository.getAll();
   const tasks = taskRepository.getAll();
   const notes = noteRepository.getAll();
   const sessions = sessionRepository.getAll();
+  const vaultFiles = vaultFileRepository.getAll();
+  const vaultFolders = vaultFolderRepository.getAll();
 
   const activeSessionRaw = settingsRepository.get("active_session");
   const activeSession = activeSessionRaw ? JSON.parse(activeSessionRaw) : null;
@@ -49,5 +53,7 @@ export const getInitialState = createServerFn({ method: "GET" }).handler(async (
     chat,
     streaks,
     memories: [],
+    vaultFiles,
+    vaultFolders,
   };
 });

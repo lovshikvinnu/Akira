@@ -16,5 +16,7 @@ export function seed(): AkiraState {
     memories: [],
     sessions: [],
     activeSession: null,
+    vaultFiles: [],
+    vaultFolders: [],
   };
 }

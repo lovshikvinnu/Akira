@@ -3,7 +3,13 @@ import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { CommandPalette } from "./CommandPalette";
 
-export function Shell({ children }: { children: ReactNode }) {
+export function Shell({
+  children,
+  layoutMode = "scroll",
+}: {
+  children: ReactNode;
+  layoutMode?: "scroll" | "fit";
+}) {
   return (
     <div className="relative min-h-screen text-foreground">
       <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
@@ -22,9 +28,16 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <div className="relative flex">
         <Sidebar />
-        <main className="min-w-0 flex-1 px-6 pb-12 pt-6 md:px-10 animate-page-enter">
+        <main className="min-w-0 flex-1 px-6 pb-12 pt-6 md:px-10 animate-page-enter flex flex-col">
           <Topbar />
-          {children}
+          <div
+            className={[
+              "flex-grow flex flex-col min-h-0 mt-6",
+              layoutMode === "fit" ? "h-[calc(100vh-11rem)] min-h-[500px] overflow-hidden" : "",
+            ].join(" ")}
+          >
+            {children}
+          </div>
         </main>
       </div>
       <CommandPalette />

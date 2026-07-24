@@ -1,62 +1,35 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { createServerFn } from "@tanstack/react-start";
 import { useState, useEffect, useRef } from "react";
 import { z } from "zod";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { 
-  Search, 
-  ArrowUpDown, 
-  X, 
-  RotateCw, 
-  Activity, 
-  ListTodo, 
-  FileText, 
-  Timer 
+import {
+  Search,
+  ArrowUpDown,
+  X,
+  RotateCw,
+  Activity,
+  ListTodo,
+  FileText,
+  Timer,
 } from "lucide-react";
 
 import { Shell, PageHeader } from "@/app/shell/Shell";
-import { useAkira } from "@/akira-os";
+import { useAkira, timelineService } from "@/akira-os";
 import { TimelineList, TimelineUIState } from "@/app/ui/timeline/TimelineList";
 import { DetailDrawer } from "@/app/ui/timeline/DetailDrawer";
 import { TimelineEvent, TimelineQueryResult } from "@/akira-os/timeline/types";
 import { RendererRegistry } from "@/app/ui/timeline/RendererRegistry";
 import { TimelineErrorBoundary } from "@/app/ui/timeline/TimelineErrorBoundary";
 
-// 1. Server-Side Data Fetch Function with dynamic imports to prevent browser leaks
-export const getTimelineEvents = createServerFn({ method: "GET" })
-  .validator((data: any) => {
-    return data as {
-      limit: number;
-      cursor?: { timestamp: string; id: string };
-      projectId?: string;
-      categories?: ("tasks" | "notes" | "sessions")[];
-      sort?: "asc" | "desc";
-    };
-  })
-  .handler(async ({ data }) => {
-    const start = performance.now();
-    const { timelineService } = await import("@/akira-os/timeline");
-    const result = await timelineService.getEvents({
-      limit: data.limit,
-      cursor: data.cursor,
-      filterProjectIds: data.projectId ? [data.projectId] : undefined,
-      filterCategories: data.categories,
-      sortDirection: data.sort,
-    });
-    
-    // Telemetry observability log
-    const duration = performance.now() - start;
-    console.log(`[Observability] Database cursor fetch executed in ${duration.toFixed(2)}ms`);
-    
-    return result;
-  });
-
 // 2. URL Parameter Validation Schema
 const timelineSearchSchema = z.object({
   search: z.string().optional().catch(""),
   projectId: z.string().optional().catch(""),
-  categories: z.array(z.enum(["tasks", "notes", "sessions"])).optional().catch(undefined),
+  categories: z
+    .array(z.enum(["tasks", "notes", "sessions"]))
+    .optional()
+    .catch(undefined),
   sort: z.enum(["asc", "desc"]).default("desc").catch("desc"),
   v: z.number().default(1).catch(1), // URL Schema Versioning
 });
@@ -81,7 +54,7 @@ function TimelinePage() {
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const [selectedEvent, setSelectedEvent] = useState<TimelineEvent | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  
+
   const listRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -113,22 +86,22 @@ function TimelinePage() {
   } = useInfiniteQuery({
     queryKey: ["timeline", search, projectId, categories, sort],
     queryFn: async ({ pageParam, signal }) => {
-      const result = await getTimelineEvents({
-        data: {
+      const result = await timelineService.getEvents(
+        {
           limit: 15,
           cursor: pageParam,
           projectId: projectId || undefined,
           categories: categories || undefined,
           sort: sort || "desc",
         },
-        signal, // Forward AbortSignal for query cancellation
-      });
+        signal,
+      );
       return result as TimelineQueryResult;
     },
     initialPageParam: undefined as { timestamp: string; id: string } | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
-    staleTime: 10000,   // Stale Time: 10 seconds
-    gcTime: 300000,     // Garbage Collection Cache Time: 5 minutes
+    staleTime: 10000, // Stale Time: 10 seconds
+    gcTime: 300000, // Garbage Collection Cache Time: 5 minutes
   });
 
   const flatEvents = data?.pages.flatMap((page) => page.items) ?? [];
@@ -163,7 +136,7 @@ function TimelinePage() {
           fetchNextPage();
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
 
     const currentSentinel = sentinelRef.current;
@@ -226,7 +199,9 @@ function TimelinePage() {
   const toggleCategory = (cat: "tasks" | "notes" | "sessions") => {
     const prev = categories || [];
     const next = prev.includes(cat) ? prev.filter((c: string) => c !== cat) : [...prev, cat];
-    navigate({ search: (p: any) => ({ ...p, categories: next.length > 0 ? next : undefined }) } as any);
+    navigate({
+      search: (p: any) => ({ ...p, categories: next.length > 0 ? next : undefined }),
+    } as any);
   };
 
   const clearAllFilters = () => {
@@ -242,7 +217,7 @@ function TimelinePage() {
   const handleOpenDetails = (event: TimelineEvent) => {
     setSelectedEvent(event);
     setDrawerOpen(true);
-    
+
     // Telemetry log
     console.log(`[Observability] Inspected event ${event.id} of type ${event.eventType}`);
   };
@@ -284,7 +259,9 @@ function TimelinePage() {
             <select
               value={projectId || ""}
               onChange={(e) =>
-                navigate({ search: (p: any) => ({ ...p, projectId: e.target.value || undefined }) } as any)
+                navigate({
+                  search: (p: any) => ({ ...p, projectId: e.target.value || undefined }),
+                } as any)
               }
               className="h-10 rounded-lg border border-white/10 bg-black/40 px-3 text-sm text-foreground outline-none focus:border-violet/60"
             >
@@ -336,7 +313,9 @@ function TimelinePage() {
             {/* Sort Toggle */}
             <button
               onClick={() =>
-                navigate({ search: (p: any) => ({ ...p, sort: sort === "asc" ? "desc" : "asc" }) } as any)
+                navigate({
+                  search: (p: any) => ({ ...p, sort: sort === "asc" ? "desc" : "asc" }),
+                } as any)
               }
               className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] cursor-pointer text-muted-foreground hover:text-white transition-colors"
               title={`Sort: ${sort === "asc" ? "Oldest First" : "Newest First"}`}
@@ -360,9 +339,7 @@ function TimelinePage() {
         {/* Dynamic Filter Resets Notice */}
         {(searchText || projectId || categories) && (
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>
-              Showing filter matches ({flatEvents.length} events loaded).
-            </span>
+            <span>Showing filter matches ({flatEvents.length} events loaded).</span>
             <button
               onClick={clearAllFilters}
               className="text-violet hover:text-violet-glow font-semibold transition-colors cursor-pointer"
@@ -378,7 +355,7 @@ function TimelinePage() {
             <div className="relative pl-4">
               {/* Central timeline connector line */}
               <div className="absolute left-[19px] top-2 bottom-2 w-[1px] bg-white/5" />
-              
+
               {/* Virtual Scroll Window Recycler Viewport */}
               <div
                 ref={listRef}
@@ -415,7 +392,10 @@ function TimelinePage() {
                         onClick={() => setFocusedIndex(virtualItem.index)}
                       >
                         <TimelineErrorBoundary>
-                          <CardComponent event={event} onOpenDetails={() => handleOpenDetails(event)} />
+                          <CardComponent
+                            event={event}
+                            onOpenDetails={() => handleOpenDetails(event)}
+                          />
                         </TimelineErrorBoundary>
                       </div>
                     </div>

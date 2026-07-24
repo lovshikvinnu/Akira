@@ -1,4 +1,8 @@
-import { TimelineEvent, TimelineQueryRequest, TimelineQueryResult } from "../../akira-os/timeline/types";
+import {
+  TimelineEvent,
+  TimelineQueryRequest,
+  TimelineQueryResult,
+} from "../../akira-os/timeline/types";
 
 export interface TimelineRepository {
   insert(event: TimelineEvent): void;

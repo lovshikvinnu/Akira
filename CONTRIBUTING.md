@@ -1,82 +1,108 @@
-# CONTRIBUTING TO AKIRA
+# AKIRA OS Contributing Guidelines
 
-Welcome! This document outlines the contribution workflow, repository rules, and engineering standards for the two-developer team working on **AKIRA**.
+Welcome to the AKIRA OS project. This document outlines the local setup instructions, branching conventions, pull request procedures, coding standards, test validation requirements, and documentation rules. Adhering to these standards ensures the codebase remains robust, maintainable, and aligned with our architecture.
 
 ---
 
-## 1. Git Workflow & Branching Strategy
+## 1. Local Environment Setup
 
-We follow a structured Git branching strategy to ensure a clean release line while allowing concurrent development.
+### 1.1. System Prerequisites
+*   **Node.js**: v18.18.0 or later (LTS recommended)
+*   **Package Manager**: `npm` (v10+) or `bun` (v1.0+)
+*   **Operating System**: Windows 10/11 (for desktop runner integration tests)
 
-```text
-main      ============================= [Production / Release Version]
-           ^                     ▲
-           │                     │ (Hotfixes only)
-develop    └─===================─┴───── [Integration / Next Release Stage]
-              ▲         ▲
-              │         │
-feature/*  ───┴─────────┼────────────── [New features / Tasks]
-                        │
-bugfix/*   ─────────────┴────────────── [Bug fixes & patches]
+### 1.2. Installation Steps
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/lovshikvinnu/AKIRA.git
+    cd AKIRA
+    ```
+2.  Install project packages:
+    ```bash
+    npm install
+    ```
+3.  Boot the application development server to automatically run schema migrations and initialize the local SQLite database file:
+    ```bash
+    npm run dev
+    ```
+
+---
+
+## 2. Git Branching Strategy
+
+We follow a structured branching topology. All development work occurs in isolated branches. Direct commits to protected branches are disabled.
+
+```
+                  ┌───────────────┐
+                  │     main      │  (Production-ready releases)
+                  └───────▲───────┘
+                          │ (Merge via Release QA Audit)
+                  ┌───────┴───────┐
+                  │    develop    │  (Primary integration branch)
+                  └───────▲───────┘
+                          │
+         ┌────────────────┼────────────────┐
+         │                │                │
+ ┌───────┴───────┐┌───────┴───────┐┌───────┴───────┐
+ │   feature/*   ││   bugfix/*    ││   hotfix/*    │ (Development tasks)
+ └───────────────┘└───────────────┘└───────────────┘
 ```
 
-### Branch Naming Conventions
-* **Production Line**: `main` (Protected. Represents the current live/desktop release).
-* **Development Line**: `develop` (Protected. All feature branches merge here first).
-* **Feature Branches**: `feature/<issue-id>-<short-description>` (e.g., `feature/ak-102-notes-vault`). Used for developing new capabilities or refactoring.
-* **Bug Fixes**: `bugfix/<issue-id>-<short-description>` (e.g., `bugfix/ak-204-sqlite-locking`). Used for addressing bugs on `develop`.
-* **Hotfixes**: `hotfix/<issue-id>-<short-description>` (e.g., `hotfix/ak-301-auth-crash`). Used to patch critical issues directly in production; branches off `main` and merges to both `main` and `develop`.
-* **Release Branches**: `release/<version-tag>` (e.g., `release/v1.2.0`). Used for release preparation and final QA audits; branches off `develop` and merges into `main` and `develop`.
+### 2.1. Branch Naming Conventions
+*   **Features**: `feature/<issue-id>-<brief-slug>` (e.g. `feature/ak-301-file-vault-indexing`)
+*   **Bugs**: `bugfix/<issue-id>-<brief-slug>` (e.g. `bugfix/ak-402-sqlite-locks`)
+*   **Hotfixes**: `hotfix/<issue-id>-<brief-slug>` (e.g. `hotfix/ak-509-crash-handler`)
+*   **Releases**: `release/v<major>.<minor>.<patch>` (e.g. `release/v1.2.0`)
 
 ---
 
-## 2. Development & Pull Request (PR) Process
+## 3. Pull Request (PR) Workflow
 
-1. **Local Setup**: Create a branch off `develop` (for features/bugfixes) or `main` (for hotfixes).
-2. **Commit Messages**: Write semantic, meaningful commit messages:
-   * Format: `<type>(<scope>): <short description>`
-   * Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`.
-   * Example: `feat(memory): implement story importance decay function`
-3. **Open a PR**: Target your PR to merge into `develop`.
-4. **CI/CD Checks**: Ensure all of the following pass before requesting reviews:
-   * Compilation: `npm run build`
-   * Type checking: `npm run type-check` (or `tsc --noEmit`)
-   * Linting: `npm run lint`
-   * Formatting: `npm run format:check` (Prettier validation)
-5. **Merge Strategy**: Use **Squash and Merge** for feature branches to keep the `develop` history clean and linear.
-
----
-
-## 3. Sprint Workflow
-
-We use a lightweight, iterative sprint workflow:
-* **Sprint Duration**: 1–2 weeks.
-* **Planning (Day 1)**: Align on the sprint goal and assign tickets. One developer owns each feature fully.
-* **Execution**: Developers work in parallel on their owned modules.
-* **Sprint Freeze (Last Day)**: No new feature branches are merged. The team focuses entirely on testing, fixing bugs, and writing/updating tests.
-* **Release Audit**: Before merging `develop` to `main`, a release manager (Release Auditor) conducts a complete audit (similar to `ARCHITECTURE.md` guidelines) to verify compliance.
+1.  **Branch Creation**: Create your branch off the latest `develop` commit.
+2.  **Commit Message Format**: Use semantic labels:
+    *   `feat(scope): ...` for new features.
+    *   `fix(scope): ...` for bug fixes.
+    *   `docs(scope): ...` for documentation updates.
+    *   `style(scope): ...` for styling adjustments.
+    *   `test(scope): ...` for adding tests.
+    *   *Example*: `feat(vault): add magic number validation checks for file uploads`
+3.  **Local Checks**: Before opening a PR, ensure all checks pass:
+    ```bash
+    npm run lint          # Lint inspection
+    npm run type-check    # TypeScript compiler check
+    npm run test          # Execute test suite
+    npm run build         # Verify build compilation
+    ```
+4.  **Submission**: Target `develop` as the merge destination. Keep PRs under 400 lines of code change to simplify reviews.
+5.  **Merge Rule**: All integrations must be completed via **Squash and Merge** to maintain a linear history.
 
 ---
 
-## 4. Code Review Expectations
+## 4. Coding Standards
 
-* **Reviewers**:
-  * **GENESIS changes**: Must be approved by the **Founder / CTO** (Developer A).
-  * **AKIRA OS changes**: Must be approved by the **Platform Lead** (Developer B).
-  * **Shared or Contracts changes**: Require approval from **both** developers.
-* **Core Checklist for Reviewers**:
-  * Does the change violate the [Architecture Constitution](file:///docs/shared/architecture/architecture.md)?
-  * Are there any forbidden imports (e.g., GENESIS importing OS internals directly)?
-  * Did this change introduce circular dependencies?
-  * Is the code covered by unit tests (especially in core engines)?
-  * Are SQLite operations fully confined to Repositories?
-  * Is there any runtime regression?
+*   **TypeScript Isolation**: Every function must be typed. Avoid using `any` unless absolutely necessary (and compile with strict flags).
+*   **UI Declarative Separation**: Components must never execute database queries or call repositories directly. All reads occur via reactive hooks; all writes are called through client services.
+*   **No Magic Strings**: Group repeated strings (e.g., event names, toast types, settings keys) into static typescript constants.
+*   **Layout Boundaries**: Features must adapt to the flex/grid layouts provided by the Shell. Do not write custom screen dimensions calculations or hardcode page sizes.
 
 ---
 
-## 5. Architectural & Repository Rules
+## 5. Testing Requirements
 
-* **Preserve Simplicity**: Avoid overengineering. Prefer readability, modularity, and maintainability.
-* **Small PRs**: Keep PRs under 400 lines of code change where possible to make review cycles fast and thorough.
-* **No Inline SQL**: All database access must go through the Repository pattern. Never write raw SQL directly in UI files or components.
-* **Keep Docs Updated**: Any change affecting public contracts or subsystem boundaries must be documented immediately in the corresponding folder in the `docs/` hierarchy.
+*   **Database Testing**: All repository writes must be tested. Mock database environments are initialized inside the `tests/` directory to avoid modifying production data.
+*   **Coverage Rules**: Critical core engines (such as the File Vault storage pipeline and GENESIS AI modules) require unit test coverage.
+*   **Running Tests**:
+    *   Run tests: `npm run test`
+    *   Run watch mode: `npm run test:watch`
+
+---
+
+## 6. Documentation Maintenance
+
+*   **Continuous Updates**: If an API contract, database schema, or client service interface is updated, the change must be reflected in the documentation.
+*   **Folder Paths**:
+    *   Architecture documents: `ARCHITECTURE.md` at root.
+    *   System decisions: `docs/adr/`
+    *   Module APIs: `docs/modules/`
+    *   Platform guides: `docs/platform/`
+*   **Format Rules**: Write in markdown using absolute paths for cross-references. Do not create placeholder sections.

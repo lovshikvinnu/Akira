@@ -65,7 +65,7 @@ function Index() {
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <button
-              onClick={() => navigate({ to: "/daily-mission" })}
+              onClick={() => navigate({ to: "/tasks" })}
               className="btn-glow inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium"
             >
               <Sparkles className="h-4 w-4" />
@@ -375,7 +375,7 @@ function TodaysMission() {
       </ul>
 
       <button
-        onClick={() => navigate({ to: "/daily-mission" })}
+        onClick={() => navigate({ to: "/tasks" })}
         className="mt-4 text-xs text-muted-foreground transition-colors hover:text-foreground"
       >
         Manage missions →
@@ -428,7 +428,7 @@ function BrainDumpCard({ onCapture, onVoice }: { onCapture: () => void; onVoice:
           <Plus className="h-3.5 w-3.5" /> Capture thought
         </button>
         <Link
-          to="/brain-dump"
+          to="/notes"
           className="text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
           Open Brain Dump →

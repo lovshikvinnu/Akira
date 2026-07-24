@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export interface EventBusEvent<T = any> {
   type: string;
   payload: T;
@@ -57,6 +58,33 @@ class SimpleEventBus {
         }
       });
     }
+
+    // Forward to the new instrumentation publisher (Sprint 2.1 fallback bridge)
+    try {
+      import("../../../instrumentation")
+        .then(({ publish }) => {
+          if (eventType !== "presence.updated") {
+            publish({
+              type: eventType,
+              source: this.deriveSourceFromEventType(eventType),
+              payload: payload || {},
+              version: 1,
+            });
+          }
+        })
+        .catch(() => {});
+    } catch {
+      // ignore
+    }
+  }
+
+  private deriveSourceFromEventType(type: string): string {
+    if (type.startsWith("project.")) return "projects-legacy-bus";
+    if (type.startsWith("task.")) return "tasks-legacy-bus";
+    if (type.startsWith("note.")) return "notes-legacy-bus";
+    if (type.startsWith("session.")) return "sessions-legacy-bus";
+    if (type.startsWith("vault.")) return "vault-legacy-bus";
+    return "legacy-event-bus";
   }
 }
 

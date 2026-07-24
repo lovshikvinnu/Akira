@@ -37,7 +37,8 @@ export function ProjectEventCard({ event, onOpenDetails }: EventCardProps) {
       {/* Main Content */}
       <div className="flex-grow min-w-0">
         <h4 className="text-sm font-semibold text-white/95 truncate">
-          {name} {tag && <span className="text-xs font-mono text-muted-foreground/60">({tag})</span>}
+          {name}{" "}
+          {tag && <span className="text-xs font-mono text-muted-foreground/60">({tag})</span>}
         </h4>
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center rounded-md bg-white/[0.03] border border-white/5 px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">

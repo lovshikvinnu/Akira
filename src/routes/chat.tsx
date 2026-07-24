@@ -125,7 +125,7 @@ async function migrateLegacyChatHistory() {
 
   // Check if migration is already complete
   try {
-    const rawMigrations = localStorage.getItem(MIGRATIONS_KEY);
+    const rawMigrations = localStorage.getItem("akira:migrations");
     if (rawMigrations) {
       const migrations = JSON.parse(rawMigrations) as Record<string, unknown>;
       if (migrations && migrations.chatHistoryV1Migrated === true) {
@@ -138,7 +138,7 @@ async function migrateLegacyChatHistory() {
 
   // Perform migration
   try {
-    const rawState = localStorage.getItem(MAIN_STATE_STORAGE_KEY);
+    const rawState = localStorage.getItem("akira:state:v1");
     if (rawState) {
       const parsedState = JSON.parse(rawState) as { chat?: LegacyChatMessage[] };
       if (parsedState && Array.isArray(parsedState.chat) && parsedState.chat.length > 0) {
@@ -202,7 +202,7 @@ async function migrateLegacyChatHistory() {
     }
 
     let migrationsObj: Record<string, unknown> = {};
-    const rawMigrations = localStorage.getItem(MIGRATIONS_KEY);
+    const rawMigrations = localStorage.getItem("akira:migrations");
     if (rawMigrations) {
       try {
         migrationsObj = JSON.parse(rawMigrations) as Record<string, unknown>;
@@ -211,7 +211,7 @@ async function migrateLegacyChatHistory() {
       }
     }
     migrationsObj.chatHistoryV1Migrated = true;
-    localStorage.setItem(MIGRATIONS_KEY, JSON.stringify(migrationsObj));
+    localStorage.setItem("akira:migrations", JSON.stringify(migrationsObj));
   } catch (e) {
     console.error("Error during chat history migration:", e);
   }
@@ -780,8 +780,7 @@ function CompanionWorkspacePage() {
         // Already handled in handleCancel
       } else {
         console.error("AI engine stream query failed:", err);
-        let errorMessage =
-          `I encountered an issue connecting to my cognitive core: ${error.message || String(error)}. Please verify your network or retry.`;
+        let errorMessage = `I encountered an issue connecting to my cognitive core: ${error.message || String(error)}. Please verify your network or retry.`;
 
         const activeProvider = providerState.activeProvider;
         const apiKey =
@@ -820,7 +819,7 @@ function CompanionWorkspacePage() {
     } finally {
       setIsLoading(false);
       setCompanionState("idle");
-      
+
       // Perform final batched SQLite database updates after streaming terminates
       akira.updateChatMessage(aiMessage.id, currentResponseTextRef.current, false);
       saveConversations((prev) => prev, true);

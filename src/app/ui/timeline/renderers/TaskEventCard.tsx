@@ -2,7 +2,8 @@ import { CheckCircle2, PlusCircle, ClipboardList, Flame, Edit, Trash2 } from "lu
 import { EventCardProps, EventDetailProps } from "../types";
 
 export function TaskEventCard({ event, onOpenDetails }: EventCardProps) {
-  const isCompleted = event.eventType === "task.completed" || event.eventType === "mission.completed";
+  const isCompleted =
+    event.eventType === "task.completed" || event.eventType === "mission.completed";
   const title = event.payload.title || "Untitled Task";
 
   const timeStr = event.timestamp

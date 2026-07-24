@@ -73,6 +73,52 @@ export type WorkSession = {
   notes?: string;
 };
 
+export type VaultFolder = {
+  id: string;
+  name: string;
+  parentId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type VaultFile = {
+  id: string;
+  displayName: string;
+  originalName: string;
+  mimeType: string;
+  extension: string;
+  sizeBytes: number;
+  hash: string;
+  storagePath: string;
+  folderId: string | null;
+  status: "Uploading" | "Ready" | "Failed";
+  favorite: boolean;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  lastOpenedAt: string | null;
+  tags?: string[];
+};
+
+export type VaultTag = {
+  id: string;
+  name: string;
+  createdAt: string;
+};
+
+export type VaultFileTag = {
+  fileId: string;
+  tagId: string;
+};
+
+export type VaultFileLink = {
+  id: string;
+  fileId: string;
+  entityType: "project" | "task" | "note" | "session";
+  entityId: string;
+  createdAt: string;
+};
+
 export type AkiraState = {
   projects: Project[];
   tasks: Task[];
@@ -88,4 +134,6 @@ export type AkiraState = {
     task: string;
     startedAt: string;
   } | null;
+  vaultFiles: VaultFile[];
+  vaultFolders: VaultFolder[];
 };

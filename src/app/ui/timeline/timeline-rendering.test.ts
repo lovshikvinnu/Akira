@@ -21,7 +21,7 @@ function test(name: string, fn: () => void) {
 function assertEquals<T>(actual: T, expected: T, message: string) {
   if (actual !== expected) {
     throw new Error(
-      `${message} -> Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`
+      `${message} -> Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
     );
   }
 }
@@ -30,7 +30,7 @@ test("RendererRegistry - Resolve Cards and Details", () => {
   // Resolve known event type
   const taskCard = RendererRegistry.resolveCard("task.completed");
   const taskDetail = RendererRegistry.resolveDetail("task.completed");
-  
+
   if (!taskCard || taskCard.name === "GenericEventCard") {
     throw new Error("task.completed should resolve to specialized card renderer");
   }
@@ -42,14 +42,22 @@ test("RendererRegistry - Resolve Cards and Details", () => {
   const unknownCard = RendererRegistry.resolveCard("custom.unregistered.event");
   const unknownDetail = RendererRegistry.resolveDetail("custom.unregistered.event");
 
-  assertEquals(unknownCard.name, "GenericEventCard", "Unregistered card should fall back to GenericEventCard");
-  assertEquals(unknownDetail.name, "GenericEventDetail", "Unregistered detail should fall back to GenericEventDetail");
+  assertEquals(
+    unknownCard.name,
+    "GenericEventCard",
+    "Unregistered card should fall back to GenericEventCard",
+  );
+  assertEquals(
+    unknownDetail.name,
+    "GenericEventDetail",
+    "Unregistered detail should fall back to GenericEventDetail",
+  );
 });
 
 test("Time Utilities - Absolute and Detailed Formatters", () => {
   const isoTime = "2026-07-17T14:30:00.000Z";
   const formattedTime = formatTime(isoTime);
-  
+
   // Verify it returns a formatted time string containing a separator
   assertEquals(formattedTime.includes(":"), true, "Formatted time should contain a colon");
 
@@ -59,7 +67,7 @@ test("Time Utilities - Absolute and Detailed Formatters", () => {
 
 test("Grouping Utility - Segment Events Chronologically", () => {
   const now = new Date();
-  
+
   // Create mock timestamps
   const todayIso = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0).toISOString();
   const yesterdayIso = new Date(now.getTime() - 24 * 3600 * 1000).toISOString();
@@ -72,7 +80,7 @@ test("Grouping Utility - Segment Events Chronologically", () => {
       projectId: "proj-1",
       payload: { title: "Today task" },
       payloadVersion: 1,
-      timestamp: todayIso
+      timestamp: todayIso,
     },
     {
       id: "evt-yesterday",
@@ -80,7 +88,7 @@ test("Grouping Utility - Segment Events Chronologically", () => {
       projectId: "proj-1",
       payload: { title: "Yesterday note" },
       payloadVersion: 1,
-      timestamp: yesterdayIso
+      timestamp: yesterdayIso,
     },
     {
       id: "evt-earlier",
@@ -88,8 +96,8 @@ test("Grouping Utility - Segment Events Chronologically", () => {
       projectId: null,
       payload: {},
       payloadVersion: 1,
-      timestamp: earlierIso
-    }
+      timestamp: earlierIso,
+    },
   ];
 
   const groups = groupEventsByDate(mockEvents);
@@ -97,10 +105,14 @@ test("Grouping Utility - Segment Events Chronologically", () => {
   assertEquals(groups.length, 3, "Should segment into 3 distinct chronological groups");
   assertEquals(groups[0].title, "Today", "First group must be Today");
   assertEquals(groups[0].items[0].id, "evt-today", "Today group should contain today event");
-  
+
   assertEquals(groups[1].title, "Yesterday", "Second group must be Yesterday");
-  assertEquals(groups[1].items[0].id, "evt-yesterday", "Yesterday group should contain yesterday event");
-  
+  assertEquals(
+    groups[1].items[0].id,
+    "evt-yesterday",
+    "Yesterday group should contain yesterday event",
+  );
+
   assertEquals(groups[2].title, "Earlier", "Third group must be Earlier");
   assertEquals(groups[2].items[0].id, "evt-earlier", "Earlier group should contain earlier event");
 });

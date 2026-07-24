@@ -6,7 +6,9 @@ console.log("Reading temporary E2E database from:", dbPath);
 const db = new Database(dbPath);
 
 try {
-  const schemaVersion = db.prepare("SELECT MAX(version) as version FROM schema_version").get() as any;
+  const schemaVersion = db
+    .prepare("SELECT MAX(version) as version FROM schema_version")
+    .get() as any;
   console.log("Schema Version:", schemaVersion?.version);
 
   const projects = db.prepare("SELECT * FROM projects").all();

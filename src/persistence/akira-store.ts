@@ -2,8 +2,8 @@ import { useSyncExternalStore } from "react";
 import { seed } from "./seed";
 import { registerStoreProvider } from "../shared/genesis-provider";
 import { registerWorkspaceProvider } from "../contracts/workspace-provider";
-import { eventBus } from "../shared/infrastructure/event-bus";
 import { Events } from "../contracts/events";
+import { publish } from "../instrumentation";
 
 import type {
   Project,
@@ -14,11 +14,22 @@ import type {
   Profile,
   WorkSession,
   AkiraState,
+  VaultFolder,
+  VaultFile,
 } from "../shared/types/store-types";
 
-export type { Project, Task, Note, ChatMessage, HabitStreak, Profile, WorkSession, AkiraState };
-
-const STORAGE_KEY = "akira:state:v1";
+export type {
+  Project,
+  Task,
+  Note,
+  ChatMessage,
+  HabitStreak,
+  Profile,
+  WorkSession,
+  AkiraState,
+  VaultFolder,
+  VaultFile,
+};
 
 const uid = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -27,20 +38,11 @@ const uid = () =>
 
 const nowISO = () => new Date().toISOString();
 
-function load(): AkiraState {
-  return seed();
-}
-
-let state: AkiraState = load();
+let state: AkiraState = seed();
 let hydrated = false;
 const listeners = new Set<() => void>();
 
-function persist() {
-  // SQLite is now the single source of truth; localstorage application persistence is removed
-}
-
 function emit() {
-  persist();
   listeners.forEach((l) => l());
 }
 
@@ -113,7 +115,12 @@ export const akira = {
       icon: input.icon || "sparkles",
     };
 
-    eventBus.publish(Events.PROJECT_CREATED, { id: p.id, name: p.name, tag: p.tag });
+    publish({
+      type: "project.created",
+      source: "projects-store",
+      payload: { id: p.id, name: p.name, tag: p.tag },
+      version: 1,
+    });
 
     set((s) => ({
       ...s,
@@ -136,7 +143,12 @@ export const akira = {
       if (!project) return s;
       const p = { ...project, ...patch };
 
-      eventBus.publish(Events.PROJECT_UPDATED, { id: p.id, name: p.name, patch });
+      publish({
+        type: "project.updated",
+        source: "projects-store",
+        payload: { id: p.id, name: p.name, patch },
+        version: 1,
+      });
 
       import("../akira-os/projects").then(({ projectsService }) => {
         projectsService.update(id, patch);
@@ -150,7 +162,12 @@ export const akira = {
   },
   deleteProject(id: string) {
     set((s) => {
-      eventBus.publish(Events.PROJECT_DELETED, { id });
+      publish({
+        type: "project.deleted",
+        source: "projects-store",
+        payload: { id },
+        version: 1,
+      });
 
       const nextLastProjectId =
         s.lastProjectId === id
@@ -190,7 +207,12 @@ export const akira = {
         timeSpentMinutes: project.timeSpentMinutes + 5,
       };
 
-      eventBus.publish(Events.PROJECT_CONTINUED, { id: p.id, name: p.name });
+      publish({
+        type: "project.continued",
+        source: "projects-store",
+        payload: { id: p.id, name: p.name },
+        version: 1,
+      });
 
       import("../akira-os/projects").then(({ projectsService }) => {
         projectsService.touch(id);
@@ -223,7 +245,12 @@ export const akira = {
       updatedAt: nowISO(),
     };
     set((s) => {
-      eventBus.publish(Events.TASK_CREATED, { id: t.id, title: t.title });
+      publish({
+        type: "task.created",
+        source: "tasks-store",
+        payload: { id: t.id, title: t.title },
+        version: 1,
+      });
       return {
         ...s,
         tasks: [...s.tasks, t],
@@ -239,16 +266,29 @@ export const akira = {
       const nextTasks = s.tasks.map((item) => (item.id === id ? t : item));
 
       if (t.done) {
-        eventBus.publish(Events.TASK_COMPLETED, {
-          id: t.id,
-          title: t.title,
-          projectId: t.projectId,
+        publish({
+          type: "task.completed",
+          source: "tasks-store",
+          payload: { id: t.id, title: t.title, projectId: t.projectId },
+          version: 1,
         });
 
         const allDone = nextTasks.every((tk) => tk.done) && nextTasks.length > 0;
         if (allDone) {
-          eventBus.publish(Events.MISSION_COMPLETED, { totalTasks: nextTasks.length });
+          publish({
+            type: "mission.completed",
+            source: "tasks-store",
+            payload: { totalTasks: nextTasks.length },
+            version: 1,
+          });
         }
+      } else {
+        publish({
+          type: "task.reopened",
+          source: "tasks-store",
+          payload: { id: t.id, title: t.title, projectId: t.projectId },
+          version: 1,
+        });
       }
 
       import("../akira-os/tasks").then(({ tasksService }) => {
@@ -263,7 +303,12 @@ export const akira = {
   },
   updateTask(id: string, title: string) {
     set((s) => {
-      eventBus.publish(Events.TASK_UPDATED, { id, title });
+      publish({
+        type: "task.updated",
+        source: "tasks-store",
+        payload: { id, title },
+        version: 1,
+      });
 
       import("../akira-os/tasks").then(({ tasksService }) => {
         tasksService.update(id, { title: title.trim() });
@@ -279,7 +324,12 @@ export const akira = {
   },
   deleteTask(id: string) {
     set((s) => {
-      eventBus.publish(Events.TASK_DELETED, { id });
+      publish({
+        type: "task.deleted",
+        source: "tasks-store",
+        payload: { id },
+        version: 1,
+      });
 
       import("../akira-os/tasks").then(({ tasksService }) => {
         tasksService.delete(id);
@@ -310,7 +360,12 @@ export const akira = {
       updatedAt: nowISO(),
     };
     set((s) => {
-      eventBus.publish(Events.TASK_CREATED, { id: t.id, title: t.title, projectId: t.projectId });
+      publish({
+        type: "task.created",
+        source: "tasks-store",
+        payload: { id: t.id, title: t.title, projectId: t.projectId },
+        version: 1,
+      });
 
       import("../akira-os/tasks").then(({ tasksService }) => {
         tasksService.add(t);
@@ -382,7 +437,12 @@ export const akira = {
     };
 
     set((s) => {
-      eventBus.publish(Events.NOTE_CREATED, { id: n.id, title, tags, projectId });
+      publish({
+        type: "note.created",
+        source: "notes-store",
+        payload: { id: n.id, title, tags, projectId },
+        version: 1,
+      });
 
       import("../akira-os/notes").then(({ notesService }) => {
         notesService.add(n);
@@ -405,7 +465,12 @@ export const akira = {
         !lastEdit || Date.now() - new Date(lastEdit.timestamp).getTime() > 5 * 60 * 1000;
 
       if (shouldLog) {
-        eventBus.publish(Events.NOTE_EDITED, { id: n.id, title: n.title, projectId: n.projectId });
+        publish({
+          type: "note.updated",
+          source: "notes-store",
+          payload: { id: n.id, title: n.title, projectId: n.projectId },
+          version: 1,
+        });
       }
 
       import("../akira-os/notes").then(({ notesService }) => {
@@ -420,7 +485,12 @@ export const akira = {
   },
   deleteNote(id: string) {
     set((s) => {
-      eventBus.publish(Events.NOTE_DELETED, { id });
+      publish({
+        type: "note.deleted",
+        source: "notes-store",
+        payload: { id },
+        version: 1,
+      });
 
       import("../akira-os/notes").then(({ notesService }) => {
         notesService.delete(id);
@@ -533,6 +603,12 @@ export const akira = {
       import("../akira-os/settings").then(({ settingsService }) => {
         settingsService.updateProfile(patch, s.profile);
       });
+      publish({
+        type: "settings.updated",
+        source: "settings-store",
+        payload: { patch },
+        version: 1,
+      });
       return { ...s, profile: updatedProfile };
     });
   },
@@ -559,7 +635,12 @@ export const akira = {
         ];
       }
 
-      eventBus.publish(Events.SESSION_STARTED, { projectId, task: task || "" });
+      publish({
+        type: "session.started",
+        source: "sessions-store",
+        payload: { projectId, task: task || "" },
+        version: 1,
+      });
 
       import("../akira-os/sessions").then(({ sessionsService }) => {
         sessionsService.start(projectId, task);
@@ -605,10 +686,15 @@ export const akira = {
         return p;
       });
 
-      eventBus.publish(Events.SESSION_ENDED, {
-        projectId: s.activeSession.projectId,
-        duration,
-        notes,
+      publish({
+        type: "session.ended",
+        source: "sessions-store",
+        payload: {
+          projectId: s.activeSession.projectId,
+          duration,
+          notes,
+        },
+        version: 1,
       });
 
       import("../akira-os/sessions").then(({ sessionsService }) => {
@@ -635,6 +721,183 @@ export const akira = {
         ...s,
         activeSession: { ...s.activeSession, task },
       };
+    });
+  },
+
+  // Vault Actions
+  addFolder(name: string, parentId: string | null) {
+    const id = uid();
+    const now = nowISO();
+    const folder: VaultFolder = {
+      id,
+      name: name.trim() || "New Folder",
+      parentId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    set((s) => ({
+      ...s,
+      vaultFolders: [...(s.vaultFolders || []), folder],
+    }));
+    import("../akira-os/vault").then(({ VaultFolderService }) => {
+      VaultFolderService.createFolder(folder.name, folder.parentId);
+    });
+    return id;
+  },
+  renameFolder(id: string, name: string) {
+    set((s) => ({
+      ...s,
+      vaultFolders: (s.vaultFolders || []).map((f) =>
+        f.id === id ? { ...f, name, updatedAt: nowISO() } : f,
+      ),
+    }));
+    import("../akira-os/vault").then(({ VaultFolderService }) => {
+      VaultFolderService.renameFolder(id, name);
+    });
+  },
+  moveFolder(id: string, parentId: string | null) {
+    set((s) => ({
+      ...s,
+      vaultFolders: (s.vaultFolders || []).map((f) =>
+        f.id === id ? { ...f, parentId, updatedAt: nowISO() } : f,
+      ),
+    }));
+    import("../akira-os/vault").then(({ VaultFolderService }) => {
+      VaultFolderService.moveFolder(id, parentId);
+    });
+  },
+  deleteFolder(id: string) {
+    set((s) => {
+      const getChildIds = (pid: string, list: VaultFolder[]): string[] => {
+        const children = list.filter((f) => f.parentId === pid);
+        return [pid, ...children.flatMap((c) => getChildIds(c.id, list))];
+      };
+      const idsToDelete = getChildIds(id, s.vaultFolders || []);
+
+      return {
+        ...s,
+        vaultFolders: (s.vaultFolders || []).filter((f) => !idsToDelete.includes(f.id)),
+        vaultFiles: (s.vaultFiles || []).map((file) =>
+          file.folderId && idsToDelete.includes(file.folderId)
+            ? { ...file, folderId: null, updatedAt: nowISO() }
+            : file,
+        ),
+      };
+    });
+    import("../akira-os/vault").then(({ VaultFolderService }) => {
+      VaultFolderService.deleteFolder(id);
+    });
+  },
+  renameFile(id: string, name: string) {
+    set((s) => ({
+      ...s,
+      vaultFiles: (s.vaultFiles || []).map((f) =>
+        f.id === id ? { ...f, displayName: name, updatedAt: nowISO() } : f,
+      ),
+    }));
+    import("../akira-os/vault").then(({ VaultStorageService }) => {
+      VaultStorageService.renameFile(id, name);
+    });
+  },
+  moveFile(id: string, folderId: string | null) {
+    set((s) => ({
+      ...s,
+      vaultFiles: (s.vaultFiles || []).map((f) =>
+        f.id === id ? { ...f, folderId, updatedAt: nowISO() } : f,
+      ),
+    }));
+    import("../akira-os/vault").then(({ VaultStorageService }) => {
+      VaultStorageService.moveFile(id, folderId);
+    });
+  },
+  deleteFile(id: string) {
+    set((s) => ({
+      ...s,
+      vaultFiles: (s.vaultFiles || []).map((f) =>
+        f.id === id
+          ? {
+              ...f,
+              deletedAt: nowISO(),
+              storagePath: `Trash/${f.id}${f.extension}`,
+              updatedAt: nowISO(),
+            }
+          : f,
+      ),
+    }));
+    import("../akira-os/vault").then(({ VaultStorageService }) => {
+      VaultStorageService.deleteFile(id);
+    });
+  },
+  restoreFile(id: string) {
+    set((s) => ({
+      ...s,
+      vaultFiles: (s.vaultFiles || []).map((f) => {
+        if (f.id !== id) return f;
+        const mimeLower = f.mimeType.toLowerCase();
+        let cat = "Documents";
+        if (mimeLower.startsWith("image/")) cat = "Images";
+        else if (mimeLower.startsWith("audio/")) cat = "Audio";
+        else if (mimeLower.startsWith("video/")) cat = "Video";
+        return {
+          ...f,
+          deletedAt: null,
+          storagePath: `${cat}/${f.id}${f.extension}`,
+          updatedAt: nowISO(),
+        };
+      }),
+    }));
+    import("../akira-os/vault").then(({ VaultStorageService }) => {
+      VaultStorageService.restoreFile(id);
+    });
+  },
+  permanentDeleteFile(id: string) {
+    set((s) => ({
+      ...s,
+      vaultFiles: (s.vaultFiles || []).filter((f) => f.id !== id),
+    }));
+    import("../akira-os/vault").then(({ VaultStorageService }) => {
+      VaultStorageService.permanentDeleteFile(id);
+    });
+  },
+  setFavorite(id: string, favorite: boolean) {
+    set((s) => ({
+      ...s,
+      vaultFiles: (s.vaultFiles || []).map((f) =>
+        f.id === id ? { ...f, favorite, updatedAt: nowISO() } : f,
+      ),
+    }));
+    import("../akira-os/vault").then(({ VaultStorageService }) => {
+      VaultStorageService.setFavorite(id, favorite);
+    });
+  },
+  addUploadedFile(file: VaultFile) {
+    set((s) => ({
+      ...s,
+      vaultFiles: [file, ...(s.vaultFiles || []).filter((f) => f.id !== file.id)],
+    }));
+  },
+  linkTagToFile(fileId: string, tagName: string) {
+    set((s) => ({
+      ...s,
+      vaultFiles: (s.vaultFiles || []).map((f) =>
+        f.id === fileId ? { ...f, tags: [...(f.tags || []), tagName], updatedAt: nowISO() } : f,
+      ),
+    }));
+    import("../akira-os/vault").then(({ VaultTagService }) => {
+      VaultTagService.linkTagToFile(fileId, tagName);
+    });
+  },
+  unlinkTagFromFile(fileId: string, tagName: string) {
+    set((s) => ({
+      ...s,
+      vaultFiles: (s.vaultFiles || []).map((f) =>
+        f.id === fileId
+          ? { ...f, tags: (f.tags || []).filter((t) => t !== tagName), updatedAt: nowISO() }
+          : f,
+      ),
+    }));
+    import("../akira-os/vault").then(({ VaultTagService }) => {
+      VaultTagService.unlinkTagFromFile(fileId, tagName);
     });
   },
 

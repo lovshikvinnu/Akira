@@ -12,7 +12,7 @@ function setupTestDb() {
   // Ensure previous temp db is deleted
   cleanupTestDb();
   process.env.AKIRA_DATABASE_PATH = TEMP_DB_PATH;
-  
+
   // Initialize db schema
   initializeDatabase();
   return getDatabaseConnection();
@@ -50,13 +50,19 @@ async function runTests() {
   console.log("\nScenario 1: Fresh Install (no data in localStorage, empty DB)");
   try {
     const db = setupTestDb();
-    const versionRow = db.prepare("SELECT MAX(version) as current_version FROM schema_version").get() as { current_version: number };
+    const versionRow = db
+      .prepare("SELECT MAX(version) as current_version FROM schema_version")
+      .get() as { current_version: number };
     assert(versionRow.current_version === 1, "Schema version is 1");
 
-    const projectsCount = db.prepare("SELECT COUNT(*) as cnt FROM projects").get() as { cnt: number };
+    const projectsCount = db.prepare("SELECT COUNT(*) as cnt FROM projects").get() as {
+      cnt: number;
+    };
     assert(projectsCount.cnt === 0, "Projects table is empty");
 
-    const migrationHistoryCount = db.prepare("SELECT COUNT(*) as cnt FROM migration_history").get() as { cnt: number };
+    const migrationHistoryCount = db
+      .prepare("SELECT COUNT(*) as cnt FROM migration_history")
+      .get() as { cnt: number };
     assert(migrationHistoryCount.cnt === 0, "Migration history table is empty");
   } catch (err: any) {
     console.error("Scenario 1 crashed:", err);
@@ -69,7 +75,7 @@ async function runTests() {
   console.log("\nScenario 2: Standard E2E Migration (realistic legacy payload)");
   try {
     const db = setupTestDb();
-    
+
     const legacyPayload = {
       projects: [
         {
@@ -84,7 +90,7 @@ async function runTests() {
           timeSpentMinutes: 120,
           lastWorked: "2026-07-15T12:00:00Z",
           createdAt: "2026-07-15T08:00:00Z",
-          icon: "cpu"
+          icon: "cpu",
         },
         {
           id: "proj-102",
@@ -98,8 +104,8 @@ async function runTests() {
           timeSpentMinutes: 60,
           lastWorked: "2026-07-14T18:00:00Z",
           createdAt: "2026-07-10T10:00:00Z",
-          icon: "dumbbell"
-        }
+          icon: "dumbbell",
+        },
       ],
       tasks: [
         {
@@ -113,7 +119,7 @@ async function runTests() {
           completed: false,
           projectId: "proj-101",
           createdAt: "2026-07-15T09:00:00Z",
-          updatedAt: "2026-07-15T09:30:00Z"
+          updatedAt: "2026-07-15T09:30:00Z",
         },
         {
           id: "task-202",
@@ -126,8 +132,8 @@ async function runTests() {
           completed: true,
           projectId: "proj-101",
           createdAt: "2026-07-15T08:30:00Z",
-          updatedAt: "2026-07-15T11:00:00Z"
-        }
+          updatedAt: "2026-07-15T11:00:00Z",
+        },
       ],
       notes: [
         {
@@ -139,8 +145,8 @@ async function runTests() {
           updatedAt: "2026-07-15T10:05:00Z",
           pinned: true,
           favorite: true,
-          projectId: "proj-101"
-        }
+          projectId: "proj-101",
+        },
       ],
       sessions: [
         {
@@ -150,18 +156,18 @@ async function runTests() {
           startedAt: "2026-07-15T10:30:00Z",
           endedAt: "2026-07-15T11:00:00Z",
           duration: 30,
-          notes: "Connected fine."
-        }
+          notes: "Connected fine.",
+        },
       ],
       profile: {
         name: "Valued User",
         role: "AI Tester",
-        motto: "Aesthetics and order"
+        motto: "Aesthetics and order",
       },
       activeSession: {
         projectId: "proj-101",
         task: "Write migration validator script",
-        startedAt: "2026-07-16T00:00:00Z"
+        startedAt: "2026-07-16T00:00:00Z",
       },
       lastProjectId: "proj-101",
       chat: [
@@ -169,8 +175,8 @@ async function runTests() {
           id: "msg-501",
           role: "user",
           text: "Let's migrate our state",
-          createdAt: "2026-07-15T11:15:00Z"
-        }
+          createdAt: "2026-07-15T11:15:00Z",
+        },
       ],
       streaks: [
         {
@@ -179,9 +185,9 @@ async function runTests() {
           icon: "cpu",
           days: 5,
           pct: 100,
-          color: "from-blue-500"
-        }
-      ]
+          color: "from-blue-500",
+        },
+      ],
     };
 
     const res = executeMigration(db, JSON.stringify(legacyPayload));
@@ -194,7 +200,7 @@ async function runTests() {
     assert(p1.name === "Building Akira", "Project name matches");
     assert(p1.progress === 45, "Project progress matches");
     assert(p1.icon === "cpu", "Project icon matches");
-    
+
     const p2 = db.prepare("SELECT * FROM projects WHERE id = ?").get("proj-102") as any;
     assert(p2 !== undefined, "Project proj-102 was migrated");
     assert(p2.progress === 20, "Project progress matches");
@@ -214,7 +220,10 @@ async function runTests() {
     // Verify notes
     const n1 = db.prepare("SELECT * FROM notes WHERE id = ?").get("note-301") as any;
     assert(n1 !== undefined, "Note was migrated");
-    assert(n1.content === "Remember to test foreign key constraints on SQLite db.", "Note content matches");
+    assert(
+      n1.content === "Remember to test foreign key constraints on SQLite db.",
+      "Note content matches",
+    );
     assert(n1.pinned === 1, "Note pinned status is 1 (true)");
     assert(n1.favorite === 1, "Note favorite status is 1 (true)");
     assert(n1.tags === JSON.stringify(["sqlite", "migration"]), "Note tags are JSON stringified");
@@ -227,22 +236,43 @@ async function runTests() {
 
     // Verify settings
     const profile = db.prepare("SELECT value FROM settings WHERE key = 'profile'").get() as any;
-    assert(JSON.parse(profile.value).name === "Valued User", "Profile settings key exists and matches");
+    assert(
+      JSON.parse(profile.value).name === "Valued User",
+      "Profile settings key exists and matches",
+    );
 
-    const activeSession = db.prepare("SELECT value FROM settings WHERE key = 'active_session'").get() as any;
-    assert(JSON.parse(activeSession.value).task === "Write migration validator script", "Active session settings key exists and matches");
+    const activeSession = db
+      .prepare("SELECT value FROM settings WHERE key = 'active_session'")
+      .get() as any;
+    assert(
+      JSON.parse(activeSession.value).task === "Write migration validator script",
+      "Active session settings key exists and matches",
+    );
 
-    const lastProjectId = db.prepare("SELECT value FROM settings WHERE key = 'last_project_id'").get() as any;
-    assert(JSON.parse(lastProjectId.value) === "proj-101", "Last project ID settings key exists and matches");
+    const lastProjectId = db
+      .prepare("SELECT value FROM settings WHERE key = 'last_project_id'")
+      .get() as any;
+    assert(
+      JSON.parse(lastProjectId.value) === "proj-101",
+      "Last project ID settings key exists and matches",
+    );
 
     const chat = db.prepare("SELECT value FROM settings WHERE key = 'chat'").get() as any;
-    assert(JSON.parse(chat.value)[0].text === "Let's migrate our state", "Chat history settings key exists and matches");
+    assert(
+      JSON.parse(chat.value)[0].text === "Let's migrate our state",
+      "Chat history settings key exists and matches",
+    );
 
     const streaks = db.prepare("SELECT value FROM settings WHERE key = 'streaks'").get() as any;
-    assert(JSON.parse(streaks.value)[0].label === "Coding", "Streaks settings key exists and matches");
+    assert(
+      JSON.parse(streaks.value)[0].label === "Coding",
+      "Streaks settings key exists and matches",
+    );
 
     // Verify history
-    const hist = db.prepare("SELECT * FROM migration_history WHERE migration_name = ?").get("legacy_localstorage_migration") as any;
+    const hist = db
+      .prepare("SELECT * FROM migration_history WHERE migration_name = ?")
+      .get("legacy_localstorage_migration") as any;
     assert(hist !== undefined, "Migration history has a record");
     assert(hist.status === "completed", "Migration status in history is 'completed'");
     assert(hist.error_message === null, "Migration error message is null");
@@ -251,7 +281,10 @@ async function runTests() {
     console.log("\nScenario 3: Duplicate Migration / Idempotency (re-running migration)");
     const resDup = executeMigration(db, JSON.stringify(legacyPayload));
     assert(resDup.success === true, "Idempotent migration returns success: true");
-    assert(resDup.status === "already_completed", "Idempotent migration returns status: 'already_completed'");
+    assert(
+      resDup.status === "already_completed",
+      "Idempotent migration returns status: 'already_completed'",
+    );
 
     // Verify no counts doubled
     const projCount = db.prepare("SELECT COUNT(*) as cnt FROM projects").get() as { cnt: number };
@@ -259,7 +292,6 @@ async function runTests() {
 
     const taskCount = db.prepare("SELECT COUNT(*) as cnt FROM tasks").get() as { cnt: number };
     assert(taskCount.cnt === 2, "Tasks count remained at 2");
-
   } catch (err: any) {
     console.error("Scenario 2/3 crashed:", err);
     failed = true;
@@ -274,12 +306,19 @@ async function runTests() {
     const resCorrupt = executeMigration(db, "{projects: [invalid-json}");
     assert(resCorrupt.success === false, "Corrupted payload returns success: false");
     assert(resCorrupt.status === "failed", "Corrupted payload returns status: 'failed'");
-    assert(resCorrupt.error === "Invalid JSON format", "Error message matches 'Invalid JSON format'");
+    assert(
+      resCorrupt.error === "Invalid JSON format",
+      "Error message matches 'Invalid JSON format'",
+    );
 
-    const projectsCount = db.prepare("SELECT COUNT(*) as cnt FROM projects").get() as { cnt: number };
+    const projectsCount = db.prepare("SELECT COUNT(*) as cnt FROM projects").get() as {
+      cnt: number;
+    };
     assert(projectsCount.cnt === 0, "No projects inserted");
 
-    const histCount = db.prepare("SELECT COUNT(*) as cnt FROM migration_history").get() as { cnt: number };
+    const histCount = db.prepare("SELECT COUNT(*) as cnt FROM migration_history").get() as {
+      cnt: number;
+    };
     assert(histCount.cnt === 0, "No migration_history logged for parse failure");
   } catch (err: any) {
     console.error("Scenario 4 crashed:", err);
@@ -292,7 +331,7 @@ async function runTests() {
   console.log("\nScenario 5: Partial LocalStorage Payload (missing optional fields)");
   try {
     const db = setupTestDb();
-    
+
     // Legacy payload missing tasks, notes, sessions, chat, streaks
     const partialPayload = {
       projects: [
@@ -300,14 +339,14 @@ async function runTests() {
           id: "proj-201",
           name: "Minimal Project",
           tag: "Work",
-          color: "blue"
-        }
+          color: "blue",
+        },
       ],
       profile: {
         name: "Partial User",
         role: "Minimalist",
-        motto: "Less is more"
-      }
+        motto: "Less is more",
+      },
     };
 
     const res = executeMigration(db, JSON.stringify(partialPayload));
@@ -334,14 +373,16 @@ async function runTests() {
   }
 
   // 6. Transaction Rollback Test
-  console.log("\nScenario 6: Transaction Rollback on Migration Failure (foreign key / payload error)");
+  console.log(
+    "\nScenario 6: Transaction Rollback on Migration Failure (foreign key / payload error)",
+  );
   try {
     const db = setupTestDb();
 
     // Payload has valid project, but task has no project ID AND we violate foreign key constraints (or throw payload error)
     // Wait, let's inject a task with no title (which throws "Invalid task element in payload" in JS before SQLite insert)
     // Let's also check a foreign key constraint violation. Let's do both.
-    
+
     // Case 6a: Validation error in Javascript during transaction
     console.log("  Subcase 6a: JS Error thrown inside transaction");
     const badPayloadJs = {
@@ -350,32 +391,40 @@ async function runTests() {
           id: "proj-ok",
           name: "Project OK",
           tag: "Work",
-          color: "blue"
-        }
+          color: "blue",
+        },
       ],
       tasks: [
         {
           id: "task-bad",
           // missing title (violates payload validation)
-          projectId: "proj-ok"
-        }
-      ]
+          projectId: "proj-ok",
+        },
+      ],
     };
 
     const resJs = executeMigration(db, JSON.stringify(badPayloadJs));
     assert(resJs.success === false, "JS error payload returns success: false");
     assert(resJs.status === "failed", "JS error payload returns status: 'failed'");
-    assert(resJs.error === "Invalid task element in payload", "Error message matches expected JS throw");
+    assert(
+      resJs.error === "Invalid task element in payload",
+      "Error message matches expected JS throw",
+    );
 
     // Check rollback: verify no projects were inserted!
     const projCountJs = db.prepare("SELECT COUNT(*) as cnt FROM projects").get() as { cnt: number };
     assert(projCountJs.cnt === 0, "Rollback successful: projects table is empty");
 
     // Check history logging
-    const histJs = db.prepare("SELECT * FROM migration_history WHERE migration_name = ?").get("legacy_localstorage_migration") as any;
+    const histJs = db
+      .prepare("SELECT * FROM migration_history WHERE migration_name = ?")
+      .get("legacy_localstorage_migration") as any;
     assert(histJs !== undefined, "Migration history has a record");
     assert(histJs.status === "failed", "Status in history is 'failed'");
-    assert(histJs.error_message === "Invalid task element in payload", "Error message saved in history");
+    assert(
+      histJs.error_message === "Invalid task element in payload",
+      "Error message saved in history",
+    );
 
     // Clear db for Case 6b
     cleanupTestDb();
@@ -389,32 +438,41 @@ async function runTests() {
           id: "proj-ok2",
           name: "Project OK 2",
           tag: "Work",
-          color: "blue"
-        }
+          color: "blue",
+        },
       ],
       tasks: [
         {
           id: "task-ok2",
           title: "Task with missing project",
           priority: "Medium",
-          projectId: "non-existent-project-id" // Violates foreign key reference
-        }
-      ]
+          projectId: "non-existent-project-id", // Violates foreign key reference
+        },
+      ],
     };
 
     const resSql = executeMigration(db2, JSON.stringify(badPayloadSql));
     assert(resSql.success === false, "Sql constraint violation returns success: false");
     assert(resSql.status === "failed", "Sql constraint violation returns status: 'failed'");
-    assert(resSql.error!.includes("FOREIGN KEY constraint failed"), "Error message contains 'FOREIGN KEY constraint failed'");
+    assert(
+      resSql.error!.includes("FOREIGN KEY constraint failed"),
+      "Error message contains 'FOREIGN KEY constraint failed'",
+    );
 
     // Check rollback: verify no projects were inserted!
-    const projCountSql = db2.prepare("SELECT COUNT(*) as cnt FROM projects").get() as { cnt: number };
+    const projCountSql = db2.prepare("SELECT COUNT(*) as cnt FROM projects").get() as {
+      cnt: number;
+    };
     assert(projCountSql.cnt === 0, "Rollback successful: projects table is empty");
 
-    const histSql = db2.prepare("SELECT * FROM migration_history WHERE migration_name = ?").get("legacy_localstorage_migration") as any;
+    const histSql = db2
+      .prepare("SELECT * FROM migration_history WHERE migration_name = ?")
+      .get("legacy_localstorage_migration") as any;
     assert(histSql.status === "failed", "Status in history is 'failed'");
-    assert(histSql.error_message!.includes("FOREIGN KEY constraint failed"), "SQL error message saved in history");
-
+    assert(
+      histSql.error_message!.includes("FOREIGN KEY constraint failed"),
+      "SQL error message saved in history",
+    );
   } catch (err: any) {
     console.error("Scenario 6 crashed:", err);
     failed = true;

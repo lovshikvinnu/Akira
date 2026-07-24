@@ -9,56 +9,27 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TimelineRouteImport } from './routes/timeline'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as SessionsRouteImport } from './routes/sessions'
-import { Route as SearchRouteImport } from './routes/search'
-import { Route as ProjectsRouteImport } from './routes/projects'
-import { Route as DailyMissionRouteImport } from './routes/daily-mission'
-import { Route as ChatRouteImport } from './routes/chat'
-import { Route as BrainDumpRouteImport } from './routes/brain-dump'
-import { Route as BrainRouteImport } from './routes/brain'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BrainRouteImport } from './routes/brain'
+import { Route as BrainDumpRouteImport } from './routes/brain-dump'
+import { Route as ChatRouteImport } from './routes/chat'
+import { Route as DailyMissionRouteImport } from './routes/daily-mission'
+import { Route as NotesRouteImport } from './routes/notes'
+import { Route as ProjectsRouteImport } from './routes/projects'
+import { Route as SearchRouteImport } from './routes/search'
+import { Route as SessionsRouteImport } from './routes/sessions'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as TasksRouteImport } from './routes/tasks'
+import { Route as TimelineRouteImport } from './routes/timeline'
+import { Route as ToolsRouteImport } from './routes/tools'
+import { Route as VaultRouteImport } from './routes/vault'
 import { Route as ProjectsIdRouteImport } from './routes/projects.$id'
+import { Route as ToolsIndexRouteImport } from './routes/tools.index'
+import { Route as ToolsVaultRouteImport } from './routes/tools.vault'
 
-const TimelineRoute = TimelineRouteImport.update({
-  id: '/timeline',
-  path: '/timeline',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SessionsRoute = SessionsRouteImport.update({
-  id: '/sessions',
-  path: '/sessions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SearchRoute = SearchRouteImport.update({
-  id: '/search',
-  path: '/search',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProjectsRoute = ProjectsRouteImport.update({
-  id: '/projects',
-  path: '/projects',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DailyMissionRoute = DailyMissionRouteImport.update({
-  id: '/daily-mission',
-  path: '/daily-mission',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ChatRoute = ChatRouteImport.update({
-  id: '/chat',
-  path: '/chat',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BrainDumpRoute = BrainDumpRouteImport.update({
-  id: '/brain-dump',
-  path: '/brain-dump',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BrainRoute = BrainRouteImport.update({
@@ -66,15 +37,80 @@ const BrainRoute = BrainRouteImport.update({
   path: '/brain',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const BrainDumpRoute = BrainDumpRouteImport.update({
+  id: '/brain-dump',
+  path: '/brain-dump',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatRoute = ChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DailyMissionRoute = DailyMissionRouteImport.update({
+  id: '/daily-mission',
+  path: '/daily-mission',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotesRoute = NotesRouteImport.update({
+  id: '/notes',
+  path: '/notes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectsRoute = ProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionsRoute = SessionsRouteImport.update({
+  id: '/sessions',
+  path: '/sessions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TasksRoute = TasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TimelineRoute = TimelineRouteImport.update({
+  id: '/timeline',
+  path: '/timeline',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolsRoute = ToolsRouteImport.update({
+  id: '/tools',
+  path: '/tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VaultRoute = VaultRouteImport.update({
+  id: '/vault',
+  path: '/vault',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectsIdRoute = ProjectsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => ProjectsRoute,
+} as any)
+const ToolsIndexRoute = ToolsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ToolsRoute,
+} as any)
+const ToolsVaultRoute = ToolsVaultRouteImport.update({
+  id: '/vault',
+  path: '/vault',
+  getParentRoute: () => ToolsRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -83,12 +119,18 @@ export interface FileRoutesByFullPath {
   '/brain-dump': typeof BrainDumpRoute
   '/chat': typeof ChatRoute
   '/daily-mission': typeof DailyMissionRoute
+  '/notes': typeof NotesRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/search': typeof SearchRoute
   '/sessions': typeof SessionsRoute
   '/settings': typeof SettingsRoute
+  '/tasks': typeof TasksRoute
   '/timeline': typeof TimelineRoute
+  '/tools': typeof ToolsRouteWithChildren
+  '/vault': typeof VaultRoute
   '/projects/$id': typeof ProjectsIdRoute
+  '/tools/vault': typeof ToolsVaultRoute
+  '/tools/': typeof ToolsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -96,12 +138,17 @@ export interface FileRoutesByTo {
   '/brain-dump': typeof BrainDumpRoute
   '/chat': typeof ChatRoute
   '/daily-mission': typeof DailyMissionRoute
+  '/notes': typeof NotesRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/search': typeof SearchRoute
   '/sessions': typeof SessionsRoute
   '/settings': typeof SettingsRoute
+  '/tasks': typeof TasksRoute
   '/timeline': typeof TimelineRoute
+  '/vault': typeof VaultRoute
   '/projects/$id': typeof ProjectsIdRoute
+  '/tools/vault': typeof ToolsVaultRoute
+  '/tools': typeof ToolsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -110,12 +157,18 @@ export interface FileRoutesById {
   '/brain-dump': typeof BrainDumpRoute
   '/chat': typeof ChatRoute
   '/daily-mission': typeof DailyMissionRoute
+  '/notes': typeof NotesRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/search': typeof SearchRoute
   '/sessions': typeof SessionsRoute
   '/settings': typeof SettingsRoute
+  '/tasks': typeof TasksRoute
   '/timeline': typeof TimelineRoute
+  '/tools': typeof ToolsRouteWithChildren
+  '/vault': typeof VaultRoute
   '/projects/$id': typeof ProjectsIdRoute
+  '/tools/vault': typeof ToolsVaultRoute
+  '/tools/': typeof ToolsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -125,12 +178,18 @@ export interface FileRouteTypes {
     | '/brain-dump'
     | '/chat'
     | '/daily-mission'
+    | '/notes'
     | '/projects'
     | '/search'
     | '/sessions'
     | '/settings'
+    | '/tasks'
     | '/timeline'
+    | '/tools'
+    | '/vault'
     | '/projects/$id'
+    | '/tools/vault'
+    | '/tools/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -138,12 +197,17 @@ export interface FileRouteTypes {
     | '/brain-dump'
     | '/chat'
     | '/daily-mission'
+    | '/notes'
     | '/projects'
     | '/search'
     | '/sessions'
     | '/settings'
+    | '/tasks'
     | '/timeline'
+    | '/vault'
     | '/projects/$id'
+    | '/tools/vault'
+    | '/tools'
   id:
     | '__root__'
     | '/'
@@ -151,12 +215,18 @@ export interface FileRouteTypes {
     | '/brain-dump'
     | '/chat'
     | '/daily-mission'
+    | '/notes'
     | '/projects'
     | '/search'
     | '/sessions'
     | '/settings'
+    | '/tasks'
     | '/timeline'
+    | '/tools'
+    | '/vault'
     | '/projects/$id'
+    | '/tools/vault'
+    | '/tools/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -165,69 +235,24 @@ export interface RootRouteChildren {
   BrainDumpRoute: typeof BrainDumpRoute
   ChatRoute: typeof ChatRoute
   DailyMissionRoute: typeof DailyMissionRoute
+  NotesRoute: typeof NotesRoute
   ProjectsRoute: typeof ProjectsRouteWithChildren
   SearchRoute: typeof SearchRoute
   SessionsRoute: typeof SessionsRoute
   SettingsRoute: typeof SettingsRoute
+  TasksRoute: typeof TasksRoute
   TimelineRoute: typeof TimelineRoute
+  ToolsRoute: typeof ToolsRouteWithChildren
+  VaultRoute: typeof VaultRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/timeline': {
-      id: '/timeline'
-      path: '/timeline'
-      fullPath: '/timeline'
-      preLoaderRoute: typeof TimelineRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sessions': {
-      id: '/sessions'
-      path: '/sessions'
-      fullPath: '/sessions'
-      preLoaderRoute: typeof SessionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/search': {
-      id: '/search'
-      path: '/search'
-      fullPath: '/search'
-      preLoaderRoute: typeof SearchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/projects': {
-      id: '/projects'
-      path: '/projects'
-      fullPath: '/projects'
-      preLoaderRoute: typeof ProjectsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/daily-mission': {
-      id: '/daily-mission'
-      path: '/daily-mission'
-      fullPath: '/daily-mission'
-      preLoaderRoute: typeof DailyMissionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/chat': {
-      id: '/chat'
-      path: '/chat'
-      fullPath: '/chat'
-      preLoaderRoute: typeof ChatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/brain-dump': {
-      id: '/brain-dump'
-      path: '/brain-dump'
-      fullPath: '/brain-dump'
-      preLoaderRoute: typeof BrainDumpRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/brain': {
@@ -237,11 +262,88 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BrainRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/brain-dump': {
+      id: '/brain-dump'
+      path: '/brain-dump'
+      fullPath: '/brain-dump'
+      preLoaderRoute: typeof BrainDumpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat': {
+      id: '/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/daily-mission': {
+      id: '/daily-mission'
+      path: '/daily-mission'
+      fullPath: '/daily-mission'
+      preLoaderRoute: typeof DailyMissionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notes': {
+      id: '/notes'
+      path: '/notes'
+      fullPath: '/notes'
+      preLoaderRoute: typeof NotesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/projects': {
+      id: '/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof ProjectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sessions': {
+      id: '/sessions'
+      path: '/sessions'
+      fullPath: '/sessions'
+      preLoaderRoute: typeof SessionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tasks': {
+      id: '/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof TasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/timeline': {
+      id: '/timeline'
+      path: '/timeline'
+      fullPath: '/timeline'
+      preLoaderRoute: typeof TimelineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tools': {
+      id: '/tools'
+      path: '/tools'
+      fullPath: '/tools'
+      preLoaderRoute: typeof ToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vault': {
+      id: '/vault'
+      path: '/vault'
+      fullPath: '/vault'
+      preLoaderRoute: typeof VaultRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/projects/$id': {
@@ -250,6 +352,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/projects/$id'
       preLoaderRoute: typeof ProjectsIdRouteImport
       parentRoute: typeof ProjectsRoute
+    }
+    '/tools/': {
+      id: '/tools/'
+      path: '/'
+      fullPath: '/tools/'
+      preLoaderRoute: typeof ToolsIndexRouteImport
+      parentRoute: typeof ToolsRoute
+    }
+    '/tools/vault': {
+      id: '/tools/vault'
+      path: '/vault'
+      fullPath: '/tools/vault'
+      preLoaderRoute: typeof ToolsVaultRouteImport
+      parentRoute: typeof ToolsRoute
     }
   }
 }
@@ -266,17 +382,33 @@ const ProjectsRouteWithChildren = ProjectsRoute._addFileChildren(
   ProjectsRouteChildren,
 )
 
+interface ToolsRouteChildren {
+  ToolsVaultRoute: typeof ToolsVaultRoute
+  ToolsIndexRoute: typeof ToolsIndexRoute
+}
+
+const ToolsRouteChildren: ToolsRouteChildren = {
+  ToolsVaultRoute: ToolsVaultRoute,
+  ToolsIndexRoute: ToolsIndexRoute,
+}
+
+const ToolsRouteWithChildren = ToolsRoute._addFileChildren(ToolsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BrainRoute: BrainRoute,
   BrainDumpRoute: BrainDumpRoute,
   ChatRoute: ChatRoute,
   DailyMissionRoute: DailyMissionRoute,
+  NotesRoute: NotesRoute,
   ProjectsRoute: ProjectsRouteWithChildren,
   SearchRoute: SearchRoute,
   SessionsRoute: SessionsRoute,
   SettingsRoute: SettingsRoute,
+  TasksRoute: TasksRoute,
   TimelineRoute: TimelineRoute,
+  ToolsRoute: ToolsRouteWithChildren,
+  VaultRoute: VaultRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

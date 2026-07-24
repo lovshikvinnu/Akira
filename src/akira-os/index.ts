@@ -1,5 +1,6 @@
 export * from "./projects";
 export * from "./notes";
+export * from "./vault";
 export * from "./sessions";
 export * from "./settings";
 export * from "./presence";
@@ -18,3 +19,4 @@ export type {
   WorkSession,
   AkiraState,
 } from "../persistence/akira-store";
+export * from "./tools/registry";

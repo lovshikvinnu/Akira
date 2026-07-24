@@ -172,7 +172,7 @@ function ProjectDetail() {
             >
               <Play className="h-4 w-4" /> Continue working
             </button>
-            <GhostButton onClick={() => navigate({ to: "/daily-mission" })}>
+            <GhostButton onClick={() => navigate({ to: "/tasks" })}>
               <Target className="h-3.5 w-3.5" /> Add to today's mission
             </GhostButton>
           </div>

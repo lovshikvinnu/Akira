@@ -148,10 +148,10 @@ function SearchPage() {
         navigate({ to: "/projects/$id", params: { id: result.id } });
         break;
       case "task":
-        navigate({ to: "/daily-mission" });
+        navigate({ to: "/tasks" });
         break;
       case "note":
-        navigate({ to: "/brain-dump" });
+        navigate({ to: "/notes" });
         break;
       case "session":
         navigate({ to: "/sessions" });

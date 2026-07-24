@@ -1,7 +1,7 @@
 import type { AkiraState } from "../shared/types/store-types";
 
 /**
- * WorkspaceProvider defines the read-only contract that abstracts read access 
+ * WorkspaceProvider defines the read-only contract that abstracts read access
  * to the local workspace data store (reality layer) for the GENESIS subsystem.
  */
 export interface WorkspaceProvider {
@@ -26,7 +26,7 @@ export function registerWorkspaceProvider(provider: WorkspaceProvider): void {
 export function getWorkspaceProvider(): WorkspaceProvider {
   if (!activeWorkspaceProvider) {
     throw new Error(
-      "WorkspaceProvider has not been registered! Ensure AKIRA OS is initialized before starting GENESIS services."
+      "WorkspaceProvider has not been registered! Ensure AKIRA OS is initialized before starting GENESIS services.",
     );
   }
   return activeWorkspaceProvider;

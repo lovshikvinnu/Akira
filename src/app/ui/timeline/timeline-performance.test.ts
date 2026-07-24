@@ -15,12 +15,14 @@ function test(name: string, fn: () => void | Promise<void>) {
   try {
     const res = fn();
     if (res instanceof Promise) {
-      res.then(() => {
-        passedTests++;
-      }).catch((error) => {
-        console.error(`  ✗ Failed: ${name}`);
-        console.error(error);
-      });
+      res
+        .then(() => {
+          passedTests++;
+        })
+        .catch((error) => {
+          console.error(`  ✗ Failed: ${name}`);
+          console.error(error);
+        });
     } else {
       passedTests++;
     }
@@ -33,7 +35,7 @@ function test(name: string, fn: () => void | Promise<void>) {
 function assertEquals<T>(actual: T, expected: T, message: string) {
   if (actual !== expected) {
     throw new Error(
-      `${message} -> Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`
+      `${message} -> Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
     );
   }
 }
@@ -44,14 +46,16 @@ initializeDatabase();
 // Setup projects to satisfy foreign keys
 const db = getDatabaseConnection();
 db.prepare("DELETE FROM projects").run();
-db.prepare(`
+db.prepare(
+  `
   INSERT INTO projects (id, name, tag, description, progress, color, created_at, updated_at, icon)
   VALUES ('proj-perf', 'Performance Project', 'PP', 'Perf Testing', 0, 'blue', ?, ?, 'folder')
-`).run(new Date().toISOString(), new Date().toISOString());
+`,
+).run(new Date().toISOString(), new Date().toISOString());
 
 test("Database Performance - Latency under load (capacity 1,000+ records)", () => {
   timelineRepository.clearAll();
-  
+
   // Seed 1,000 timeline events
   const baseTime = Date.now();
   db.transaction(() => {
@@ -62,7 +66,7 @@ test("Database Performance - Latency under load (capacity 1,000+ records)", () =
         projectId: "proj-perf",
         payload: { title: `Performance Task ${i}` },
         payloadVersion: 1,
-        timestamp: new Date(baseTime - i * 1000).toISOString()
+        timestamp: new Date(baseTime - i * 1000).toISOString(),
       });
     }
   })();
@@ -74,15 +78,17 @@ test("Database Performance - Latency under load (capacity 1,000+ records)", () =
   const result = timelineRepository.findPaged({
     limit: 15,
     filterProjectIds: ["proj-perf"],
-    filterCategories: ["tasks"]
+    filterCategories: ["tasks"],
   });
   const duration = performance.now() - start;
 
   console.log(`  -> Cursor-based pagination read speed: ${duration.toFixed(2)}ms`);
-  
+
   // Performance threshold. Budget target is < 15ms, with a 30ms test boundary to prevent transient machine CPU throttle failures.
   if (duration > 30) {
-    throw new Error(`Database query latency exceeded performance budget boundary of 30ms. Got: ${duration.toFixed(2)}ms`);
+    throw new Error(
+      `Database query latency exceeded performance budget boundary of 30ms. Got: ${duration.toFixed(2)}ms`,
+    );
   }
 
   assertEquals(result.items.length, 15, "Should retrieve 15 items");
@@ -90,7 +96,7 @@ test("Database Performance - Latency under load (capacity 1,000+ records)", () =
 
 test("Operational Resiliency - Lock Recovery and Fallback Queue", () => {
   timelineRepository.clearAll();
-  
+
   // Mock repository getDb to simulate a locked database transaction
   const originalGetDb = (timelineRepository as any).getDb;
   (timelineRepository as any).getDb = () => {
@@ -103,19 +109,31 @@ test("Operational Resiliency - Lock Recovery and Fallback Queue", () => {
     projectId: "proj-perf",
     payload: { title: "Offline Task" },
     payloadVersion: 1,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 
   // Verify count contains the fallback item
-  assertEquals(timelineRepository.count(), 1, "Count should include the offline event cached in-memory");
+  assertEquals(
+    timelineRepository.count(),
+    1,
+    "Count should include the offline event cached in-memory",
+  );
 
   // Restore the original database connection resolver
   (timelineRepository as any).getDb = originalGetDb;
 
   // Verify read blending incorporates fallback items correctly
   const queryResult = timelineRepository.findPaged({ limit: 10 });
-  assertEquals(queryResult.items.length, 1, "Blended result should retrieve the offline fallback event");
-  assertEquals(queryResult.items[0].id, "offline-evt", "Retrieved event should match offline cached event");
+  assertEquals(
+    queryResult.items.length,
+    1,
+    "Blended result should retrieve the offline fallback event",
+  );
+  assertEquals(
+    queryResult.items[0].id,
+    "offline-evt",
+    "Retrieved event should match offline cached event",
+  );
 
   timelineRepository.clearAll();
 });

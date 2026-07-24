@@ -16,7 +16,7 @@ class RendererRegistryClass {
   public register(
     eventType: string,
     cardComponent: ComponentType<EventCardProps>,
-    detailComponent?: ComponentType<EventDetailProps>
+    detailComponent?: ComponentType<EventDetailProps>,
   ): void {
     this.cardMap.set(eventType, cardComponent);
     if (detailComponent) {

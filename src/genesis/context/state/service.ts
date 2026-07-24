@@ -12,6 +12,7 @@ import { memoryService, validationEngine } from "../../memory/memory-service";
 import { Memory } from "../../validation/types";
 import { registerCompanionStateProvider } from "../../../shared/genesis-provider";
 import { recallBuilder } from "../../recall/recall-builder";
+import { identityService as identityFoundationService } from "../../identity";
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
@@ -37,6 +38,7 @@ class CompanionStateService {
     validationEngine.initialize();
     recallBuilder.initialize();
     memoryService.initialize();
+    identityFoundationService.initialize();
 
     const presenceContext = this.latestPresenceContext;
     if (!presenceContext) {
