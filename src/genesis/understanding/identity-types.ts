@@ -1,5 +1,14 @@
 export type IdentityCategory =
-  "Trait" | "Value" | "Strength" | "Growth" | "LearningStyle" | "WorkStyle" | "Aspiration";
+  | "Trait"
+  | "Value"
+  | "Strength"
+  | "Growth"
+  | "LearningStyle"
+  | "WorkStyle"
+  | "Aspiration"
+  | "Interest"
+  | "Preference"
+  | "Habit";
 
 export type IdentityObservation = {
   id: string;

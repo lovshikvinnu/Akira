@@ -1,3 +1,4 @@
+import { describe, test, expect } from "vitest";
 import { AkiraSDK } from "../../src/sdk/core/akira-sdk";
 import { SDKContext } from "../../src/sdk/core/sdk-context";
 import { PermissionRequiredError, SDKVersionMismatchError } from "../../src/sdk/core/sdk-errors";
@@ -14,6 +15,7 @@ class MockService {
   called: any[] = [];
   async read(...args: any[]) {
     this.called.push({ method: "read", args });
+    if (args[0] === "mkey") return "mem-mkey";
     return "read-result";
   }
   async write(...args: any[]) {
@@ -35,6 +37,7 @@ class MockService {
   }
   async query(...args: any[]) {
     this.called.push({ method: "query", args });
+    if (args[0] === "term") return "search-result";
     return "query-result";
   }
   async track(name: string, payload?: any) {

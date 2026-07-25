@@ -25,7 +25,7 @@ function formatSentenceConcept(category: string, concept: string): string {
   }
   if (lower === "akira") return "AKIRA";
 
-  if (category === "Project" || category === "Knowledge" || category === "Relationship") {
+  if (category === "Project" || category === "Knowledge" || category === "Relationship" || category === "Interest" || category === "Value") {
     return concept
       .split(/[-_]+/)
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -78,6 +78,12 @@ export function serializeUnderstanding(u: Understanding): string {
       break;
     case "Preference":
       sentence = `The user consistently prefers ${sentenceConcept}.`;
+      break;
+    case "Interest":
+      sentence = `The user has expressed an interest in ${sentenceConcept}.`;
+      break;
+    case "Value":
+      sentence = `The user values ${sentenceConcept}.`;
       break;
     default:
       sentence = `The user is associated with ${sentenceConcept}.`;

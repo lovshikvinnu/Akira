@@ -6,6 +6,8 @@ import {
   UnderstandingConfidence,
   UnderstandingStatus,
 } from "./types";
+import { identityService } from "./identity-service";
+import { identityService as identityFoundationService } from "../identity";
 
 // Helper to determine status based on linked stories or memories
 function determineStatus(stories: Story[], relatedStoryIds: string[]): UnderstandingStatus {
@@ -357,6 +359,312 @@ export const preferenceRule: UnderstandingRule = {
   },
 };
 
+export const personalDeclarationRule: UnderstandingRule = {
+  name: "Personal Declaration Rule",
+  evaluate(memories, stories) {
+    const fragments: UnderstandingFragment[] = [];
+
+    const parseDeclaration = (text: string) => {
+      let clean = text.trim();
+      const prefixes = [
+        "User query submitted to AKIRA:",
+        "User query:",
+        "Query submitted to AKIRA:",
+        "User query submitted:"
+      ];
+      for (const prefix of prefixes) {
+        if (clean.toLowerCase().startsWith(prefix.toLowerCase())) {
+          clean = clean.slice(prefix.length).trim();
+        }
+      }
+      
+      // Strip surrounding quotes
+      clean = clean.replace(/^["']|["']$/g, "").trim();
+      
+      // Strip trailing punctuation
+      clean = clean.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]+$/, "").trim();
+      const lower = clean.toLowerCase();
+
+      const normalizePayload = (payload: string) => {
+        const index = clean.toLowerCase().indexOf(payload.toLowerCase());
+        let normalized = payload.trim();
+        if (index === 0 && normalized.length > 0) {
+          const first = normalized.charAt(0);
+          if (normalized.length > 1 && normalized.charAt(1) === normalized.charAt(1).toUpperCase() && normalized.charAt(1) !== " ") {
+            // Keep acronyms/proper nouns as is
+          } else {
+            normalized = first.toLowerCase() + normalized.slice(1);
+          }
+        }
+        return normalized.replace(/\s+/g, " ");
+      };
+
+      // Goal
+      if (lower.startsWith("my dream is ")) {
+        let content = clean.slice("my dream is ".length).trim();
+        if (content.toLowerCase().startsWith("to ")) content = content.slice(3).trim();
+        if (content) return { category: "Goal", content: normalizePayload(content) };
+      }
+      if (lower.startsWith("my goal is ")) {
+        let content = clean.slice("my goal is ".length).trim();
+        if (content.toLowerCase().startsWith("to ")) content = content.slice(3).trim();
+        if (content) return { category: "Goal", content: normalizePayload(content) };
+      }
+      if (lower.startsWith("i want to become ")) {
+        const content = clean.slice("i want to become ".length).trim();
+        if (content) return { category: "Goal", content: "become " + normalizePayload(content) };
+      }
+      if (lower.startsWith("i aspire to ")) {
+        const content = clean.slice("i aspire to ".length).trim();
+        if (content) return { category: "Goal", content: normalizePayload(content) };
+      }
+      if (lower.startsWith("my ambition is ")) {
+        let content = clean.slice("my ambition is ".length).trim();
+        if (content.toLowerCase().startsWith("to ")) content = content.slice(3).trim();
+        if (content) return { category: "Goal", content: normalizePayload(content) };
+      }
+      if (lower.startsWith("i hope to become ")) {
+        const content = clean.slice("i hope to become ".length).trim();
+        if (content) return { category: "Goal", content: "become " + normalizePayload(content) };
+      }
+      if (lower.startsWith("i plan to become ")) {
+        const content = clean.slice("i plan to become ".length).trim();
+        if (content) return { category: "Goal", content: "become " + normalizePayload(content) };
+      }
+      if (lower.endsWith(" is my dream")) {
+        const content = clean.slice(0, clean.length - " is my dream".length).trim();
+        if (content) return { category: "Goal", content: normalizePayload(content) };
+      }
+      if (lower.endsWith(" is my goal")) {
+        const content = clean.slice(0, clean.length - " is my goal".length).trim();
+        if (content) return { category: "Goal", content: normalizePayload(content) };
+      }
+
+      // Interest
+      if (lower.startsWith("i love ")) {
+        const content = clean.slice("i love ".length).trim();
+        if (content && content.toLowerCase() !== "it") {
+          return { category: "Interest", content: normalizePayload(content) };
+        }
+      }
+      if (lower.startsWith("i'm interested in ")) {
+        const content = clean.slice("i'm interested in ".length).trim();
+        if (content) return { category: "Interest", content: normalizePayload(content) };
+      }
+      if (lower.startsWith("i am interested in ")) {
+        const content = clean.slice("i am interested in ".length).trim();
+        if (content) return { category: "Interest", content: normalizePayload(content) };
+      }
+      if (lower.startsWith("i enjoy ")) {
+        const content = clean.slice("i enjoy ".length).trim();
+        if (content) return { category: "Interest", content: normalizePayload(content) };
+      }
+
+      // Preference
+      if (lower.startsWith("i prefer ")) {
+        const content = clean.slice("i prefer ".length).trim();
+        if (content) return { category: "Preference", content: normalizePayload(content) };
+      }
+      if (lower.startsWith("i like ")) {
+        const content = clean.slice("i like ".length).trim();
+        if (content) return { category: "Preference", content: normalizePayload(content) };
+      }
+      if (lower.startsWith("i dislike ")) {
+        const content = clean.slice("i dislike ".length).trim();
+        if (content) return { category: "Preference", content: "dislike " + normalizePayload(content) };
+      }
+      if (lower.startsWith("i hate ")) {
+        const content = clean.slice("i hate ".length).trim();
+        if (content) return { category: "Preference", content: "hate " + normalizePayload(content) };
+      }
+
+      // Value
+      if (lower.startsWith("i value ")) {
+        const content = clean.slice("i value ".length).trim();
+        if (content) return { category: "Value", content: normalizePayload(content) };
+      }
+      if (lower.startsWith("i believe ")) {
+        let content = clean.slice("i believe ".length).trim();
+        if (content.toLowerCase().startsWith("in ")) content = content.slice(3).trim();
+        if (content) return { category: "Value", content: normalizePayload(content) };
+      }
+      if (lower.endsWith(" is important to me")) {
+        const content = clean.slice(0, clean.length - " is important to me".length).trim();
+        if (content) return { category: "Value", content: normalizePayload(content) };
+      }
+      if (lower.startsWith("what's important to me is ")) {
+        const content = clean.slice("what's important to me is ".length).trim();
+        if (content) return { category: "Value", content: normalizePayload(content) };
+      }
+      if (lower.startsWith("what is important to me is ")) {
+        const content = clean.slice("what is important to me is ".length).trim();
+        if (content) return { category: "Value", content: normalizePayload(content) };
+      }
+      if (lower.startsWith("i care deeply about ")) {
+        const content = clean.slice("i care deeply about ".length).trim();
+        if (content) return { category: "Value", content: normalizePayload(content) };
+      }
+
+      // Habit
+      if (lower.startsWith("i usually ")) {
+        const content = clean.slice("i usually ".length).trim();
+        if (content) return { category: "Habit", content: normalizePayload(content) };
+      }
+      if (lower.startsWith("i always ")) {
+        const content = clean.slice("i always ".length).trim();
+        if (content) return { category: "Habit", content: normalizePayload(content) };
+      }
+      if (lower.startsWith("every morning i ")) {
+        const content = clean.slice("every morning i ".length).trim();
+        if (content) return { category: "Habit", content: normalizePayload(content) };
+      }
+      if (lower.startsWith("every day i ")) {
+        const content = clean.slice("every day i ".length).trim();
+        if (content) return { category: "Habit", content: normalizePayload(content) };
+      }
+      if (lower.endsWith(" every morning")) {
+        let content = clean.slice(0, clean.length - " every morning".length).trim();
+        if (content.toLowerCase().startsWith("i ")) content = content.slice(2).trim();
+        if (content) return { category: "Habit", content: normalizePayload(content) };
+      }
+      if (lower.endsWith(" every day")) {
+        let content = clean.slice(0, clean.length - " every day".length).trim();
+        if (content.toLowerCase().startsWith("i ")) content = content.slice(2).trim();
+        if (content) return { category: "Habit", content: normalizePayload(content) };
+      }
+
+      return null;
+    };
+
+    for (const memory of memories) {
+      const text = memory.description || "";
+      let match = parseDeclaration(text);
+      if (!match && memory.title) {
+        match = parseDeclaration(memory.title);
+      }
+      if (!match && text.includes("User query submitted to AKIRA: ")) {
+        const queryText = text.split("User query submitted to AKIRA: ")[1];
+        if (queryText) {
+          const cleanQuery = queryText.replace(/^["']|["']$/g, "");
+          match = parseDeclaration(cleanQuery);
+        }
+      }
+
+      if (match) {
+        fragments.push({
+          canonicalKey: `${match.category.toLowerCase()}:${match.content.toLowerCase().replace(/\s+/g, "-")}`,
+          category: match.category as any,
+          confidence: "High",
+          status: "Active",
+          supportingMemoryIds: [memory.id],
+          supportingStoryIds: [],
+        });
+
+        try {
+          let identityCategory: any = "Trait";
+          if (match.category === "Goal") identityCategory = "Aspiration";
+          else if (match.category === "Value") identityCategory = "Value";
+          else if (match.category === "Interest") identityCategory = "Interest";
+          else if (match.category === "Preference") identityCategory = "Preference";
+          else if (match.category === "Habit") identityCategory = "Habit";
+
+          identityService.addObservation({
+            category: identityCategory,
+            name: match.content,
+            value: "Active",
+            confidence: 1.0,
+            supportingStoryIds: [],
+            supportingMemoryIds: [memory.id],
+            provenance: `Extracted via PersonalDeclarationRule from: "${text}"`,
+          });
+
+          if (identityFoundationService) {
+            let identity = identityFoundationService.getIdentity();
+            if (!identity) {
+              identity = identityFoundationService.createIdentity({});
+            }
+            const identityId = identity.id;
+
+            if (match.category === "Goal") {
+              const existingGoals = identityFoundationService.getGoals(identityId);
+              const exists = existingGoals.some(
+                (g: any) => g.title.toLowerCase() === match.content.toLowerCase()
+              );
+              if (!exists) {
+                identityFoundationService.createGoal(
+                  identityId,
+                  match.content,
+                  `Explicitly declared goal: ${match.content}`,
+                  "Personal",
+                  "High",
+                  [memory.id]
+                );
+              }
+            } else if (match.category === "Interest") {
+              const existingInterests = identityFoundationService.getInterests(identityId);
+              const exists = existingInterests.some(
+                (i: any) => i.topic.toLowerCase() === match.content.toLowerCase()
+              );
+              if (!exists) {
+                identityFoundationService.createInterest(
+                  identityId,
+                  match.content,
+                  "Other",
+                  [memory.id]
+                );
+              }
+            } else if (match.category === "Preference") {
+              const existingPrefs = identityFoundationService.getPreferences(identityId);
+              const exists = existingPrefs.some(
+                (p: any) => p.value.toLowerCase() === match.content.toLowerCase()
+              );
+              if (!exists) {
+                identityFoundationService.createPreference(
+                  identityId,
+                  "Other",
+                  match.content,
+                  [memory.id]
+                );
+              }
+            } else if (match.category === "Value") {
+              const existingValues = identityFoundationService.getValues(identityId);
+              const exists = existingValues.some(
+                (v: any) => v.name.toLowerCase() === match.content.toLowerCase()
+              );
+              if (!exists) {
+                identityFoundationService.createValue(
+                  identityId,
+                  match.content,
+                  "Personal",
+                  [],
+                  [memory.id]
+                );
+              }
+            } else if (match.category === "Habit") {
+              const existingHabits = identityFoundationService.getHabits(identityId);
+              const exists = existingHabits.some(
+                (h: any) => h.name.toLowerCase() === match.content.toLowerCase()
+              );
+              if (!exists) {
+                identityFoundationService.createHabit(
+                  identityId,
+                  match.content,
+                  "Other",
+                  [memory.id]
+                );
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Error updating identity from PersonalDeclarationRule:", err);
+        }
+      }
+    }
+
+    return fragments;
+  },
+};
+
 export const rules: UnderstandingRule[] = [
   projectRule,
   goalRule,
@@ -364,4 +672,5 @@ export const rules: UnderstandingRule[] = [
   habitRule,
   relationshipRule,
   preferenceRule,
+  personalDeclarationRule,
 ];

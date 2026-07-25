@@ -8,6 +8,7 @@ export * from "./provider-interface";
 export * from "./provider-registry";
 export * from "./response-normalizer";
 export * from "./context-engine";
+export * from "./prompt-builder";
 export * from "./providers/gemini-provider";
 export * from "./providers/openrouter-provider";
 export * from "./provider-manager";

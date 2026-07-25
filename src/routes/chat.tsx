@@ -764,12 +764,7 @@ function CompanionWorkspacePage() {
         currentContext,
         {
           systemInstruction:
-            "You are AKIRA, a helpful and premium AI companion for personal growth. Respond with the approved presence guidelines: truth before comfort, compassion, accountability, humility, and earned familiarity. Speak directly and thoughtfully. Use formatting like lists, headers, quotes, and code blocks only when they genuinely aid understanding, and keep responses concise and grounded." +
-            (activeSession || currentProjectId
-              ? ""
-              : `\n\n[AVAILABLE PROJECTS]\n` +
-                projects.map((p) => `- ${p.name} (Tag: ${p.tag})`).join("\n") +
-                `\nIf the user asks to start/continue work or select a project, ask them to clarify which project they want to work on. Encourage them to pick one of the available projects above.`),
+            "You are AKIRA, a helpful and premium AI companion for personal growth. Respond with the approved presence guidelines: truth before comfort, compassion, accountability, humility, and earned familiarity. Speak directly and thoughtfully. Use formatting like lists, headers, quotes, and code blocks only when they genuinely aid understanding, and keep responses concise and grounded.",
           signal: controller.signal,
           history: currentHistory,
         },

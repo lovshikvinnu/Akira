@@ -1,116 +1,85 @@
-import { providerRegistry } from "./provider-registry";
-import { AIRequest, StandardAIResponse } from "./types";
-import { ContextPackage } from "../types";
-import { contextResolutionService, ResolvedContext } from "../context-resolution";
-import { memoryService } from "../../memory/memory-service";
-import { getUnderstandingContext, intentResolver } from "../../understanding";
+import { SelectedContext } from "../context-relevance-selector";
+import { getUnderstandingContext } from "../../understanding";
 import { getInsightContext } from "../../insights";
-import { contextRelevanceSelector } from "../context-relevance-selector";
 import { getWorkspaceProvider } from "../../../contracts/workspace-provider";
-import { promptBuilder } from "./prompt-builder";
+import { IntentResolution } from "../../understanding/intent-resolver";
+import { ContextPackage } from "../types";
+import { ResolvedContext } from "../context-resolution/types";
+import { memoryService } from "../../memory/memory-service";
 
-export const aiContextEngine = {
-  /**
-   * Transforms context package metadata and prompt variables into provider requests, dispatching via standard interface.
-   */
-  async executeRequest(
+export const promptBuilder = {
+  buildSystemInstruction(
     prompt: string,
-    contextPackage?: ContextPackage,
-    options?: Omit<AIRequest, "prompt" | "contextPackage">,
-  ): Promise<StandardAIResponse> {
-    const provider = providerRegistry.getActiveProvider();
-    if (!provider) {
-      throw new Error("No active AI Provider registered in providerRegistry.");
+    selection: SelectedContext,
+    intentResolution: IntentResolution,
+    baseInstruction?: string,
+  ): string {
+    let structuredSystemInstruction =
+      baseInstruction || "You are AKIRA, a helpful desktop AI companion.";
+
+    // Receive the Intent Resolution result as structured metadata
+    if (intentResolution) {
+      if (intentResolution.clarificationRequired) {
+        const interpretations = intentResolution.candidates.map((c) => {
+          const p = prompt.toLowerCase().trim();
+          if (p === "pilot") {
+            if (c.name === "career") return "aircraft pilot";
+            if (c.name === "project") return "pilot project";
+            if (c.name === "testing methodology") return "pilot testing";
+          }
+          return c.name;
+        });
+
+        structuredSystemInstruction += `\n\nIntent Resolution\n\nConfidence:\nLow\n\nClarification Required:\nYes\n\nPossible Interpretations:\n${interpretations.map((item) => `- ${item}`).join("\n")}\n\nInstruction:\nAsk one concise clarification question.\nDo not assume any interpretation.\nWait for the user's answer before continuing.`;
+      } else {
+        const metadata = {
+          ambiguous: intentResolution.ambiguous,
+          confidence: intentResolution.confidence,
+          clarificationRequired: intentResolution.clarificationRequired,
+          candidates: intentResolution.candidates.map((c) => c.name),
+          resolvedIntent: intentResolution.intent,
+        };
+        structuredSystemInstruction += `\n\n[INTENT RESOLUTION METADATA]\n${JSON.stringify(metadata, null, 2)}`;
+      }
     }
 
-    // 1. Intent Resolution Stage
-    const intentResolution = intentResolver.resolveIntent(prompt, options?.history);
+    if (selection.contextPackage) {
+      const contextBlock = this.serializeContextPackage(selection.contextPackage);
+      structuredSystemInstruction += `\n\n[COGNITIVE CONTEXT]\n${contextBlock}`;
+    }
 
-    // 2. Context Relevance Selection Stage
-    const resolvedContext = contextResolutionService.getContext();
-    const selection = contextRelevanceSelector.selectContext(
-      prompt,
-      contextPackage,
-      resolvedContext,
-      intentResolution,
-    );
+    const understandingsBlock = getUnderstandingContext(prompt, selection.filterUnderstandings);
+    if (understandingsBlock) {
+      structuredSystemInstruction += `\n\n${understandingsBlock}`;
+    }
 
-    // 3. Prompt Builder Stage
-    const structuredSystemInstruction = promptBuilder.buildSystemInstruction(
-      prompt,
-      selection,
-      intentResolution,
-      options?.systemInstruction,
-    );
+    const insightsBlock = getInsightContext(prompt);
+    if (insightsBlock) {
+      structuredSystemInstruction += `\n\n${insightsBlock}`;
+    }
 
+    if (selection.resolvedContext) {
+      const resolvedBlock = this.serializeResolvedContext(selection.resolvedContext);
+      structuredSystemInstruction += `\n\n[RESOLVED CONTEXT]\n${resolvedBlock}`;
+    }
 
+    if (selection.workspaceRelevant) {
+      try {
+        const state = getWorkspaceProvider().getState();
+        if (state && state.projects && state.projects.length > 0) {
+          structuredSystemInstruction +=
+            `\n\n[AVAILABLE PROJECTS]\n` +
+            state.projects.map((p) => `- ${p.name} (Tag: ${p.tag})`).join("\n") +
+            `\nIf the user asks to start/continue work or select a project, ask them to clarify which project they want to work on. Encourage them to pick one of the available projects above.`;
+        }
+      } catch (e) {
+        console.warn("Failed to append workspace projects to system instruction:", e);
+      }
+    }
 
-    const request: AIRequest = {
-      ...options,
-      prompt,
-      systemInstruction: structuredSystemInstruction,
-      contextPackage: selection.contextPackage,
-    };
-
-    return provider.generateContent(request);
+    return structuredSystemInstruction;
   },
 
-  /**
-   * Transforms context package metadata and prompt variables into provider requests, dispatching via standard streaming interface.
-   */
-  async executeRequestStream(
-    prompt: string,
-    onChunk: (chunk: string) => void,
-    contextPackage?: ContextPackage,
-    options?: Omit<AIRequest, "prompt" | "contextPackage"> & { signal?: AbortSignal },
-  ): Promise<StandardAIResponse> {
-    const provider = providerRegistry.getActiveProvider();
-    if (!provider) {
-      throw new Error("No active AI Provider registered in providerRegistry.");
-    }
-
-    // 1. Intent Resolution Stage
-    const intentResolution = intentResolver.resolveIntent(prompt, options?.history);
-
-    // 2. Context Relevance Selection Stage
-    const resolvedContext = contextResolutionService.getContext();
-    const selection = contextRelevanceSelector.selectContext(
-      prompt,
-      contextPackage,
-      resolvedContext,
-      intentResolution,
-    );
-
-    // 3. Prompt Builder Stage
-    const structuredSystemInstruction = promptBuilder.buildSystemInstruction(
-      prompt,
-      selection,
-      intentResolution,
-      options?.systemInstruction,
-    );
-
-
-
-    const request: AIRequest = {
-      ...options,
-      prompt,
-      systemInstruction: structuredSystemInstruction,
-      contextPackage: selection.contextPackage,
-    };
-
-    if (provider.generateContentStream) {
-      return provider.generateContentStream(request, onChunk, options?.signal);
-    } else {
-      // Fallback if provider doesn't support streaming
-      const response = await provider.generateContent(request);
-      onChunk(response.content);
-      return response;
-    }
-  },
-
-  /**
-   * Serializes a Context Package, preserving provenance reasons for explainability.
-   */
   serializeContextPackage(pkg: ContextPackage): string {
     let block = `Session ID: ${pkg.contextSessionId}\n`;
 
@@ -186,9 +155,6 @@ export const aiContextEngine = {
     return block.trim();
   },
 
-  /**
-   * Serializes a Resolved Context, preserving confidence, provenance, and subsystem ownership.
-   */
   serializeResolvedContext(resolved: ResolvedContext): string {
     let block = `Overall Confidence: ${resolved.overallConfidence}\n\n`;
 

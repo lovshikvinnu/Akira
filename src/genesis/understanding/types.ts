@@ -1,5 +1,5 @@
 export type UnderstandingCategory =
-  "Goal" | "Project" | "Knowledge" | "Habit" | "Relationship" | "Preference";
+  "Goal" | "Project" | "Knowledge" | "Habit" | "Relationship" | "Preference" | "Interest" | "Value";
 
 export type UnderstandingStatus = "Active" | "Completed" | "Archived";
 
