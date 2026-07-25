@@ -50,6 +50,8 @@ export * from "./identity/repositories/InMemoryIdentityRepository";
 export { insightEngine } from "./insights/insight-engine";
 export { reflectionService } from "./insights/reflection/service";
 export * from "./insights/reflection/types";
+export * from "./insights/reflection/engine";
+
 
 // Context Subsystem & Subsystem Contexts
 export { contextService } from "./context/context-service";
