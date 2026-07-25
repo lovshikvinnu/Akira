@@ -370,19 +370,19 @@ export const personalDeclarationRule: UnderstandingRule = {
         "User query submitted to AKIRA:",
         "User query:",
         "Query submitted to AKIRA:",
-        "User query submitted:"
+        "User query submitted:",
       ];
       for (const prefix of prefixes) {
         if (clean.toLowerCase().startsWith(prefix.toLowerCase())) {
           clean = clean.slice(prefix.length).trim();
         }
       }
-      
+
       // Strip surrounding quotes
       clean = clean.replace(/^["']|["']$/g, "").trim();
-      
+
       // Strip trailing punctuation
-      clean = clean.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]+$/, "").trim();
+      clean = clean.replace(/[^\w\s]+$/, "").trim();
       const lower = clean.toLowerCase();
 
       const normalizePayload = (payload: string) => {
@@ -390,7 +390,11 @@ export const personalDeclarationRule: UnderstandingRule = {
         let normalized = payload.trim();
         if (index === 0 && normalized.length > 0) {
           const first = normalized.charAt(0);
-          if (normalized.length > 1 && normalized.charAt(1) === normalized.charAt(1).toUpperCase() && normalized.charAt(1) !== " ") {
+          if (
+            normalized.length > 1 &&
+            normalized.charAt(1) === normalized.charAt(1).toUpperCase() &&
+            normalized.charAt(1) !== " "
+          ) {
             // Keep acronyms/proper nouns as is
           } else {
             normalized = first.toLowerCase() + normalized.slice(1);
@@ -471,11 +475,13 @@ export const personalDeclarationRule: UnderstandingRule = {
       }
       if (lower.startsWith("i dislike ")) {
         const content = clean.slice("i dislike ".length).trim();
-        if (content) return { category: "Preference", content: "dislike " + normalizePayload(content) };
+        if (content)
+          return { category: "Preference", content: "dislike " + normalizePayload(content) };
       }
       if (lower.startsWith("i hate ")) {
         const content = clean.slice("i hate ".length).trim();
-        if (content) return { category: "Preference", content: "hate " + normalizePayload(content) };
+        if (content)
+          return { category: "Preference", content: "hate " + normalizePayload(content) };
       }
 
       // Value
@@ -588,7 +594,7 @@ export const personalDeclarationRule: UnderstandingRule = {
             if (match.category === "Goal") {
               const existingGoals = identityFoundationService.getGoals(identityId);
               const exists = existingGoals.some(
-                (g: any) => g.title.toLowerCase() === match.content.toLowerCase()
+                (g: any) => g.title.toLowerCase() === match.content.toLowerCase(),
               );
               if (!exists) {
                 identityFoundationService.createGoal(
@@ -597,39 +603,33 @@ export const personalDeclarationRule: UnderstandingRule = {
                   `Explicitly declared goal: ${match.content}`,
                   "Personal",
                   "High",
-                  [memory.id]
+                  [memory.id],
                 );
               }
             } else if (match.category === "Interest") {
               const existingInterests = identityFoundationService.getInterests(identityId);
               const exists = existingInterests.some(
-                (i: any) => i.topic.toLowerCase() === match.content.toLowerCase()
+                (i: any) => i.topic.toLowerCase() === match.content.toLowerCase(),
               );
               if (!exists) {
-                identityFoundationService.createInterest(
-                  identityId,
-                  match.content,
-                  "Other",
-                  [memory.id]
-                );
+                identityFoundationService.createInterest(identityId, match.content, "Other", [
+                  memory.id,
+                ]);
               }
             } else if (match.category === "Preference") {
               const existingPrefs = identityFoundationService.getPreferences(identityId);
               const exists = existingPrefs.some(
-                (p: any) => p.value.toLowerCase() === match.content.toLowerCase()
+                (p: any) => p.value.toLowerCase() === match.content.toLowerCase(),
               );
               if (!exists) {
-                identityFoundationService.createPreference(
-                  identityId,
-                  "Other",
-                  match.content,
-                  [memory.id]
-                );
+                identityFoundationService.createPreference(identityId, "Other", match.content, [
+                  memory.id,
+                ]);
               }
             } else if (match.category === "Value") {
               const existingValues = identityFoundationService.getValues(identityId);
               const exists = existingValues.some(
-                (v: any) => v.name.toLowerCase() === match.content.toLowerCase()
+                (v: any) => v.name.toLowerCase() === match.content.toLowerCase(),
               );
               if (!exists) {
                 identityFoundationService.createValue(
@@ -637,21 +637,18 @@ export const personalDeclarationRule: UnderstandingRule = {
                   match.content,
                   "Personal",
                   [],
-                  [memory.id]
+                  [memory.id],
                 );
               }
             } else if (match.category === "Habit") {
               const existingHabits = identityFoundationService.getHabits(identityId);
               const exists = existingHabits.some(
-                (h: any) => h.name.toLowerCase() === match.content.toLowerCase()
+                (h: any) => h.name.toLowerCase() === match.content.toLowerCase(),
               );
               if (!exists) {
-                identityFoundationService.createHabit(
-                  identityId,
-                  match.content,
-                  "Other",
-                  [memory.id]
-                );
+                identityFoundationService.createHabit(identityId, match.content, "Other", [
+                  memory.id,
+                ]);
               }
             }
           }

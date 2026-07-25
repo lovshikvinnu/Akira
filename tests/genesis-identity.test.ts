@@ -165,9 +165,9 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
         removePersonalityTrait: vi.fn(),
         rebuildPersonalityProfile: vi.fn(),
       };
-      
+
       identityFoundationService.setRepository(spyRepo);
-      
+
       identityFoundationService.getIdentity();
       expect(spyRepo.getIdentity).toHaveBeenCalled();
 
@@ -234,7 +234,7 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
     it("should add identity aspect nodes with empty evidence links and increment graph version", () => {
       const identity = identityFoundationService.createIdentity({});
       const versionBefore = identityFoundationService.getIdentityGraph().graphVersion;
-      
+
       const node = identityFoundationService.addIdentityNode("Trait", "Introvert", {
         origin: "Onboarding Questionnaire",
       });
@@ -243,7 +243,7 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
       expect(node.aspectType).toBe("Trait");
       expect(node.value).toBe("Introvert");
       expect(node.evidenceIds).toEqual([]); // Initialized with empty array
-      
+
       const graph = identityFoundationService.getIdentityGraph();
       expect(graph.graphVersion).toBe(versionBefore + 1);
 
@@ -339,12 +339,12 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
   describe("Evidence Engine Subsystem", () => {
     it("should add evidence to an aspect node with default weight, status, and originEngine values", () => {
       const node = identityFoundationService.addIdentityNode("Trait", "Focused");
-      
+
       const evidence = identityFoundationService.addEvidence(
         node.id,
         "Memory",
         "mem-123",
-        "Focus session logged 120 minutes"
+        "Focus session logged 120 minutes",
       );
 
       expect(evidence.id).toBeDefined();
@@ -358,7 +358,7 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
         "Note",
         "note-abc",
         "Overridden details",
-        { weight: 0.5, status: "Pending", originEngine: "Consolidation" }
+        { weight: 0.5, status: "Pending", originEngine: "Consolidation" },
       );
       expect(customEv.weight).toBe(0.5);
     });
@@ -368,7 +368,7 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
     it("should score Confirmed level (1.0) for explicitly confirmed aspects", () => {
       // Confirmed via metadata flag
       const node = identityFoundationService.addIdentityNode("Trait", "Stubborn", {
-        confirmed: true
+        confirmed: true,
       });
       const confidence = identityFoundationService.calculateConfidence(node.id);
       expect(confidence.score).toBe(1.0);
@@ -432,7 +432,7 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
       const identity = identityFoundationService.createIdentity({});
       const node = identityFoundationService.addIdentityNode("Skill", "Design");
       identityFoundationService.addEvidence(node.id, "Note", "n-1");
-      
+
       // Calculate confidence to write to repository cache
       identityFoundationService.calculateConfidence(node.id);
 
@@ -450,7 +450,7 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
     it("should retrieve full timelines of chronological changes", () => {
       const identity = identityFoundationService.createIdentity({});
       identityFoundationService.addIdentityNode("Trait", "Patient");
-      
+
       const timeline = identityFoundationService.getTimeline(identity.id);
       expect(timeline).not.toBeNull();
       expect(timeline?.versions.length).toBe(2);
@@ -464,17 +464,28 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
     it("should create user interests, generate corresponding graph preference nodes, and calculate initial strength", () => {
       const identity = identityFoundationService.createIdentity({});
       const node = identityFoundationService.addIdentityNode("Skill", "Coding");
-      const ev = identityFoundationService.addEvidence(node.id, "Memory", "mem-int1", "Logged code task", { weight: 1.0 });
+      const ev = identityFoundationService.addEvidence(
+        node.id,
+        "Memory",
+        "mem-int1",
+        "Logged code task",
+        { weight: 1.0 },
+      );
 
       // Create interest
-      const interest = identityFoundationService.createInterest(identity.id, "Machine Learning", "Technology", [ev.id]);
+      const interest = identityFoundationService.createInterest(
+        identity.id,
+        "Machine Learning",
+        "Technology",
+        [ev.id],
+      );
 
       expect(interest.id).toBeDefined();
       expect(interest.topic).toBe("Machine Learning");
       expect(interest.category).toBe("Technology");
       expect(interest.status).toBe("Active");
       expect(interest.evidenceReferences).toContain(ev.id);
-      
+
       // Since 1 evidence exists with weight 1.0 -> strength.score: 1 * 0.25 * 1.0 = 0.25 (Low level)
       expect(interest.strength.score).toBe(0.25);
       expect(interest.strength.level).toBe("Low");
@@ -487,7 +498,9 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
       expect(prefNode?.value).toBe("Machine Learning");
 
       // Verify event was logged
-      const createdEvent = recordedEvents.find((e) => e.eventType === Events.IDENTITY_INTEREST_CREATED);
+      const createdEvent = recordedEvents.find(
+        (e) => e.eventType === Events.IDENTITY_INTEREST_CREATED,
+      );
       expect(createdEvent).toBeDefined();
       expect(createdEvent.metadata.interest.id).toBe(interest.id);
     });
@@ -498,9 +511,19 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
 
       // Add evidence and link
       const node = identityFoundationService.addIdentityNode("Skill", "Cooking");
-      const ev1 = identityFoundationService.addEvidence(node.id, "Note", "note-b1", "Baked bread", { weight: 1.0 });
-      const ev2 = identityFoundationService.addEvidence(node.id, "Note", "note-b2", "Baked cookies", { weight: 1.0 });
-      const ev3 = identityFoundationService.addEvidence(node.id, "Note", "note-b3", "Baked cake", { weight: 1.0 });
+      const ev1 = identityFoundationService.addEvidence(node.id, "Note", "note-b1", "Baked bread", {
+        weight: 1.0,
+      });
+      const ev2 = identityFoundationService.addEvidence(
+        node.id,
+        "Note",
+        "note-b2",
+        "Baked cookies",
+        { weight: 1.0 },
+      );
+      const ev3 = identityFoundationService.addEvidence(node.id, "Note", "note-b3", "Baked cake", {
+        weight: 1.0,
+      });
 
       // Update interest
       const updated = identityFoundationService.updateInterest(interest.id, {
@@ -519,7 +542,9 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
       expect(versions[versions.length - 1].changeSummary).toContain("status/strength shift");
 
       // Verify event was logged
-      const updateEvent = recordedEvents.find((e) => e.eventType === Events.IDENTITY_INTEREST_UPDATED);
+      const updateEvent = recordedEvents.find(
+        (e) => e.eventType === Events.IDENTITY_INTEREST_UPDATED,
+      );
       expect(updateEvent).toBeDefined();
       expect(updateEvent.metadata.interest.topic).toBe("French Baking");
     });
@@ -539,7 +564,9 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
       expect(versions[versions.length - 1].changeSummary).toContain("status/strength shift");
 
       // Verify archived event logged
-      const archEvent = recordedEvents.find((e) => e.eventType === Events.IDENTITY_INTEREST_ARCHIVED);
+      const archEvent = recordedEvents.find(
+        (e) => e.eventType === Events.IDENTITY_INTEREST_ARCHIVED,
+      );
       expect(archEvent).toBeDefined();
     });
   });
@@ -548,10 +575,21 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
     it("should create user skills, generate corresponding graph Skill nodes, and calculate initial level", () => {
       const identity = identityFoundationService.createIdentity({});
       const node = identityFoundationService.addIdentityNode("Skill", "Testing");
-      const ev = identityFoundationService.addEvidence(node.id, "Memory", "mem-sk1", "Completed QA review", { weight: 1.0 });
+      const ev = identityFoundationService.addEvidence(
+        node.id,
+        "Memory",
+        "mem-sk1",
+        "Completed QA review",
+        { weight: 1.0 },
+      );
 
       // Create skill
-      const skill = identityFoundationService.createSkill(identity.id, "Software Testing", "Technical", [ev.id]);
+      const skill = identityFoundationService.createSkill(
+        identity.id,
+        "Software Testing",
+        "Technical",
+        [ev.id],
+      );
 
       expect(skill.id).toBeDefined();
       expect(skill.name).toBe("Software Testing");
@@ -568,7 +606,9 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
       expect(skNode?.value).toBe("Software Testing");
 
       // Verify event was logged
-      const createdEvent = recordedEvents.find((e) => e.eventType === Events.IDENTITY_SKILL_CREATED);
+      const createdEvent = recordedEvents.find(
+        (e) => e.eventType === Events.IDENTITY_SKILL_CREATED,
+      );
       expect(createdEvent).toBeDefined();
       expect(createdEvent.metadata.skill.id).toBe(skill.id);
     });
@@ -578,9 +618,27 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
       const skill = identityFoundationService.createSkill(identity.id, "Web Writing", "Creative");
 
       const node = identityFoundationService.addIdentityNode("Skill", "Writing");
-      const ev1 = identityFoundationService.addEvidence(node.id, "Note", "note-s1", "Wrote article", { weight: 1.0 });
-      const ev2 = identityFoundationService.addEvidence(node.id, "Note", "note-s2", "Wrote copywriting draft", { weight: 1.0 });
-      const ev3 = identityFoundationService.addEvidence(node.id, "Note", "note-s3", "Published blog post", { weight: 1.0 });
+      const ev1 = identityFoundationService.addEvidence(
+        node.id,
+        "Note",
+        "note-s1",
+        "Wrote article",
+        { weight: 1.0 },
+      );
+      const ev2 = identityFoundationService.addEvidence(
+        node.id,
+        "Note",
+        "note-s2",
+        "Wrote copywriting draft",
+        { weight: 1.0 },
+      );
+      const ev3 = identityFoundationService.addEvidence(
+        node.id,
+        "Note",
+        "note-s3",
+        "Published blog post",
+        { weight: 1.0 },
+      );
 
       // Update skill (adding 3 pieces of evidence to shift level)
       const updated = identityFoundationService.updateSkill(skill.id, {
@@ -630,7 +688,7 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
         "Run Marathon",
         "Complete 42k race",
         "Health",
-        "High"
+        "High",
       );
 
       expect(goal.id).toBeDefined();
@@ -658,7 +716,13 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
 
     it("should update and archive goals, triggering timeline tracking and events", () => {
       const identity = identityFoundationService.createIdentity({});
-      const goal = identityFoundationService.createGoal(identity.id, "Save Money", "Save $1000", "Financial", "Medium");
+      const goal = identityFoundationService.createGoal(
+        identity.id,
+        "Save Money",
+        "Save $1000",
+        "Financial",
+        "Medium",
+      );
 
       // Update
       const updated = identityFoundationService.updateGoal(goal.id, {
@@ -687,14 +751,13 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
     it("should create habits, calculate strength levels, and integrate with the graph", () => {
       const identity = identityFoundationService.createIdentity({});
       const node = identityFoundationService.addIdentityNode("Goal", "Fitness");
-      const ev = identityFoundationService.addEvidence(node.id, "Event", "evt-h1", "Ran 5km", { weight: 1.0 });
+      const ev = identityFoundationService.addEvidence(node.id, "Event", "evt-h1", "Ran 5km", {
+        weight: 1.0,
+      });
 
-      const habit = identityFoundationService.createHabit(
-        identity.id,
-        "Morning Jogging",
-        "Daily",
-        [ev.id]
-      );
+      const habit = identityFoundationService.createHabit(identity.id, "Morning Jogging", "Daily", [
+        ev.id,
+      ]);
 
       expect(habit.id).toBeDefined();
       expect(habit.name).toBe("Morning Jogging");
@@ -707,7 +770,9 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
       const prefNode = graph.nodes.find((n) => n.id === habit.confidenceReference);
       expect(prefNode?.aspectType).toBe("Habit");
 
-      const createdEvent = recordedEvents.find((e) => e.eventType === Events.IDENTITY_HABIT_CREATED);
+      const createdEvent = recordedEvents.find(
+        (e) => e.eventType === Events.IDENTITY_HABIT_CREATED,
+      );
       expect(createdEvent).toBeDefined();
     });
 
@@ -716,13 +781,31 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
       const habit = identityFoundationService.createHabit(identity.id, "Meditation", "Daily");
 
       const node = identityFoundationService.addIdentityNode("Goal", "Mindfulness");
-      const ev1 = identityFoundationService.addEvidence(node.id, "Note", "note-m1", "Meditation 10m", { weight: 1.0 });
-      const ev2 = identityFoundationService.addEvidence(node.id, "Note", "note-m2", "Meditation 15m", { weight: 1.0 });
-      const ev3 = identityFoundationService.addEvidence(node.id, "Note", "note-m3", "Meditation 20m", { weight: 1.0 });
+      const ev1 = identityFoundationService.addEvidence(
+        node.id,
+        "Note",
+        "note-m1",
+        "Meditation 10m",
+        { weight: 1.0 },
+      );
+      const ev2 = identityFoundationService.addEvidence(
+        node.id,
+        "Note",
+        "note-m2",
+        "Meditation 15m",
+        { weight: 1.0 },
+      );
+      const ev3 = identityFoundationService.addEvidence(
+        node.id,
+        "Note",
+        "note-m3",
+        "Meditation 20m",
+        { weight: 1.0 },
+      );
 
       // Shift strength level
       const updated = identityFoundationService.updateHabit(habit.id, {
-        evidenceReferences: [ev1.id, ev2.id, ev3.id]
+        evidenceReferences: [ev1.id, ev2.id, ev3.id],
       });
 
       expect(updated?.strength.level).toBe("Strong"); // score: 0.75
@@ -742,7 +825,7 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
       const pref = identityFoundationService.createPreference(
         identity.id,
         "Environment",
-        "Dark Mode Office"
+        "Dark Mode Office",
       );
 
       expect(pref.id).toBeDefined();
@@ -755,7 +838,9 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
       const node = graph.nodes.find((n) => n.id === pref.confidenceReference);
       expect(node?.aspectType).toBe("Preference");
 
-      const createdEvent = recordedEvents.find((e) => e.eventType === Events.IDENTITY_PREFERENCE_CREATED);
+      const createdEvent = recordedEvents.find(
+        (e) => e.eventType === Events.IDENTITY_PREFERENCE_CREATED,
+      );
       expect(createdEvent).toBeDefined();
     });
 
@@ -764,11 +849,13 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
       const pref = identityFoundationService.createPreference(identity.id, "Food", "Spicy food");
 
       const updated = identityFoundationService.updatePreference(pref.id, {
-        value: "Mild food"
+        value: "Mild food",
       });
       expect(updated?.value).toBe("Mild food");
 
-      const updateEvent = recordedEvents.find((e) => e.eventType === Events.IDENTITY_PREFERENCE_UPDATED);
+      const updateEvent = recordedEvents.find(
+        (e) => e.eventType === Events.IDENTITY_PREFERENCE_UPDATED,
+      );
       expect(updateEvent).toBeDefined();
 
       identityFoundationService.archivePreference(pref.id);
@@ -780,7 +867,13 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
     it("should create derived values with semantic node typing, confidence integration, and evolution timeline entries", () => {
       const identity = identityFoundationService.createIdentity({});
       const node1 = identityFoundationService.addIdentityNode("Goal", "Help Others");
-      const ev = identityFoundationService.addEvidence(node1.id, "Note", "note-v1", "Donated food", { weight: 1.0 });
+      const ev = identityFoundationService.addEvidence(
+        node1.id,
+        "Note",
+        "note-v1",
+        "Donated food",
+        { weight: 1.0 },
+      );
 
       // Create derived value
       const val = identityFoundationService.createValue(
@@ -788,7 +881,7 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
         "Altruism",
         "Social",
         [node1.id],
-        [ev.id]
+        [ev.id],
       );
 
       expect(val.id).toBeDefined();
@@ -809,7 +902,9 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
       expect(valNode?.aspectType).toBe("Value");
 
       // Event and evolution checks
-      const createdEvent = recordedEvents.find((e) => e.eventType === Events.IDENTITY_VALUE_CREATED);
+      const createdEvent = recordedEvents.find(
+        (e) => e.eventType === Events.IDENTITY_VALUE_CREATED,
+      );
       expect(createdEvent).toBeDefined();
       expect(createdEvent.metadata.value.id).toBe(val.id);
     });
@@ -819,7 +914,7 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
       const val = identityFoundationService.createValue(identity.id, "Honesty", "Personal", []);
 
       const updated = identityFoundationService.updateValue(val.id, {
-        name: "Transparency"
+        name: "Transparency",
       });
       expect(updated?.name).toBe("Transparency");
 
@@ -835,7 +930,13 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
     it("should create derived relationships with semantic node typing, confidence integration, and evolution timeline entries", () => {
       const identity = identityFoundationService.createIdentity({});
       const node1 = identityFoundationService.addIdentityNode("Goal", "Collaborate");
-      const ev = identityFoundationService.addEvidence(node1.id, "Note", "note-r1", "Pair programmed together", { weight: 1.0 });
+      const ev = identityFoundationService.addEvidence(
+        node1.id,
+        "Note",
+        "note-r1",
+        "Pair programmed together",
+        { weight: 1.0 },
+      );
 
       // Create derived relationship
       const rel = identityFoundationService.createRelationship(
@@ -843,7 +944,7 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
         "user-boss-123",
         "Professional",
         [node1.id],
-        [ev.id]
+        [ev.id],
       );
 
       expect(rel.id).toBeDefined();
@@ -864,20 +965,29 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
       expect(node?.aspectType).toBe("Relationship");
 
       // Event checks
-      const createdEvent = recordedEvents.find((e) => e.eventType === Events.IDENTITY_RELATIONSHIP_CREATED);
+      const createdEvent = recordedEvents.find(
+        (e) => e.eventType === Events.IDENTITY_RELATIONSHIP_CREATED,
+      );
       expect(createdEvent).toBeDefined();
     });
 
     it("should update and archive relationships", () => {
       const identity = identityFoundationService.createIdentity({});
-      const rel = identityFoundationService.createRelationship(identity.id, "target-id", "Friend", []);
+      const rel = identityFoundationService.createRelationship(
+        identity.id,
+        "target-id",
+        "Friend",
+        [],
+      );
 
       const updated = identityFoundationService.updateRelationship(rel.id, {
-        relationshipType: "Mentor"
+        relationshipType: "Mentor",
       });
       expect(updated?.relationshipType).toBe("Mentor");
 
-      const updateEvent = recordedEvents.find((e) => e.eventType === Events.IDENTITY_RELATIONSHIP_UPDATED);
+      const updateEvent = recordedEvents.find(
+        (e) => e.eventType === Events.IDENTITY_RELATIONSHIP_UPDATED,
+      );
       expect(updateEvent).toBeDefined();
 
       identityFoundationService.archiveRelationship(rel.id);
@@ -889,14 +999,20 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
     it("should create derived personality traits with semantic node typing, confidence integration, and evolution timeline entries", () => {
       const identity = identityFoundationService.createIdentity({});
       const node1 = identityFoundationService.addIdentityNode("Habit", "Talking to strangers");
-      const ev = identityFoundationService.addEvidence(node1.id, "Note", "note-p1", "Initiated conversation", { weight: 1.0 });
+      const ev = identityFoundationService.addEvidence(
+        node1.id,
+        "Note",
+        "note-p1",
+        "Initiated conversation",
+        { weight: 1.0 },
+      );
 
       // Create derived personality trait
       const personality = identityFoundationService.createPersonalityTrait(
         identity.id,
         "Extraversion",
         [node1.id],
-        [ev.id]
+        [ev.id],
       );
 
       expect(personality.id).toBeDefined();
@@ -916,20 +1032,29 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
       expect(node?.aspectType).toBe("Personality");
 
       // Event checks
-      const createdEvent = recordedEvents.find((e) => e.eventType === Events.IDENTITY_PERSONALITY_CREATED);
+      const createdEvent = recordedEvents.find(
+        (e) => e.eventType === Events.IDENTITY_PERSONALITY_CREATED,
+      );
       expect(createdEvent).toBeDefined();
     });
 
     it("should update and archive personality traits", () => {
       const identity = identityFoundationService.createIdentity({});
-      const trait = identityFoundationService.createPersonalityTrait(identity.id, "Openness", [], []);
+      const trait = identityFoundationService.createPersonalityTrait(
+        identity.id,
+        "Openness",
+        [],
+        [],
+      );
 
       const updated = identityFoundationService.updatePersonalityTrait(trait.id, {
-        trait: "Conscientiousness"
+        trait: "Conscientiousness",
       });
       expect(updated?.trait).toBe("Conscientiousness");
 
-      const updateEvent = recordedEvents.find((e) => e.eventType === Events.IDENTITY_PERSONALITY_UPDATED);
+      const updateEvent = recordedEvents.find(
+        (e) => e.eventType === Events.IDENTITY_PERSONALITY_UPDATED,
+      );
       expect(updateEvent).toBeDefined();
 
       identityFoundationService.archivePersonalityTrait(trait.id);
@@ -940,7 +1065,7 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
   describe("Sprint 5 - Aggregation, Context, Completeness, Health, Validation", () => {
     it("should compute profile completeness correctly", () => {
       const identity = identityFoundationService.createIdentity({});
-      
+
       // Initially, no dimensions populated
       let completeness = identityFoundationService.getIdentityCompleteness(identity.id);
       expect(completeness.score).toBe(0);
@@ -956,7 +1081,7 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
 
     it("should determine identity health correctly", () => {
       const identity = identityFoundationService.createIdentity({});
-      
+
       // Sparse: less than 3 nodes
       let health = identityFoundationService.getIdentityHealth(identity.id);
       expect(health.status).toBe("Sparse");
@@ -973,7 +1098,7 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
 
     it("should detect duplicate aspect warnings in validations", () => {
       const identity = identityFoundationService.createIdentity({});
-      
+
       // Create duplicate traits (duplicate values within same type)
       identityFoundationService.addIdentityNode("Trait", "Stubborn");
       identityFoundationService.addIdentityNode("Trait", "Stubborn"); // triggers warning
@@ -984,10 +1109,16 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
 
     it("should generate deterministic summaries and profiles", () => {
       const identity = identityFoundationService.createIdentity({});
-      
+
       identityFoundationService.createInterest(identity.id, "Biking", "Lifestyle");
-      identityFoundationService.createGoal(identity.id, "Save $500", "Buy bike", "Financial", "Medium");
-      
+      identityFoundationService.createGoal(
+        identity.id,
+        "Save $500",
+        "Buy bike",
+        "Financial",
+        "Medium",
+      );
+
       const summary = identityFoundationService.getIdentitySummary(identity.id);
       expect(summary.primaryInterests).toContain("Biking");
       expect(summary.activeGoals).toContain("Save $500");
@@ -1004,7 +1135,7 @@ describe("GENESIS Cognitive Engine - Identity Graph Module", () => {
   describe("Reserved and Transaction APIs", () => {
     it("should mock transaction APIs and reserved finds without throwing", () => {
       const repo = identityFoundationService.getRepository();
-      
+
       expect(() => {
         repo.beginTransaction();
         repo.commitTransaction();

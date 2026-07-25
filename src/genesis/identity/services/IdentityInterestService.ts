@@ -80,7 +80,7 @@ export class IdentityInterestService {
     });
 
     const evidenceIds = initialEvidenceIds || [];
-    
+
     // Link any initial evidence to the node
     for (const evId of evidenceIds) {
       identityEvidenceService.linkEvidenceToNode(node.id, evId);
@@ -97,7 +97,7 @@ export class IdentityInterestService {
         : 1.0;
 
     const strengthScore = Math.max(0.0, Math.min(1.0, evidenceList.length * 0.25 * averageWeight));
-    
+
     let strengthLevel: "Low" | "Medium" | "High" | "Extreme" = "Low";
     if (strengthScore <= 0.25) {
       strengthLevel = "Low";
@@ -169,7 +169,10 @@ export class IdentityInterestService {
     const topic = patch.topic !== undefined ? patch.topic : interest.topic;
     const category = patch.category !== undefined ? patch.category : interest.category;
     const status = patch.status !== undefined ? patch.status : interest.status;
-    const evidenceIds = patch.evidenceReferences !== undefined ? patch.evidenceReferences : interest.evidenceReferences;
+    const evidenceIds =
+      patch.evidenceReferences !== undefined
+        ? patch.evidenceReferences
+        : interest.evidenceReferences;
 
     // Recalculate strength if evidence links shifted
     const evidenceList = evidenceIds
@@ -182,7 +185,7 @@ export class IdentityInterestService {
         : 1.0;
 
     const strengthScore = Math.max(0.0, Math.min(1.0, evidenceList.length * 0.25 * averageWeight));
-    
+
     let strengthLevel: "Low" | "Medium" | "High" | "Extreme" = "Low";
     if (strengthScore <= 0.25) {
       strengthLevel = "Low";

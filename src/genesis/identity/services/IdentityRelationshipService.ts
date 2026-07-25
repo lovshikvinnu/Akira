@@ -63,7 +63,7 @@ export class IdentityRelationshipService {
     });
 
     const evidenceIds = initialEvidenceIds || [];
-    
+
     // Link initial evidence
     for (const evId of evidenceIds) {
       identityEvidenceService.linkEvidenceToNode(node.id, evId);
@@ -87,7 +87,7 @@ export class IdentityRelationshipService {
         (evidenceList.length + supportingIdentityReferences.length) * 0.2 * averageWeight,
       ),
     );
-    
+
     let strengthLevel: "Distant" | "Casual" | "Close" | "Intimate" = "Distant";
     if (relScore <= 0.25) {
       strengthLevel = "Distant";
@@ -154,14 +154,19 @@ export class IdentityRelationshipService {
     const relationship = this.repository.getRelationship(relationshipId);
     if (!relationship) return null;
 
-    const targetEntityId = patch.targetEntityId !== undefined ? patch.targetEntityId : relationship.targetEntityId;
-    const relationshipType = patch.relationshipType !== undefined ? patch.relationshipType : relationship.relationshipType;
+    const targetEntityId =
+      patch.targetEntityId !== undefined ? patch.targetEntityId : relationship.targetEntityId;
+    const relationshipType =
+      patch.relationshipType !== undefined ? patch.relationshipType : relationship.relationshipType;
     const status = patch.status !== undefined ? patch.status : relationship.status;
     const supportingIdentityReferences =
       patch.supportingIdentityReferences !== undefined
         ? patch.supportingIdentityReferences
         : relationship.supportingIdentityReferences;
-    const evidenceIds = patch.evidenceReferences !== undefined ? patch.evidenceReferences : relationship.evidenceReferences;
+    const evidenceIds =
+      patch.evidenceReferences !== undefined
+        ? patch.evidenceReferences
+        : relationship.evidenceReferences;
 
     // Recalculate strength
     const evidenceList = evidenceIds
@@ -180,7 +185,7 @@ export class IdentityRelationshipService {
         (evidenceList.length + supportingIdentityReferences.length) * 0.2 * averageWeight,
       ),
     );
-    
+
     let strengthLevel: "Distant" | "Casual" | "Close" | "Intimate" = "Distant";
     if (relScore <= 0.25) {
       strengthLevel = "Distant";

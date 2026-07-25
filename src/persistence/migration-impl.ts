@@ -4,7 +4,6 @@ interface MigrationResponse {
   error?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function executeMigration(db: any, rawData: string): MigrationResponse {
   const now = new Date().toISOString();
   const MIGRATION_NAME = "legacy_localstorage_migration";
@@ -19,7 +18,7 @@ export function executeMigration(db: any, rawData: string): MigrationResponse {
   }
 
   // 2. Parse & Validate Payload
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   let payload: any;
   try {
     payload = JSON.parse(rawData);

@@ -50,7 +50,7 @@ export class IdentityValidationService {
     const warnings: string[] = [];
 
     const graph = this.repository.getGraph();
-    const nodeMap = new Map<string, typeof graph.nodes[0]>();
+    const nodeMap = new Map<string, (typeof graph.nodes)[0]>();
 
     // 1. Detect duplicate aspect values within the same aspect type
     const aspectValueKeys = new Set<string>();
@@ -60,7 +60,9 @@ export class IdentityValidationService {
 
       const key = `${node.aspectType}:${node.value.trim().toLowerCase()}`;
       if (aspectValueKeys.has(key)) {
-        warnings.push(`Duplicate aspect node found: type "${node.aspectType}" with value "${node.value}"`);
+        warnings.push(
+          `Duplicate aspect node found: type "${node.aspectType}" with value "${node.value}"`,
+        );
       } else {
         aspectValueKeys.add(key);
       }
@@ -113,7 +115,9 @@ export class IdentityValidationService {
         if (!ev) {
           errors.push(`Graph node "${node.id}" references non-existent evidence ID "${evId}"`);
         } else if (ev.nodeId !== node.id) {
-          warnings.push(`Evidence ID "${evId}" is linked to node "${node.id}" but references nodeId "${ev.nodeId}" internally`);
+          warnings.push(
+            `Evidence ID "${evId}" is linked to node "${node.id}" but references nodeId "${ev.nodeId}" internally`,
+          );
         }
       }
     }
@@ -147,17 +151,23 @@ export class IdentityValidationService {
       // Verify previous version reference
       if (ver.previousVersionId !== null) {
         if (!versionMap.has(ver.previousVersionId)) {
-          errors.push(`Timeline version "${ver.versionId}" references non-existent previous version "${ver.previousVersionId}"`);
+          errors.push(
+            `Timeline version "${ver.versionId}" references non-existent previous version "${ver.previousVersionId}"`,
+          );
         }
       } else if (i > 0) {
         // Warning: multiple root-like versions
-        warnings.push(`Timeline version "${ver.versionId}" at index ${i} has no previousVersionId (detached root)`);
+        warnings.push(
+          `Timeline version "${ver.versionId}" at index ${i} has no previousVersionId (detached root)`,
+        );
       }
 
       // Verify snapshot exists
       const snapshot = this.repository.getSnapshot(ver.snapshotId);
       if (!snapshot) {
-        errors.push(`Timeline version "${ver.versionId}" references non-existent snapshot "${ver.snapshotId}"`);
+        errors.push(
+          `Timeline version "${ver.versionId}" references non-existent snapshot "${ver.snapshotId}"`,
+        );
       }
     }
 

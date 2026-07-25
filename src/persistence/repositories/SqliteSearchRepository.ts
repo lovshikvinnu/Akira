@@ -25,7 +25,6 @@ export class SqliteSearchRepository implements SearchRepository {
     while (attempt < retries) {
       try {
         return fn();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         attempt++;
         const isLocked =

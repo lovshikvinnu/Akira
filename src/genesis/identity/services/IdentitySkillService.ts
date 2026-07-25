@@ -80,7 +80,7 @@ export class IdentitySkillService {
     });
 
     const evidenceIds = initialEvidenceIds || [];
-    
+
     // Link initial evidence
     for (const evId of evidenceIds) {
       identityEvidenceService.linkEvidenceToNode(node.id, evId);
@@ -97,7 +97,7 @@ export class IdentitySkillService {
         : 1.0;
 
     const skillScore = Math.max(0.0, Math.min(1.0, evidenceList.length * 0.25 * averageWeight));
-    
+
     let skillLevel: SkillLevel = "Novice";
     if (skillScore <= 0.25) {
       skillLevel = "Novice";
@@ -126,12 +126,13 @@ export class IdentitySkillService {
       firstObserved: now,
       lastObserved: now,
       status: "Active",
-      
+
       // Reserved properties
       proficiencyTrend: "Stable",
       evidenceCount: evidenceIds.length,
       averageWeight,
-      lastEvidenceAt: evidenceList.length > 0 ? evidenceList[evidenceList.length - 1].createdAt : now,
+      lastEvidenceAt:
+        evidenceList.length > 0 ? evidenceList[evidenceList.length - 1].createdAt : now,
     };
 
     // 4. Save and trigger evolution log entry
@@ -171,7 +172,8 @@ export class IdentitySkillService {
     const name = patch.name !== undefined ? patch.name : skill.name;
     const category = patch.category !== undefined ? patch.category : skill.category;
     const status = patch.status !== undefined ? patch.status : skill.status;
-    const evidenceIds = patch.evidenceReferences !== undefined ? patch.evidenceReferences : skill.evidenceReferences;
+    const evidenceIds =
+      patch.evidenceReferences !== undefined ? patch.evidenceReferences : skill.evidenceReferences;
 
     // Recalculate levels
     const evidenceList = evidenceIds
@@ -184,7 +186,7 @@ export class IdentitySkillService {
         : 1.0;
 
     const skillScore = Math.max(0.0, Math.min(1.0, evidenceList.length * 0.25 * averageWeight));
-    
+
     let skillLevel: SkillLevel = "Novice";
     if (skillScore <= 0.25) {
       skillLevel = "Novice";
@@ -196,8 +198,7 @@ export class IdentitySkillService {
       skillLevel = "Expert";
     }
 
-    const hasSignificantShift =
-      skill.level !== skillLevel || skill.status !== status;
+    const hasSignificantShift = skill.level !== skillLevel || skill.status !== status;
 
     const now = new Date().toISOString();
     const updated: IdentitySkill = {
@@ -212,7 +213,10 @@ export class IdentitySkillService {
       // Sync reserved fields
       evidenceCount: evidenceIds.length,
       averageWeight,
-      lastEvidenceAt: evidenceList.length > 0 ? evidenceList[evidenceList.length - 1].createdAt : skill.lastEvidenceAt,
+      lastEvidenceAt:
+        evidenceList.length > 0
+          ? evidenceList[evidenceList.length - 1].createdAt
+          : skill.lastEvidenceAt,
     };
 
     // Update graph Skill node details

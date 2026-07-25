@@ -61,7 +61,7 @@ export class IdentityPreferenceService {
     });
 
     const evidenceIds = initialEvidenceIds || [];
-    
+
     // Link initial evidence
     for (const evId of evidenceIds) {
       identityEvidenceService.linkEvidenceToNode(node.id, evId);
@@ -78,7 +78,7 @@ export class IdentityPreferenceService {
         : 1.0;
 
     const prefScore = Math.max(0.0, Math.min(1.0, evidenceList.length * 0.25 * averageWeight));
-    
+
     let strengthLevel: "Low" | "Moderate" | "Strong" | "Immutable" = "Low";
     if (prefScore <= 0.25) {
       strengthLevel = "Low";
@@ -147,7 +147,10 @@ export class IdentityPreferenceService {
     const category = patch.category !== undefined ? patch.category : preference.category;
     const value = patch.value !== undefined ? patch.value : preference.value;
     const status = patch.status !== undefined ? patch.status : preference.status;
-    const evidenceIds = patch.evidenceReferences !== undefined ? patch.evidenceReferences : preference.evidenceReferences;
+    const evidenceIds =
+      patch.evidenceReferences !== undefined
+        ? patch.evidenceReferences
+        : preference.evidenceReferences;
 
     // Recalculate strength
     const evidenceList = evidenceIds
@@ -160,7 +163,7 @@ export class IdentityPreferenceService {
         : 1.0;
 
     const prefScore = Math.max(0.0, Math.min(1.0, evidenceList.length * 0.25 * averageWeight));
-    
+
     let strengthLevel: "Low" | "Moderate" | "Strong" | "Immutable" = "Low";
     if (prefScore <= 0.25) {
       strengthLevel = "Low";

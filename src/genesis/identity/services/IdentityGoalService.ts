@@ -65,7 +65,7 @@ export class IdentityGoalService {
     });
 
     const evidenceIds = initialEvidenceIds || [];
-    
+
     // Link initial evidence
     for (const evId of evidenceIds) {
       identityEvidenceService.linkEvidenceToNode(node.id, evId);
@@ -127,7 +127,8 @@ export class IdentityGoalService {
     const category = patch.category !== undefined ? patch.category : goal.category;
     const priority = patch.priority !== undefined ? patch.priority : goal.priority;
     const status = patch.status !== undefined ? patch.status : goal.status;
-    const evidenceIds = patch.evidenceReferences !== undefined ? patch.evidenceReferences : goal.evidenceReferences;
+    const evidenceIds =
+      patch.evidenceReferences !== undefined ? patch.evidenceReferences : goal.evidenceReferences;
 
     const hasSignificantShift = goal.status !== status || goal.priority !== priority;
 

@@ -134,10 +134,7 @@ export class IdentityService {
   /**
    * Creates a new root identity profile.
    */
-  public createIdentity(input: {
-    nodes?: IdentityNode[];
-    edges?: IdentityEdge[];
-  }): Identity {
+  public createIdentity(input: { nodes?: IdentityNode[]; edges?: IdentityEdge[] }): Identity {
     const identityId = uid();
     const identity: Identity = {
       id: identityId,
@@ -267,11 +264,11 @@ export class IdentityService {
   public removeIdentityNode(nodeId: string): boolean {
     const node = this.getIdentityNode(nodeId);
     if (!node) return false;
-    
+
     const aspectType = node.aspectType;
     const value = node.value;
     const success = identityGraphService.removeIdentityNode(nodeId);
-    
+
     if (success) {
       const identity = this.getIdentity();
       if (identity) {
@@ -312,10 +309,10 @@ export class IdentityService {
   public removeIdentityEdge(edgeId: string): boolean {
     const edge = this.repository.getEdge(edgeId);
     if (!edge) return false;
-    
+
     const type = edge.type;
     const success = identityGraphService.removeIdentityEdge(edgeId);
-    
+
     if (success) {
       const identity = this.getIdentity();
       if (identity) {
@@ -353,7 +350,13 @@ export class IdentityService {
     contentReference?: string,
     metadata?: EvidenceMetadata,
   ): IdentityEvidence {
-    const evidence = identityEvidenceService.addEvidence(nodeId, sourceType, sourceId, contentReference, metadata);
+    const evidence = identityEvidenceService.addEvidence(
+      nodeId,
+      sourceType,
+      sourceId,
+      contentReference,
+      metadata,
+    );
     // Refresh confidence after adding evidence
     this.refreshConfidence(nodeId);
     return evidence;
@@ -558,7 +561,14 @@ export class IdentityService {
     priority: GoalPriority,
     initialEvidenceIds?: string[],
   ): IdentityGoal {
-    return identityGoalService.createGoal(identityId, title, description, category, priority, initialEvidenceIds);
+    return identityGoalService.createGoal(
+      identityId,
+      title,
+      description,
+      category,
+      priority,
+      initialEvidenceIds,
+    );
   }
 
   public updateGoal(
@@ -630,7 +640,12 @@ export class IdentityService {
     value: string,
     initialEvidenceIds?: string[],
   ): IdentityPreference {
-    return identityPreferenceService.createPreference(identityId, category, value, initialEvidenceIds);
+    return identityPreferenceService.createPreference(
+      identityId,
+      category,
+      value,
+      initialEvidenceIds,
+    );
   }
 
   public updatePreference(

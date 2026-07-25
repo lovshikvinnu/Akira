@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 if (typeof window !== "undefined") {
   throw new Error(
     "analytics/repository/SqliteAnalyticsRepository.ts must only be loaded on the server side.",

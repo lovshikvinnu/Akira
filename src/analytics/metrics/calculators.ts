@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { AkiraEvent } from "../../instrumentation/event-types";
 import { MetricCalculator } from "./MetricCalculator";
 

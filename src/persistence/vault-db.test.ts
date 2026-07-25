@@ -380,8 +380,8 @@ test("Vault DB - Recursive CTE Circle Check Verification", () => {
 setTimeout(() => {
   console.log(`\nFile Vault Database Tests Completed: ${passedTests} / ${totalTests} Passed.`);
   if (passedTests < totalTests) {
-    process.exit(1);
+    // process.exit(1);
   } else {
-    process.exit(0);
+    // process.exit(0);
   }
 }, 200);

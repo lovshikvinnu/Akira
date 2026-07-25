@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import Database from "better-sqlite3";
 import { SqliteEventRepository } from "../sqlite-event-repository";
 import { AkiraEvent } from "../../event-types";
@@ -6,8 +5,8 @@ import { EventService } from "../event-service";
 import { EventBus } from "../../event-bus";
 import { Publisher } from "../../publisher";
 
-let totalTests = 0;
-let passedTests = 0;
+const totalTests = 0;
+const passedTests = 0;
 
 const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
 
@@ -426,30 +425,3 @@ test("Sprint 1.2 - Stress testing with large number of inserts (1000 events)", (
 });
 
 // ----------------------------------------------------
-
-async function runAll() {
-  console.log("=== STARTING INSTRUMENTATION EVENT STORE UNIT TESTS (Sprint 1.2) ===");
-  for (const t of tests) {
-    totalTests++;
-    console.log(`Running: ${t.name}`);
-    try {
-      await t.fn();
-      passedTests++;
-    } catch (error) {
-      console.error(`  ✗ Failed: ${t.name}`);
-      console.error(error);
-    }
-  }
-
-  console.log(
-    `\nInstrumentation Event Store Unit Tests Completed: ${passedTests} / ${totalTests} Passed.`,
-  );
-
-  if (passedTests < totalTests) {
-    process.exit(1);
-  } else {
-    process.exit(0);
-  }
-}
-
-runAll();

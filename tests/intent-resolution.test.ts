@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { intentResolver, IntentHistoryMessage } from "../src/genesis/understanding/intent-resolver";
 import { contextRelevanceSelector } from "../src/genesis/context/context-relevance-selector";
@@ -141,7 +140,12 @@ describe("BUG-006: Intent Resolution & Ambiguity Handling", () => {
   describe("Prompt Builder Metadata Integration", () => {
     it("should embed intent resolution result as structured metadata in system instructions", () => {
       const intentRes = intentResolver.resolveIntent("pilot");
-      const selection = contextRelevanceSelector.selectContext("pilot", undefined, undefined, intentRes);
+      const selection = contextRelevanceSelector.selectContext(
+        "pilot",
+        undefined,
+        undefined,
+        intentRes,
+      );
       const systemInstruction = promptBuilder.buildSystemInstruction("pilot", selection, intentRes);
 
       expect(systemInstruction).toContain("Intent Resolution");
@@ -181,7 +185,8 @@ describe("BUG-006: Intent Resolution & Ambiguity Handling", () => {
             responseId: "mock-res",
             provider: "MockGemini",
             model: "mock-model",
-            content: "Are you referring to becoming an aircraft pilot, a pilot project, or pilot testing?",
+            content:
+              "Are you referring to becoming an aircraft pilot, a pilot project, or pilot testing?",
             finishReason: "stop",
             timestamp: new Date().toISOString(),
           } as any);
@@ -193,7 +198,9 @@ describe("BUG-006: Intent Resolution & Ambiguity Handling", () => {
       const response = await aiContextEngine.executeRequest("pilot");
 
       expect(mockProvider.generateContent).toHaveBeenCalled();
-      expect(response.content).toBe("Are you referring to becoming an aircraft pilot, a pilot project, or pilot testing?");
+      expect(response.content).toBe(
+        "Are you referring to becoming an aircraft pilot, a pilot project, or pilot testing?",
+      );
     });
 
     it("should invoke LLM provider and stream clarification on executeRequestStream for ambiguous inputs", async () => {

@@ -63,6 +63,46 @@ export const Events = {
   IDENTITY_PERSONALITY_CREATED: "identity.personality.created",
   IDENTITY_PERSONALITY_UPDATED: "identity.personality.updated",
   IDENTITY_PERSONALITY_ARCHIVED: "identity.personality.archived",
+
+  // Planning Capability Events
+  PLAN_CREATED: "planning.plan.created",
+  PLAN_UPDATED: "planning.plan.updated",
+  PLAN_ARCHIVED: "planning.plan.archived",
+  PLAN_ACTIVATED: "planning.plan.activated",
+  PLAN_PAUSED: "planning.plan.paused",
+  PLAN_RESUMED: "planning.plan.resumed",
+  MILESTONE_CREATED: "planning.milestone.created",
+  MILESTONE_COMPLETED: "planning.milestone.completed",
+  TASK_CREATED: "planning.task.created",
+  TASK_COMPLETED: "planning.task.completed",
+  DEPENDENCY_CREATED: "planning.dependency.created",
+  DEPENDENCY_REMOVED: "planning.dependency.removed",
+  PROGRESS_UPDATED: "planning.progress.updated",
+
+  // Goal Decomposition Events
+  GOAL_DECOMPOSED: "planning.goal.decomposed",
+  TEMPLATE_APPLIED: "planning.template.applied",
+  PLAN_GENERATED: "planning.plan.generated",
+  MILESTONE_GENERATED: "planning.milestone.generated",
+  TASK_GENERATED: "planning.task.generated",
+
+  // Plan Analysis & Next Action Events
+  PLAN_ANALYZED: "planning.plan.analyzed",
+  NEXT_ACTION_CALCULATED: "planning.next_action.calculated",
+  BLOCKERS_DETECTED: "planning.blockers.detected",
+  PLANNING_GRAPH_GENERATED: "planning.graph.generated",
+  DIAGNOSTICS_GENERATED: "planning.diagnostics.generated",
+
+  // Recommendation & Adaptive Planning Events
+  RECOMMENDATIONS_GENERATED: "planning.recommendations.generated",
+  RECOMMENDATION_CREATED: "planning.recommendation.created",
+  RECOMMENDATION_EVALUATED: "planning.recommendation.evaluated",
+  ADAPTIVE_EVALUATION_COMPLETED: "planning.adaptive_evaluation.completed",
+  // Health Evaluation Lifecycle Events
+  HEALTH_EVALUATION_STARTED: "planning.health_evaluation.started",
+  HEALTH_RULE_MATCHED: "planning.health_rule.matched",
+  HEALTH_EVALUATION_COMPLETED: "planning.health_evaluation.completed",
+  PLANNING_GRAPH_BUILT: "planning.graph.built",
 } as const;
 
 export type DomainEventName = (typeof Events)[keyof typeof Events];

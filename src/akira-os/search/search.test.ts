@@ -287,30 +287,3 @@ test("Search Index - Integrity Verification", async () => {
   const success = searchRepository.verifyIntegrity();
   assertEquals(success, true, "Search repository index integrity check should succeed");
 });
-
-async function runAll() {
-  let passedTests = 0;
-  let totalTests = 0;
-
-  for (const t of tests) {
-    totalTests++;
-    console.log(`Running: ${t.name}`);
-    try {
-      await t.fn();
-      passedTests++;
-      console.log(`  ✓ Passed: ${t.name}`);
-    } catch (error) {
-      console.error(`  ✗ Failed: ${t.name}`);
-      console.error(error);
-    }
-  }
-
-  console.log(`\nSearch Test Run Completed: ${passedTests} / ${totalTests} Passed.`);
-  if (passedTests < totalTests) {
-    process.exit(1);
-  } else {
-    process.exit(0);
-  }
-}
-
-setTimeout(runAll, 50);

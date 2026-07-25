@@ -63,7 +63,7 @@ export class IdentityValueService {
     });
 
     const evidenceIds = initialEvidenceIds || [];
-    
+
     // Link initial evidence
     for (const evId of evidenceIds) {
       identityEvidenceService.linkEvidenceToNode(node.id, evId);
@@ -87,7 +87,7 @@ export class IdentityValueService {
         (evidenceList.length + supportingIdentityReferences.length) * 0.2 * averageWeight,
       ),
     );
-    
+
     let strengthLevel: "Low" | "Moderate" | "Strong" | "Immutable" = "Low";
     if (valScore <= 0.25) {
       strengthLevel = "Low";
@@ -161,7 +161,8 @@ export class IdentityValueService {
       patch.supportingIdentityReferences !== undefined
         ? patch.supportingIdentityReferences
         : value.supportingIdentityReferences;
-    const evidenceIds = patch.evidenceReferences !== undefined ? patch.evidenceReferences : value.evidenceReferences;
+    const evidenceIds =
+      patch.evidenceReferences !== undefined ? patch.evidenceReferences : value.evidenceReferences;
 
     // Recalculate strength
     const evidenceList = evidenceIds
@@ -180,7 +181,7 @@ export class IdentityValueService {
         (evidenceList.length + supportingIdentityReferences.length) * 0.2 * averageWeight,
       ),
     );
-    
+
     let strengthLevel: "Low" | "Moderate" | "Strong" | "Immutable" = "Low";
     if (valScore <= 0.25) {
       strengthLevel = "Low";
@@ -192,8 +193,7 @@ export class IdentityValueService {
       strengthLevel = "Immutable";
     }
 
-    const hasSignificantShift =
-      value.strength.level !== strengthLevel || value.status !== status;
+    const hasSignificantShift = value.strength.level !== strengthLevel || value.status !== status;
 
     const now = new Date().toISOString();
     const updated: IdentityValue = {

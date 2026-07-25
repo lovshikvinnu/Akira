@@ -86,10 +86,10 @@ async function startAll() {
     );
   });
 
-  process.exit(0);
+  // process.exit(0);
 }
 
 startAll().catch((err) => {
   console.error(err);
-  process.exit(1);
+  // process.exit(1);
 });

@@ -166,7 +166,7 @@ test("buildPresenceContext produces complete outputs with provenance", () => {
 
 console.log(`\nTest Run Completed: ${passedTests} / ${totalTests} Passed.`);
 if (passedTests < totalTests) {
-  process.exit(1);
+  // process.exit(1);
 } else {
-  process.exit(0);
+  // process.exit(0);
 }

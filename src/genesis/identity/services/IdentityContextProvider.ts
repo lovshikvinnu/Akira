@@ -107,9 +107,7 @@ export class IdentityContextProvider {
     const habits = identityHabitService.getHabits(identityId);
     const values = identityValueService.getValues(identityId);
 
-    const primaryInterests = interests
-      .filter((i) => i.status === "Active")
-      .map((i) => i.topic);
+    const primaryInterests = interests.filter((i) => i.status === "Active").map((i) => i.topic);
 
     const skillWeight = { Expert: 4, Advanced: 3, Intermediate: 2, Novice: 1 };
     const strongestSkills = skills
@@ -118,16 +116,22 @@ export class IdentityContextProvider {
       .slice(0, 3)
       .map((s) => s.name);
 
-    const activeGoals = goals
-      .filter((g) => g.status === "Active")
-      .map((g) => g.title);
+    const activeGoals = goals.filter((g) => g.status === "Active").map((g) => g.title);
 
     const dominantHabits = habits
-      .filter((h) => h.status === "Active" && (h.strength.level === "Strong" || h.strength.level === "Automatic"))
+      .filter(
+        (h) =>
+          h.status === "Active" &&
+          (h.strength.level === "Strong" || h.strength.level === "Automatic"),
+      )
       .map((h) => h.name);
 
     const coreValues = values
-      .filter((v) => v.status === "Active" && (v.strength.level === "Strong" || v.strength.level === "Immutable"))
+      .filter(
+        (v) =>
+          v.status === "Active" &&
+          (v.strength.level === "Strong" || v.strength.level === "Immutable"),
+      )
       .map((v) => v.name);
 
     const shortSummary = `Primary interests: ${
@@ -138,9 +142,7 @@ export class IdentityContextProvider {
       coreValues.length > 0 ? coreValues.join(", ") : "None"
     }. Demonstrated capabilities: ${
       strongestSkills.length > 0 ? strongestSkills.join(", ") : "None"
-    }. Established routines: ${
-      dominantHabits.length > 0 ? dominantHabits.join(", ") : "None"
-    }.`;
+    }. Established routines: ${dominantHabits.length > 0 ? dominantHabits.join(", ") : "None"}.`;
 
     return {
       primaryInterests,
@@ -227,23 +229,37 @@ export class IdentityContextProvider {
   public getDominantHabits(identityId: string): IdentityHabit[] {
     return identityHabitService
       .getHabits(identityId)
-      .filter((h) => h.status === "Active" && (h.strength.level === "Strong" || h.strength.level === "Automatic"));
+      .filter(
+        (h) =>
+          h.status === "Active" &&
+          (h.strength.level === "Strong" || h.strength.level === "Automatic"),
+      );
   }
 
   public getCoreValues(identityId: string): IdentityValue[] {
     return identityValueService
       .getValues(identityId)
-      .filter((v) => v.status === "Active" && (v.strength.level === "Strong" || v.strength.level === "Immutable"));
+      .filter(
+        (v) =>
+          v.status === "Active" &&
+          (v.strength.level === "Strong" || v.strength.level === "Immutable"),
+      );
   }
 
   public getPersonalityTraits(identityId: string): IdentityPersonality[] {
-    return identityPersonalityService.getPersonalityTraits(identityId).filter((p) => p.status === "Active");
+    return identityPersonalityService
+      .getPersonalityTraits(identityId)
+      .filter((p) => p.status === "Active");
   }
 
   public getImportantRelationships(identityId: string): IdentityRelationship[] {
     return identityRelationshipService
       .getRelationships(identityId)
-      .filter((r) => r.status === "Active" && (r.strength.level === "Close" || r.strength.level === "Intimate"));
+      .filter(
+        (r) =>
+          r.status === "Active" &&
+          (r.strength.level === "Close" || r.strength.level === "Intimate"),
+      );
   }
 }
 

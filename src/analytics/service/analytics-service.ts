@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { getDatabaseConnection } from "../../persistence/connection";
 import { SqliteEventRepository } from "../../instrumentation/event-store/sqlite-event-repository";
 import { SqliteAnalyticsRepository } from "../repository/SqliteAnalyticsRepository";

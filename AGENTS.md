@@ -35,6 +35,7 @@ Rules
 - Preserve the current folder structure.
 - Make the smallest possible changes.
 - Do not add unnecessary dependencies.
+- Enforce ESLint rule: `process.exit` is prohibited in source files; allowed only in CLI entrypoints.
 - Explain the implementation plan before editing code.
 - Request only the minimum files required.
 - Keep code readable.

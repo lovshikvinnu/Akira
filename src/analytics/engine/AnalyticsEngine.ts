@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { EventRepository } from "../../instrumentation/event-store/event-repository";
 import { AkiraEvent } from "../../instrumentation/event-types";
 import { EventSubscriber } from "../../instrumentation/subscriber";

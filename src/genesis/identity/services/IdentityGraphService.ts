@@ -1,4 +1,10 @@
-import { IdentityNode, IdentityEdge, IdentityGraph, IdentityAspectType, IdentityEdgeType } from "../types";
+import {
+  IdentityNode,
+  IdentityEdge,
+  IdentityGraph,
+  IdentityAspectType,
+  IdentityEdgeType,
+} from "../types";
 import { IdentityRepository } from "../repositories/IdentityRepository";
 import { InMemoryIdentityRepository } from "../repositories/InMemoryIdentityRepository";
 import { identityConfidenceService } from "./IdentityConfidenceService";
@@ -143,7 +149,7 @@ export class IdentityGraphService {
   }
 
   /**
-   * Removes a node from the Identity Graph. 
+   * Removes a node from the Identity Graph.
    * Deletes all connecting edges and emits the identity.node.deleted event.
    */
   public removeIdentityNode(nodeId: string): boolean {

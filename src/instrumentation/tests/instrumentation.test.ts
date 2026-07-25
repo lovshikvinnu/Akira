@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { EventBus } from "../event-bus";
 import { Publisher } from "../publisher";
 import { EventSubscriber } from "../subscriber";
@@ -12,8 +11,8 @@ import {
   validator,
 } from "../middleware";
 
-let totalTests = 0;
-let passedTests = 0;
+const totalTests = 0;
+const passedTests = 0;
 
 const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
 
@@ -226,30 +225,3 @@ test("Sprint 1.1 - Publisher integration with Default Pipeline", () => {
 });
 
 // ----------------------------------------------------
-
-async function runAll() {
-  console.log("=== STARTING INSTRUMENTATION CORE UNIT TESTS (Sprint 1.1) ===");
-  for (const t of tests) {
-    totalTests++;
-    console.log(`Running: ${t.name}`);
-    try {
-      await t.fn();
-      passedTests++;
-    } catch (error) {
-      console.error(`  ✗ Failed: ${t.name}`);
-      console.error(error);
-    }
-  }
-
-  console.log(
-    `\nInstrumentation Core Unit Tests Completed: ${passedTests} / ${totalTests} Passed.`,
-  );
-
-  if (passedTests < totalTests) {
-    process.exit(1);
-  } else {
-    process.exit(0);
-  }
-}
-
-runAll();

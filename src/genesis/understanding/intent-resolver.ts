@@ -33,7 +33,10 @@ export const AMBIGUOUS_DICTIONARY: Record<string, string[]> = {
 
 export const intentResolver = {
   resolveIntent(prompt: string, history: IntentHistoryMessage[] = []): IntentResolution {
-    const cleanPrompt = prompt.trim().toLowerCase().replace(/[?,.!:;]/g, "");
+    const cleanPrompt = prompt
+      .trim()
+      .toLowerCase()
+      .replace(/[?,.!:;]/g, "");
     const words = cleanPrompt.split(/\s+/).filter(Boolean);
 
     if (words.length === 0) {
@@ -137,14 +140,15 @@ export const intentResolver = {
       // Scan history backward for any mentioned project names or tags
       for (let i = history.length - 1; i >= 0; i--) {
         const msg = history[i].text.toLowerCase();
-        
+
         let foundProject: any = null;
         try {
           const state = getWorkspaceProvider().getState();
           if (state && state.projects) {
-            foundProject = state.projects.find((p: any) =>
-              (p.name && msg.includes(p.name.toLowerCase())) ||
-              (p.tag && msg.includes(p.tag.toLowerCase()))
+            foundProject = state.projects.find(
+              (p: any) =>
+                (p.name && msg.includes(p.name.toLowerCase())) ||
+                (p.tag && msg.includes(p.tag.toLowerCase())),
             );
           }
         } catch (e) {}

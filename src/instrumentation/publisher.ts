@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { AkiraEvent, EventInput } from "./event-types";
 import { EventBus, globalEventBus } from "./event-bus";
 import { defaultMiddlewarePipeline } from "./middleware";

@@ -12,13 +12,7 @@ export type IdentityAspectType =
 
 export type IdentityNodeType = IdentityAspectType;
 
-export type ConfidenceLevel =
-  | "Unknown"
-  | "Weak"
-  | "Possible"
-  | "Likely"
-  | "Strong"
-  | "Confirmed";
+export type ConfidenceLevel = "Unknown" | "Weak" | "Possible" | "Likely" | "Strong" | "Confirmed";
 
 export interface ConfidenceFactors {
   evidenceCount: number;
@@ -54,11 +48,7 @@ export interface IdentityNode {
 }
 
 export type IdentityEdgeType =
-  | "related_to"
-  | "supports"
-  | "depends_on"
-  | "derived_from"
-  | "conflicts_with";
+  "related_to" | "supports" | "depends_on" | "derived_from" | "conflicts_with";
 
 export interface IdentityEdge {
   id: string;
@@ -76,12 +66,7 @@ export interface IdentityGraph {
   graphVersion: number;
 }
 
-export type EvidenceSourceType =
-  | "Memory"
-  | "Event"
-  | "Note"
-  | "UserDirect"
-  | string;
+export type EvidenceSourceType = "Memory" | "Event" | "Note" | "UserDirect" | string;
 
 export type EvidenceMetadata = Record<string, unknown>;
 
@@ -173,20 +158,9 @@ export interface IdentityTimeline {
 
 // Interest Domain Models
 export type InterestCategory =
-  | "Technology"
-  | "Science"
-  | "Art"
-  | "Sports"
-  | "Philosophy"
-  | "Business"
-  | "Lifestyle"
-  | "Other";
+  "Technology" | "Science" | "Art" | "Sports" | "Philosophy" | "Business" | "Lifestyle" | "Other";
 
-export type InterestStatus =
-  | "Active"
-  | "Archived"
-  | "Emerging"
-  | "Suspended";
+export type InterestStatus = "Active" | "Archived" | "Emerging" | "Suspended";
 
 export interface InterestStrength {
   score: number; // 0.0 to 1.0
@@ -211,24 +185,11 @@ export interface IdentityInterest {
 
 // Skill Domain Models
 export type SkillCategory =
-  | "Technical"
-  | "Creative"
-  | "Communication"
-  | "Analytical"
-  | "Leadership"
-  | "Other";
+  "Technical" | "Creative" | "Communication" | "Analytical" | "Leadership" | "Other";
 
-export type SkillLevel =
-  | "Novice"
-  | "Intermediate"
-  | "Advanced"
-  | "Expert";
+export type SkillLevel = "Novice" | "Intermediate" | "Advanced" | "Expert";
 
-export type SkillStatus =
-  | "Emerging"
-  | "Active"
-  | "Dormant"
-  | "Archived";
+export type SkillStatus = "Emerging" | "Active" | "Dormant" | "Archived";
 
 export interface IdentitySkill {
   id: string;
@@ -249,25 +210,11 @@ export interface IdentitySkill {
 }
 
 // Goal Engine Domain Models
-export type GoalCategory =
-  | "Career"
-  | "Health"
-  | "Learning"
-  | "Personal"
-  | "Financial"
-  | "Other";
+export type GoalCategory = "Career" | "Health" | "Learning" | "Personal" | "Financial" | "Other";
 
-export type GoalStatus =
-  | "Active"
-  | "Completed"
-  | "Deferred"
-  | "Archived";
+export type GoalStatus = "Active" | "Completed" | "Deferred" | "Archived";
 
-export type GoalPriority =
-  | "Low"
-  | "Medium"
-  | "High"
-  | "Critical";
+export type GoalPriority = "Low" | "Medium" | "High" | "Critical";
 
 export interface IdentityGoal {
   id: string;
@@ -287,16 +234,9 @@ export interface IdentityGoal {
 }
 
 // Habit Engine Domain Models
-export type HabitFrequency =
-  | "Daily"
-  | "Weekly"
-  | "Monthly"
-  | "Other";
+export type HabitFrequency = "Daily" | "Weekly" | "Monthly" | "Other";
 
-export type HabitStatus =
-  | "Active"
-  | "Paused"
-  | "Archived";
+export type HabitStatus = "Active" | "Paused" | "Archived";
 
 export interface HabitStrength {
   score: number; // 0.0 to 1.0
@@ -321,16 +261,9 @@ export interface IdentityHabit {
 
 // Preference Engine Domain Models
 export type PreferenceCategory =
-  | "Food"
-  | "Media"
-  | "WorkStyle"
-  | "Environment"
-  | "Communication"
-  | "Other";
+  "Food" | "Media" | "WorkStyle" | "Environment" | "Communication" | "Other";
 
-export type PreferenceStatus =
-  | "Active"
-  | "Archived";
+export type PreferenceStatus = "Active" | "Archived";
 
 export interface PreferenceStrength {
   score: number; // 0.0 to 1.0
@@ -354,16 +287,9 @@ export interface IdentityPreference {
 }
 
 // Value Engine Domain Models
-export type ValueCategory =
-  | "Personal"
-  | "Social"
-  | "Professional"
-  | "Spiritual"
-  | "Other";
+export type ValueCategory = "Personal" | "Social" | "Professional" | "Spiritual" | "Other";
 
-export type ValueStatus =
-  | "Active"
-  | "Archived";
+export type ValueStatus = "Active" | "Archived";
 
 export interface ValueStrength {
   score: number; // 0.0 to 1.0
@@ -388,17 +314,9 @@ export interface IdentityValue {
 }
 
 // Relationship Engine Domain Models
-export type RelationshipType =
-  | "Family"
-  | "Friend"
-  | "Professional"
-  | "Mentor"
-  | "Other";
+export type RelationshipType = "Family" | "Friend" | "Professional" | "Mentor" | "Other";
 
-export type RelationshipStatus =
-  | "Active"
-  | "Archived"
-  | "Emerging";
+export type RelationshipStatus = "Active" | "Archived" | "Emerging";
 
 export interface RelationshipStrength {
   score: number; // 0.0 to 1.0
@@ -425,16 +343,9 @@ export interface IdentityRelationship {
 
 // Personality Engine Domain Models
 export type PersonalityTrait =
-  | "Openness"
-  | "Conscientiousness"
-  | "Extraversion"
-  | "Agreeableness"
-  | "Neuroticism"
-  | "Other";
+  "Openness" | "Conscientiousness" | "Extraversion" | "Agreeableness" | "Neuroticism" | "Other";
 
-export type PersonalityStatus =
-  | "Active"
-  | "Archived";
+export type PersonalityStatus = "Active" | "Archived";
 
 export interface TraitStrength {
   score: number; // 0.0 to 1.0
@@ -459,11 +370,7 @@ export interface IdentityPersonality {
 }
 
 // Sprint 5 Domain Models
-export type IdentityHealthStatus =
-  | "Healthy"
-  | "Partial"
-  | "Sparse"
-  | "Conflicted";
+export type IdentityHealthStatus = "Healthy" | "Partial" | "Sparse" | "Conflicted";
 
 export interface IdentityHealth {
   status: IdentityHealthStatus;

@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { AkiraState } from "../shared/types/store-types";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getInitialState = createServerFn({ method: "GET" }).handler(async (): Promise<any> => {
   // Dynamic imports to prevent better-sqlite3 from leaking into browser packages
   const {

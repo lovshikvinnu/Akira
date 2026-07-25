@@ -62,7 +62,7 @@ export class IdentityHabitService {
     });
 
     const evidenceIds = initialEvidenceIds || [];
-    
+
     // Link initial evidence
     for (const evId of evidenceIds) {
       identityEvidenceService.linkEvidenceToNode(node.id, evId);
@@ -79,7 +79,7 @@ export class IdentityHabitService {
         : 1.0;
 
     const habitScore = Math.max(0.0, Math.min(1.0, evidenceList.length * 0.25 * averageWeight));
-    
+
     let strengthLevel: "Weak" | "Establishing" | "Strong" | "Automatic" = "Weak";
     if (habitScore <= 0.25) {
       strengthLevel = "Weak";
@@ -148,7 +148,8 @@ export class IdentityHabitService {
     const name = patch.name !== undefined ? patch.name : habit.name;
     const frequency = patch.frequency !== undefined ? patch.frequency : habit.frequency;
     const status = patch.status !== undefined ? patch.status : habit.status;
-    const evidenceIds = patch.evidenceReferences !== undefined ? patch.evidenceReferences : habit.evidenceReferences;
+    const evidenceIds =
+      patch.evidenceReferences !== undefined ? patch.evidenceReferences : habit.evidenceReferences;
 
     // Recalculate strength
     const evidenceList = evidenceIds
@@ -161,7 +162,7 @@ export class IdentityHabitService {
         : 1.0;
 
     const habitScore = Math.max(0.0, Math.min(1.0, evidenceList.length * 0.25 * averageWeight));
-    
+
     let strengthLevel: "Weak" | "Establishing" | "Strong" | "Automatic" = "Weak";
     if (habitScore <= 0.25) {
       strengthLevel = "Weak";
@@ -173,8 +174,7 @@ export class IdentityHabitService {
       strengthLevel = "Automatic";
     }
 
-    const hasSignificantShift =
-      habit.strength.level !== strengthLevel || habit.status !== status;
+    const hasSignificantShift = habit.strength.level !== strengthLevel || habit.status !== status;
 
     const now = new Date().toISOString();
     const updated: IdentityHabit = {

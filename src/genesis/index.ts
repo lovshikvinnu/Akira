@@ -27,7 +27,21 @@ export * from "./understanding/types";
 export * from "./understanding/identity-types";
 
 // Identity Foundation & Graph module
-export { identityService as identityFoundationService, identityGraphService, identityEvolutionService, identityInterestService, identitySkillService, identityGoalService, identityHabitService, identityPreferenceService, identityValueService, identityRelationshipService, identityPersonalityService, identityValidationService, identityContextProvider } from "./identity";
+export {
+  identityService as identityFoundationService,
+  identityGraphService,
+  identityEvolutionService,
+  identityInterestService,
+  identitySkillService,
+  identityGoalService,
+  identityHabitService,
+  identityPreferenceService,
+  identityValueService,
+  identityRelationshipService,
+  identityPersonalityService,
+  identityValidationService,
+  identityContextProvider,
+} from "./identity";
 export * from "./identity/types";
 export * from "./identity/repositories/IdentityRepository";
 export * from "./identity/repositories/InMemoryIdentityRepository";
@@ -41,6 +55,12 @@ export * from "./insights/reflection/types";
 export { contextService } from "./context/context-service";
 export { contextBuilder } from "./context/context-builder";
 export * from "./context/types";
+export * from "./context/intelligence";
+export * from "./context/relevance";
+export * from "./context/assembly";
+
+
+
 
 export { goalService } from "./context/goals/service";
 export * from "./context/goals/types";
@@ -71,3 +91,35 @@ export type { AIRequest, StandardAIResponse } from "./context/ai/types";
 // Events
 export { eventService } from "./events/event-service";
 export type { MemoryEvent } from "../shared/types/event-types";
+
+// Planning Foundation
+export {
+  planningService,
+  milestoneService,
+  taskService,
+  dependencyService,
+  progressService,
+  planningValidationService,
+  goalDecompositionService,
+  goalClassifier,
+  blockerAnalysisService,
+  nextActionService,
+  planAnalysisService,
+  planningGraphBuilder,
+  recommendationService,
+  recommendationRuleEngine,
+  adaptivePlanningService,
+  InMemoryPlanRepository,
+  InMemoryBlockerRepository,
+  InMemoryMilestoneRepository,
+  InMemoryTaskRepository,
+  InMemoryDependencyRepository,
+  InMemoryTemplateRepository,
+} from "./planning";
+export * from "./planning/types";
+export * from "./planning/repositories/PlanRepository";
+export * from "./planning/repositories/BlockerRepository";
+export * from "./planning/repositories/MilestoneRepository";
+export * from "./planning/repositories/TaskRepository";
+export * from "./planning/repositories/DependencyRepository";
+export * from "./planning/repositories/TemplateRepository";

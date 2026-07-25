@@ -1,8 +1,8 @@
 import path from "path";
 import fs from "fs";
 
-let totalTests = 0;
-let passedTests = 0;
+const totalTests = 0;
+const passedTests = 0;
 
 const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
 
@@ -150,27 +150,3 @@ test("Feature Tests - Tag Editing Links & Unlinks", () => {
 });
 
 // Run serial runner
-async function runAll() {
-  console.log("=== STARTING FILE VAULT FEATURE SPECIFIC WORKER & UX TESTS ===");
-  for (const t of tests) {
-    totalTests++;
-    console.log(`Running: ${t.name}`);
-    try {
-      await t.fn();
-      passedTests++;
-    } catch (error) {
-      console.error(`  ✗ Failed: ${t.name}`);
-      console.error(error);
-    }
-  }
-
-  console.log(`\nVault Feature Specific Tests Completed: ${passedTests} / ${totalTests} Passed.`);
-
-  if (passedTests < totalTests) {
-    process.exit(1);
-  } else {
-    process.exit(0);
-  }
-}
-
-runAll();

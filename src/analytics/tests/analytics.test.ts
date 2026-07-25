@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 process.env.AKIRA_DATABASE_PATH = ":memory:";
 process.env.NODE_ENV = "test";
 
@@ -27,8 +26,8 @@ import { AnalyticsValidator } from "../validation/analytics-validator";
 import { DiagnosticsService } from "../validation/diagnostics";
 import { BenchmarkRunner } from "../validation/benchmark";
 
-let totalTests = 0;
-let passedTests = 0;
+const totalTests = 0;
+const passedTests = 0;
 const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
 
 function test(name: string, fn: () => void | Promise<void>) {
@@ -1226,28 +1225,3 @@ test("Sprint 3.1 - Scalability Performance Benchmarking", () => {
 });
 
 // ----------------------------------------------------
-
-async function runAll() {
-  console.log("=== STARTING ANALYTICS FOUNDATION UNIT TESTS ===");
-  for (const t of tests) {
-    totalTests++;
-    console.log(`Running: ${t.name}`);
-    try {
-      await t.fn();
-      passedTests++;
-      console.log(`  ✓ Passed: ${t.name}`);
-    } catch (error) {
-      console.error(`  ✗ Failed: ${t.name}`);
-      console.error(error);
-    }
-  }
-
-  console.log(`\nAnalytics Unit Tests Completed: ${passedTests} / ${totalTests} Passed.`);
-  if (passedTests < totalTests) {
-    process.exit(1);
-  } else {
-    process.exit(0);
-  }
-}
-
-runAll();

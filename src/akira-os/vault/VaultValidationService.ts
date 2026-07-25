@@ -35,7 +35,7 @@ export const VaultValidationService = {
    * Validates if a path traversal attempt is present in a filename.
    */
   sanitizeFilename(filename: string): string {
-    return path.basename(filename).replace(/[\\/:\*\?"<>\|]/g, "_");
+    return path.basename(filename).replace(/[\\/:*?"<>|]/g, "_");
   },
 
   /**

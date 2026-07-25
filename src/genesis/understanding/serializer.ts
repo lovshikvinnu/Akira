@@ -25,7 +25,13 @@ function formatSentenceConcept(category: string, concept: string): string {
   }
   if (lower === "akira") return "AKIRA";
 
-  if (category === "Project" || category === "Knowledge" || category === "Relationship" || category === "Interest" || category === "Value") {
+  if (
+    category === "Project" ||
+    category === "Knowledge" ||
+    category === "Relationship" ||
+    category === "Interest" ||
+    category === "Value"
+  ) {
     return concept
       .split(/[-_]+/)
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))

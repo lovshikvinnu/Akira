@@ -47,9 +47,9 @@ export const getDatabaseConnection = (): Database.Database => {
   dbInstance = db;
 
   // Intercept prepare statements to detect table writes and clear search cache
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const originalPrepare = (db as any).prepare;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   (db as any).prepare = function (this: any, sql: string) {
     const stmt = originalPrepare.call(this, sql);
     const isWrite = /insert\s+into|update|delete\s+from/i.test(sql);
@@ -57,9 +57,8 @@ export const getDatabaseConnection = (): Database.Database => {
 
     if (isWrite && isSearchTable) {
       const originalRun = stmt.run;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       (stmt as any).run = function (this: any, ...args: any[]) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const res = (originalRun as any).apply(this, args);
         // Clear search query cache on mutations
         try {

@@ -16,7 +16,7 @@ describe("GENESIS - Personal Declaration Understanding", () => {
     understandingEngine.dispose();
     understandingEngine.initialize();
     identityService.clearHistory();
-    
+
     // Setup clean identity graph repository
     identityFoundationService.initialize();
   });
@@ -26,9 +26,9 @@ describe("GENESIS - Personal Declaration Understanding", () => {
       eventService.record(
         "note_created",
         "Workspace Interaction",
-        "User query: My dream is to become a pilot."
+        "User query: My dream is to become a pilot.",
       );
-      
+
       const understandings = understandingEngine.getUnderstandings();
       const goalU = understandings.find((u) => u.category === "Goal");
       expect(goalU).toBeDefined();
@@ -53,9 +53,9 @@ describe("GENESIS - Personal Declaration Understanding", () => {
       eventService.record(
         "note_created",
         "Workspace Interaction",
-        "User query: Pilot is my dream."
+        "User query: Pilot is my dream.",
       );
-      
+
       const understandings = understandingEngine.getUnderstandings();
       const goalU = understandings.find((u) => u.category === "Goal");
       expect(goalU).toBeDefined();
@@ -70,9 +70,9 @@ describe("GENESIS - Personal Declaration Understanding", () => {
       eventService.record(
         "note_created",
         "Workspace Interaction",
-        "User query: My goal is to build AKIRA."
+        "User query: My goal is to build AKIRA.",
       );
-      
+
       const understandings = understandingEngine.getUnderstandings();
       const goalU = understandings.find((u) => u.category === "Goal");
       expect(goalU).toBeDefined();
@@ -87,9 +87,9 @@ describe("GENESIS - Personal Declaration Understanding", () => {
       eventService.record(
         "note_created",
         "Workspace Interaction",
-        "User query: I aspire to become a researcher."
+        "User query: I aspire to become a researcher.",
       );
-      
+
       const understandings = understandingEngine.getUnderstandings();
       const goalU = understandings.find((u) => u.category === "Goal");
       expect(goalU).toBeDefined();
@@ -109,12 +109,8 @@ describe("GENESIS - Personal Declaration Understanding", () => {
         // Test capitalized first word
         const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
         const query = `${capitalize(prof)} is my dream.`;
-        
-        eventService.record(
-          "note_created",
-          "Workspace Interaction",
-          `User query: ${query}`
-        );
+
+        eventService.record("note_created", "Workspace Interaction", `User query: ${query}`);
 
         const understandings = understandingEngine.getUnderstandings();
         const goalU = understandings.find((u) => u.category === "Goal");
@@ -130,11 +126,7 @@ describe("GENESIS - Personal Declaration Understanding", () => {
 
   describe("Interests", () => {
     it("should extract interest from 'I love robotics.'", () => {
-      eventService.record(
-        "note_created",
-        "Workspace Interaction",
-        "User query: I love robotics."
-      );
+      eventService.record("note_created", "Workspace Interaction", "User query: I love robotics.");
 
       const understandings = understandingEngine.getUnderstandings();
       const interestU = understandings.find((u) => u.category === "Interest");
@@ -154,7 +146,7 @@ describe("GENESIS - Personal Declaration Understanding", () => {
       eventService.record(
         "note_created",
         "Workspace Interaction",
-        "User query: I'm interested in embedded systems."
+        "User query: I'm interested in embedded systems.",
       );
 
       const understandings = understandingEngine.getUnderstandings();
@@ -166,11 +158,7 @@ describe("GENESIS - Personal Declaration Understanding", () => {
 
   describe("Preferences", () => {
     it("should extract preference from 'I prefer tea.'", () => {
-      eventService.record(
-        "note_created",
-        "Workspace Interaction",
-        "User query: I prefer tea."
-      );
+      eventService.record("note_created", "Workspace Interaction", "User query: I prefer tea.");
 
       const understandings = understandingEngine.getUnderstandings();
       const prefU = understandings.find((u) => u.category === "Preference");
@@ -187,11 +175,7 @@ describe("GENESIS - Personal Declaration Understanding", () => {
     });
 
     it("should extract preference from 'I dislike coffee.'", () => {
-      eventService.record(
-        "note_created",
-        "Workspace Interaction",
-        "User query: I dislike coffee."
-      );
+      eventService.record("note_created", "Workspace Interaction", "User query: I dislike coffee.");
 
       const understandings = understandingEngine.getUnderstandings();
       const prefU = understandings.find((u) => u.category === "Preference");
@@ -206,11 +190,7 @@ describe("GENESIS - Personal Declaration Understanding", () => {
 
   describe("Values", () => {
     it("should extract value from 'I value honesty.'", () => {
-      eventService.record(
-        "note_created",
-        "Workspace Interaction",
-        "User query: I value honesty."
-      );
+      eventService.record("note_created", "Workspace Interaction", "User query: I value honesty.");
 
       const understandings = understandingEngine.getUnderstandings();
       const valueU = understandings.find((u) => u.category === "Value");
@@ -230,7 +210,7 @@ describe("GENESIS - Personal Declaration Understanding", () => {
       eventService.record(
         "note_created",
         "Workspace Interaction",
-        "User query: Integrity is important to me."
+        "User query: Integrity is important to me.",
       );
 
       const understandings = understandingEngine.getUnderstandings();
@@ -245,7 +225,7 @@ describe("GENESIS - Personal Declaration Understanding", () => {
       eventService.record(
         "note_created",
         "Workspace Interaction",
-        "User query: I exercise every morning."
+        "User query: I exercise every morning.",
       );
 
       const understandings = understandingEngine.getUnderstandings();
@@ -266,7 +246,7 @@ describe("GENESIS - Personal Declaration Understanding", () => {
       eventService.record(
         "note_created",
         "Workspace Interaction",
-        "User query: I usually study at night."
+        "User query: I usually study at night.",
       );
 
       const understandings = understandingEngine.getUnderstandings();
@@ -281,7 +261,7 @@ describe("GENESIS - Personal Declaration Understanding", () => {
       eventService.record(
         "note_created",
         "Workspace Interaction",
-        "User query: The pilot landed safely."
+        "User query: The pilot landed safely.",
       );
 
       const understandings = understandingEngine.getUnderstandings();
@@ -293,7 +273,7 @@ describe("GENESIS - Personal Declaration Understanding", () => {
       eventService.record(
         "note_created",
         "Workspace Interaction",
-        "User query: Coffee is available."
+        "User query: Coffee is available.",
       );
 
       const understandings = understandingEngine.getUnderstandings();
@@ -305,7 +285,7 @@ describe("GENESIS - Personal Declaration Understanding", () => {
       eventService.record(
         "note_created",
         "Workspace Interaction",
-        "User query: Robotics is a field of engineering."
+        "User query: Robotics is a field of engineering.",
       );
 
       const understandings = understandingEngine.getUnderstandings();

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 export interface EventBusEvent<T = any> {
   type: string;
   payload: T;

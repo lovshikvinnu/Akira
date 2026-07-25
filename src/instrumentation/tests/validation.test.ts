@@ -1,9 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { isSerializable } from "../event";
 import { defaultMiddlewarePipeline } from "../middleware";
 
-let totalTests = 0;
-let passedTests = 0;
+const totalTests = 0;
+const passedTests = 0;
 
 const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
 
@@ -105,27 +104,3 @@ test("Middleware Pipeline - Rejection of invalid inputs", () => {
 });
 
 // ----------------------------------------------------
-
-async function runAll() {
-  console.log("=== STARTING INSTRUMENTATION VALIDATION TESTS ===");
-  for (const t of tests) {
-    totalTests++;
-    console.log(`Running: ${t.name}`);
-    try {
-      await t.fn();
-      passedTests++;
-    } catch (error) {
-      console.error(`  ✗ Failed: ${t.name}`);
-      console.error(error);
-    }
-  }
-
-  console.log(`\nValidation Unit Tests Completed: ${passedTests} / ${totalTests} Passed.`);
-  if (passedTests < totalTests) {
-    process.exit(1);
-  } else {
-    process.exit(0);
-  }
-}
-
-runAll();

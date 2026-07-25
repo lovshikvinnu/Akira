@@ -43,8 +43,6 @@ export const aiContextEngine = {
       options?.systemInstruction,
     );
 
-
-
     const request: AIRequest = {
       ...options,
       prompt,
@@ -88,8 +86,6 @@ export const aiContextEngine = {
       intentResolution,
       options?.systemInstruction,
     );
-
-
 
     const request: AIRequest = {
       ...options,

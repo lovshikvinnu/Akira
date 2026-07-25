@@ -25,7 +25,7 @@ export class InMemoryIdentityRepository implements IdentityRepository {
   private edges: Map<string, IdentityEdge> = new Map();
   private evidenceMap: Map<string, IdentityEvidence> = new Map();
   private confidenceMap: Map<string, IdentityConfidence> = new Map();
-  
+
   // Evolution Maps
   private versions: Map<string, IdentityVersion> = new Map();
   private snapshots: Map<string, IdentitySnapshot> = new Map();
@@ -396,7 +396,9 @@ export class InMemoryIdentityRepository implements IdentityRepository {
 
   // Personality Operations
   public getPersonalityTraits(identityId: string): IdentityPersonality[] {
-    return Array.from(this.personalityTraitsMap.values()).filter((p) => p.identityId === identityId);
+    return Array.from(this.personalityTraitsMap.values()).filter(
+      (p) => p.identityId === identityId,
+    );
   }
 
   public getPersonalityTrait(traitId: string): IdentityPersonality | null {

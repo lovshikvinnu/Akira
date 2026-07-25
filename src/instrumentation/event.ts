@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 /**
  * Recursively checks if a value is JSON-serializable.
  * Detects circular references, functions, symbols, BigInts, undefined, Map, Set, Promise, and custom prototypes.

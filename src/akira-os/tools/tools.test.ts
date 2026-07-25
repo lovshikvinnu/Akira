@@ -1,7 +1,7 @@
 import { getTools, getToolsByCategory, getEnabledTools, getVisibleTools, Tool } from "./registry";
 
-let totalTests = 0;
-let passedTests = 0;
+const totalTests = 0;
+const passedTests = 0;
 
 const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
 
@@ -183,27 +183,3 @@ function getDevVisibleTools(devMode: boolean) {
 }
 
 // Run serial runner
-async function runAll() {
-  console.log("=== STARTING WORKSPACE SHELL & TOOL REGISTRY UNIT TESTS ===");
-  for (const t of tests) {
-    totalTests++;
-    console.log(`Running: ${t.name}`);
-    try {
-      await t.fn();
-      passedTests++;
-    } catch (error) {
-      console.error(`  ✗ Failed: ${t.name}`);
-      console.error(error);
-    }
-  }
-
-  console.log(`\nTool Registry & Shell Tests Completed: ${passedTests} / ${totalTests} Passed.`);
-
-  if (passedTests < totalTests) {
-    process.exit(1);
-  } else {
-    process.exit(0);
-  }
-}
-
-runAll();

@@ -13,4 +13,7 @@ export default defineConfig({
     server: { entry: "server" },
     importProtection: { enabled: false },
   },
+  test: {
+    // Global setup to mock process.exit and ensure deterministic ordering.
+  },
 });

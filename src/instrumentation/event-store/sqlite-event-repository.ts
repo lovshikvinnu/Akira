@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Database } from "better-sqlite3";
 import { AkiraEvent } from "../event-types";
 import { EventRepository } from "./event-repository";
@@ -118,7 +117,9 @@ export class SqliteEventRepository implements EventRepository {
 
   latest(limit: number): AkiraEvent[] {
     if (limit <= 0) return [];
-    const stmt = this.db.prepare(`SELECT * FROM events ORDER BY timestamp DESC LIMIT ?`);
+    const stmt = this.db.prepare(
+      `SELECT * FROM events ORDER BY timestamp DESC, rowid DESC LIMIT ?`,
+    );
     const rows = stmt.all(limit);
     return rows.map((row) => this.mapRowToEvent(row));
   }

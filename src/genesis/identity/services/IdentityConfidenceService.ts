@@ -64,9 +64,7 @@ export class IdentityConfidenceService {
 
     // 1. Evidence Weights
     const averageWeight =
-      evidenceCount > 0
-        ? evidenceList.reduce((sum, ev) => sum + ev.weight, 0) / evidenceCount
-        : 0;
+      evidenceCount > 0 ? evidenceList.reduce((sum, ev) => sum + ev.weight, 0) / evidenceCount : 0;
 
     // 2. Recency Factor
     let recencyFactor = 1.0;
@@ -85,17 +83,14 @@ export class IdentityConfidenceService {
     // 3. Contradiction count (conflicts_with relationships)
     const contradictionCount = edges.filter(
       (edge) =>
-        edge.type === "conflicts_with" &&
-        (edge.sourceId === nodeId || edge.targetId === nodeId),
+        edge.type === "conflicts_with" && (edge.sourceId === nodeId || edge.targetId === nodeId),
     ).length;
 
     // 4. Explicit Confirmation
     const explicitConfirmation =
       !!node.metadata?.confirmed ||
       evidenceList.some(
-        (ev) =>
-          ev.originEngine === "UserConfirmation" ||
-          ev.sourceType === "UserDirect",
+        (ev) => ev.originEngine === "UserConfirmation" || ev.sourceType === "UserDirect",
       );
 
     // Scoring heuristics
@@ -152,8 +147,7 @@ export class IdentityConfidenceService {
 
     // Check change
     const existing = this.repository.getConfidence(nodeId);
-    const hasChanged =
-      !existing || existing.score !== score || existing.level !== level;
+    const hasChanged = !existing || existing.score !== score || existing.level !== level;
 
     this.repository.saveConfidence(nodeId, confidence);
 
@@ -161,7 +155,7 @@ export class IdentityConfidenceService {
       const eventType = existing
         ? Events.IDENTITY_CONFIDENCE_UPDATED
         : Events.IDENTITY_CONFIDENCE_CALCULATED;
-      
+
       eventService.record(
         eventType as any,
         existing ? "Identity Confidence Updated" : "Identity Confidence Calculated",
@@ -188,16 +182,13 @@ export class IdentityConfidenceService {
 
     const contradictionCount = edges.filter(
       (edge) =>
-        edge.type === "conflicts_with" &&
-        (edge.sourceId === nodeId || edge.targetId === nodeId),
+        edge.type === "conflicts_with" && (edge.sourceId === nodeId || edge.targetId === nodeId),
     ).length;
 
     const explicitConfirmation =
       !!node.metadata?.confirmed ||
       evidenceList.some(
-        (ev) =>
-          ev.originEngine === "UserConfirmation" ||
-          ev.sourceType === "UserDirect",
+        (ev) => ev.originEngine === "UserConfirmation" || ev.sourceType === "UserDirect",
       );
 
     return {
@@ -208,8 +199,7 @@ export class IdentityConfidenceService {
         evidenceCount: confidence.supportingEvidenceCount,
         averageWeight:
           evidenceList.length > 0
-            ? evidenceList.reduce((sum, ev) => sum + ev.weight, 0) /
-              evidenceList.length
+            ? evidenceList.reduce((sum, ev) => sum + ev.weight, 0) / evidenceList.length
             : 0,
         contradictionCount,
         explicitConfirmation,

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { isSerializable, isValidTimestamp } from "../event";
 
 export type Middleware = (event: any) => any;

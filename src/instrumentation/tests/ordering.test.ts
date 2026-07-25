@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 process.env.AKIRA_DATABASE_PATH = ":memory:";
 process.env.NODE_ENV = "test";
 
@@ -11,8 +10,8 @@ import { PersistenceSubscriber } from "../event-store/persistence-subscriber";
 import { EventBus } from "../event-bus";
 import { Publisher } from "../publisher";
 
-let totalTests = 0;
-let passedTests = 0;
+const totalTests = 0;
+const passedTests = 0;
 
 const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
 
@@ -150,27 +149,3 @@ test("Event Ordering - Concurrent High Volume Publishing Verification", async ()
 });
 
 // ----------------------------------------------------
-
-async function runAll() {
-  console.log("=== STARTING INSTRUMENTATION ORDERING TESTS ===");
-  for (const t of tests) {
-    totalTests++;
-    console.log(`Running: ${t.name}`);
-    try {
-      await t.fn();
-      passedTests++;
-    } catch (error) {
-      console.error(`  ✗ Failed: ${t.name}`);
-      console.error(error);
-    }
-  }
-
-  console.log(`\nOrdering Unit Tests Completed: ${passedTests} / ${totalTests} Passed.`);
-  if (passedTests < totalTests) {
-    process.exit(1);
-  } else {
-    process.exit(0);
-  }
-}
-
-runAll();

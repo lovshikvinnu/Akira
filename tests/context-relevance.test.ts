@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach } from "vitest";
 import { intentClassifier } from "../src/genesis/understanding/intent-classifier";
 import { contextRelevanceSelector } from "../src/genesis/context/context-relevance-selector";

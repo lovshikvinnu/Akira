@@ -23,8 +23,8 @@ import { VaultStorageService } from "./VaultStorageService";
 import { eventBus } from "../../shared/infrastructure/event-bus";
 import { Events } from "../../contracts/events";
 
-let totalTests = 0;
-let passedTests = 0;
+const totalTests = 0;
+const passedTests = 0;
 
 const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
 
@@ -331,47 +331,3 @@ test("Vault Service - Timeline Integration event logging", async () => {
 });
 
 // Run serial runner
-async function runAll() {
-  console.log("=== STARTING FILE VAULT BACKEND INTEGRATION TESTS ===");
-  for (const t of tests) {
-    totalTests++;
-    console.log(`Running: ${t.name}`);
-    try {
-      await t.fn();
-      passedTests++;
-    } catch (error) {
-      console.error(`  ✗ Failed: ${t.name}`);
-      console.error(error);
-    }
-  }
-
-  console.log(
-    `\nVault Backend Integration Tests Completed: ${passedTests} / ${totalTests} Passed.`,
-  );
-
-  // Clean up test vault path physically
-  const deleteFolderRecursive = (dirPath: string) => {
-    if (fs.existsSync(dirPath)) {
-      fs.readdirSync(dirPath).forEach((file) => {
-        const curPath = path.join(dirPath, file);
-        if (fs.lstatSync(curPath).isDirectory()) {
-          deleteFolderRecursive(curPath);
-        } else {
-          fs.unlinkSync(curPath);
-        }
-      });
-      fs.rmdirSync(dirPath);
-    }
-  };
-  try {
-    deleteFolderRecursive(testVaultPath);
-  } catch (_) {}
-
-  if (passedTests < totalTests) {
-    process.exit(1);
-  } else {
-    process.exit(0);
-  }
-}
-
-runAll();

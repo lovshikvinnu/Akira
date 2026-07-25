@@ -90,7 +90,7 @@ function SearchPage() {
     const trimmed = debouncedQuery.trim();
 
     // Update URL search parameters to make it linkable and shareable
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     (navigate as any)({
       search: (prev: unknown) => {
         const p = prev as Record<string, unknown>;

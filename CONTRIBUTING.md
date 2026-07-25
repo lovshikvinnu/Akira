@@ -84,6 +84,7 @@ We follow a structured branching topology. All development work occurs in isolat
 *   **UI Declarative Separation**: Components must never execute database queries or call repositories directly. All reads occur via reactive hooks; all writes are called through client services.
 *   **No Magic Strings**: Group repeated strings (e.g., event names, toast types, settings keys) into static typescript constants.
 *   **Layout Boundaries**: Features must adapt to the flex/grid layouts provided by the Shell. Do not write custom screen dimensions calculations or hardcode page sizes.
+*   **Process Exit Rule**: `process.exit` is prohibited in source files; use CLI entry points only.
 
 ---
 
@@ -106,3 +107,4 @@ We follow a structured branching topology. All development work occurs in isolat
     *   Module APIs: `docs/modules/`
     *   Platform guides: `docs/platform/`
 *   **Format Rules**: Write in markdown using absolute paths for cross-references. Do not create placeholder sections.
+*   **Developer Guide**: Updated guidelines are available at `docs/AKIRA-OS/DeveloperGuide.md`.

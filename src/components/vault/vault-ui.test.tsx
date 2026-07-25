@@ -237,21 +237,3 @@ test("UI Components - Sorting and Filters Calculation", () => {
 });
 
 // Run serial runner
-async function runAll() {
-  console.log("=== STARTING FILE VAULT UI INTEGRATION & HOOK TESTS ===");
-
-  // Clean checks
-  assertEquals(true, true, "Sanity checks");
-
-  console.log(
-    "\nVault UI Integration Tests Completed: " + passedTests + " / " + totalTests + " Passed.",
-  );
-
-  if (passedTests < totalTests) {
-    process.exit(1);
-  } else {
-    process.exit(0);
-  }
-}
-
-runAll();

@@ -61,7 +61,7 @@ export class IdentityPersonalityService {
     });
 
     const evidenceIds = initialEvidenceIds || [];
-    
+
     // Link initial evidence
     for (const evId of evidenceIds) {
       identityEvidenceService.linkEvidenceToNode(node.id, evId);
@@ -85,7 +85,7 @@ export class IdentityPersonalityService {
         (evidenceList.length + supportingIdentityReferences.length) * 0.2 * averageWeight,
       ),
     );
-    
+
     let strengthLevel: "Low" | "Moderate" | "High" | "Extreme" = "Low";
     if (traitScore <= 0.25) {
       strengthLevel = "Low";
@@ -157,7 +157,10 @@ export class IdentityPersonalityService {
       patch.supportingIdentityReferences !== undefined
         ? patch.supportingIdentityReferences
         : personality.supportingIdentityReferences;
-    const evidenceIds = patch.evidenceReferences !== undefined ? patch.evidenceReferences : personality.evidenceReferences;
+    const evidenceIds =
+      patch.evidenceReferences !== undefined
+        ? patch.evidenceReferences
+        : personality.evidenceReferences;
 
     // Recalculate strength
     const evidenceList = evidenceIds
@@ -176,7 +179,7 @@ export class IdentityPersonalityService {
         (evidenceList.length + supportingIdentityReferences.length) * 0.2 * averageWeight,
       ),
     );
-    
+
     let strengthLevel: "Low" | "Moderate" | "High" | "Extreme" = "Low";
     if (traitScore <= 0.25) {
       strengthLevel = "Low";

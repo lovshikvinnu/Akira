@@ -75,7 +75,7 @@ function ProjectDetail() {
         window.removeEventListener("beforeunload", handleBeforeUnload);
       };
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [project?.id]);
 
   // Sync active task changes with current session context
@@ -83,7 +83,7 @@ function ProjectDetail() {
     if (project) {
       akira.updateSessionTask(nextTask);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [nextTask]);
 
   if (!project) throw notFound();
@@ -292,7 +292,7 @@ function EditProjectDialog({
       setColor(project.color);
       setIcon(project.icon);
     }
-  }, [open, project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, project?.id]);
 
   if (!project) return null;
   return (
