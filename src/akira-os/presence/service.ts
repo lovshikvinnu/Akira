@@ -2,8 +2,40 @@ import { PresenceInputs, PresenceContext, SessionType } from "./types";
 import { buildPresenceContext } from "./builder";
 import { presenceEvents } from "./events";
 import { akira } from "../../persistence/akira-store";
-import { eventBus } from "../../shared/infrastructure/event-bus";
+import { publish } from "../../instrumentation";
 import { Events } from "../../contracts/events";
+
+/**
+ * Returns a presence context safe to put on the platform bus.
+ *
+ * `evidence` carries optional fields, and an absent one is `undefined`. The
+ * platform's serialization middleware rejects `undefined` anywhere in a
+ * payload — reasonably, since the value cannot survive a round trip through the
+ * event store. The legacy bus performed no such validation, so this only became
+ * visible when presence moved onto the platform bus: without it,
+ * presenceService.initialize() throws and application startup fails.
+ *
+ * Omitting the keys rather than nulling them keeps the shape consumers already
+ * read: an absent optional and an `undefined` one are indistinguishable to them.
+ */
+function toSerializablePresenceContext(context: PresenceContext): PresenceContext {
+  const { evidence, ...rest } = context;
+  const serializableEvidence: PresenceContext["evidence"] = {
+    currentSessionStart: evidence.currentSessionStart,
+  };
+
+  if (evidence.lastSessionEnd !== undefined) {
+    serializableEvidence.lastSessionEnd = evidence.lastSessionEnd;
+  }
+  if (evidence.lastEventTime !== undefined) {
+    serializableEvidence.lastEventTime = evidence.lastEventTime;
+  }
+  if (evidence.recentProjectId !== undefined) {
+    serializableEvidence.recentProjectId = evidence.recentProjectId;
+  }
+
+  return { ...rest, evidence: serializableEvidence };
+}
 
 class PresenceService {
   private currentContext: PresenceContext | null = null;
@@ -22,17 +54,7 @@ class PresenceService {
     // Publish to local presence listeners
     presenceEvents.publish(context);
 
-    // Record the transition event in the global Event Bus.
-    //
-    // This is the legacy bus, whose publish(type, payload) signature carries no
-    // AkiraEvent envelope, so there is nowhere to set `transient` yet. When
-    // these three sites move to instrumentation `publish()`, each must pass
-    // `transient: true`: presence fires on every store change plus a decay
-    // timer, and it is momentary state rather than a durable fact. Putting the
-    // flag in the payload today would look right and do nothing — the bridge
-    // copies payloads but builds its own envelope, and PersistenceSubscriber
-    // reads the envelope.
-    eventBus.publish(Events.PRESENCE_UPDATED, { context });
+    this.announcePresence(context);
 
     // Subscribe to store updates to dynamically sync active focus & project changes
     if (this.storeUnsubscribe) {
@@ -45,7 +67,7 @@ class PresenceService {
         if (this.isContextChanged(this.currentContext, freshContext)) {
           this.currentContext = freshContext;
           presenceEvents.publish(freshContext);
-          eventBus.publish(Events.PRESENCE_UPDATED, { context: freshContext });
+          this.announcePresence(freshContext);
         }
       }
     });
@@ -54,6 +76,27 @@ class PresenceService {
     this.startDecayMonitoring();
 
     return context;
+  }
+
+  /**
+   * Announces a presence transition on the platform event bus.
+   *
+   * Delivery is synchronous, and the bootstrap invariant depends on that:
+   * consumers cache the context as it arrives, and
+   * companionStateService.bootstrap() throws if it has not seen one by the time
+   * it runs. presenceService.initialize() is called before bootstrap() in
+   * routes/__root.tsx precisely for this reason.
+   */
+  private announcePresence(context: PresenceContext): void {
+    publish({
+      type: Events.PRESENCE_UPDATED,
+      source: "presence-service",
+      payload: { context: toSerializablePresenceContext(context) },
+      version: 1,
+      // Momentary state rather than a durable fact, and it fires on every store
+      // change plus the decay timer: PersistenceSubscriber skips it.
+      transient: true,
+    });
   }
 
   private isContextChanged(prev: PresenceContext | null, next: PresenceContext): boolean {
@@ -107,7 +150,7 @@ class PresenceService {
     if (this.isContextChanged(this.currentContext, newContext)) {
       this.currentContext = newContext;
       presenceEvents.publish(newContext);
-      eventBus.publish(Events.PRESENCE_UPDATED, { context: newContext });
+      this.announcePresence(newContext);
     }
   }
 

@@ -2,7 +2,8 @@ import { ResolvedContext } from "./types";
 import { buildResolvedContext } from "./builder";
 import { contextResolutionEvents } from "./events";
 import type { PresenceContext } from "../../../akira-os/presence/types";
-import { eventBus } from "../../../shared/infrastructure/event-bus";
+import { globalEventBus } from "../../../instrumentation/event-bus";
+import type { AkiraEvent } from "../../../instrumentation/event-types";
 import { Events } from "../../../contracts/events";
 import { companionStateService } from "../state/service";
 import { stateEvents } from "../state/events";
@@ -23,8 +24,15 @@ class ContextResolutionService {
   private latestPresenceContext: PresenceContext | null = null;
 
   constructor() {
-    eventBus.subscribe(Events.PRESENCE_UPDATED, (event) => {
-      this.latestPresenceContext = event.payload.context;
+    // Caches the context from construction onwards so a presence update that
+    // lands before initialize() is not lost. Distinct from the subscriber
+    // registered in initialize(), which also triggers a rebuild.
+    globalEventBus.subscribe({
+      id: "context-resolution-presence-cache",
+      onEvent: (event: AkiraEvent) => {
+        if (event.type !== Events.PRESENCE_UPDATED) return;
+        this.latestPresenceContext = (event.payload as { context: PresenceContext }).context;
+      },
     });
   }
 
@@ -33,16 +41,24 @@ class ContextResolutionService {
    * across all specialised Companion Intelligence engines.
    */
   public initialize(): ResolvedContext {
+    // Release any previous registrations first. Re-initialising used to discard
+    // the handles without calling them, leaving the old subscriptions live and
+    // rebuilding the context once per past initialize().
+    this.unsubscribers.forEach((unsubscribe) => unsubscribe());
     this.unsubscribers = [];
     this.rebuildResolvedContext();
 
     // Subscribe to all upstream events to re-run coordination rules dynamically
-    this.unsubscribers.push(
-      eventBus.subscribe(Events.PRESENCE_UPDATED, (event) => {
-        this.latestPresenceContext = event.payload.context;
+    const presenceSubscriber = {
+      id: "context-resolution-presence",
+      onEvent: (event: AkiraEvent) => {
+        if (event.type !== Events.PRESENCE_UPDATED) return;
+        this.latestPresenceContext = (event.payload as { context: PresenceContext }).context;
         this.rebuildResolvedContext();
-      }),
-    );
+      },
+    };
+    globalEventBus.subscribe(presenceSubscriber);
+    this.unsubscribers.push(() => globalEventBus.unsubscribe(presenceSubscriber));
     this.unsubscribers.push(stateEvents.subscribe(() => this.rebuildResolvedContext()));
     this.unsubscribers.push(goalEvents.subscribe(() => this.rebuildResolvedContext()));
     this.unsubscribers.push(knowledgeEvents.subscribe(() => this.rebuildResolvedContext()));

@@ -193,35 +193,28 @@ describe("middleware and metadata are unaffected", () => {
   });
 });
 
-describe("presence is unchanged while it still uses the legacy bus", () => {
-  it("still reaches its legacy subscribers, and still never reaches the event store", async () => {
-    // presence/service.ts publishes through SimpleEventBus.publish(type, payload),
-    // which carries no AkiraEvent envelope — so there is nowhere to set
-    // `transient` until those sites migrate. This pins today's behaviour so the
-    // migration has something to compare against.
-    const { eventBus } = await import("../src/shared/infrastructure/event-bus");
+describe("presence, the first transient producer", () => {
+  it("publishes through the platform bus marked transient", async () => {
+    // This block previously pinned presence on the legacy bus. Presence has
+    // since migrated; see tests/presence-platform-migration.test.ts for the
+    // full delivery, bootstrap and non-persistence proof. What is kept here is
+    // the link between the transient mechanism and its first real user.
+    const { globalEventBus } = await import("../src/instrumentation/event-bus");
+    const { presenceService } = await import("../src/akira-os/presence/service");
 
-    const received: unknown[] = [];
-    const unsubscribe = eventBus.subscribe(Events.PRESENCE_UPDATED, (event) => {
-      received.push(event.payload);
-    });
+    const seen: AkiraEvent[] = [];
+    const monitor = {
+      id: "transient-presence-monitor",
+      onEvent: (e: AkiraEvent) => void seen.push(e),
+    };
+    globalEventBus.subscribe(monitor);
 
-    const context = { returnState: "returning", timePeriod: "evening" };
-    eventBus.publish(Events.PRESENCE_UPDATED, { context });
+    presenceService.initialize();
 
-    expect(received).toHaveLength(1);
-    expect(received[0]).toEqual({ context });
+    const presence = seen.filter((e) => e.type === Events.PRESENCE_UPDATED);
+    expect(presence.length).toBeGreaterThan(0);
+    expect(presence[0].transient).toBe(true);
 
-    unsubscribe();
-  });
-
-  it("is still excluded from the legacy forward bridge", async () => {
-    // The bridge skips presence.updated, so presence never reaches the platform
-    // bus at all today. That exclusion — not the new transient flag — is what
-    // currently keeps it out of the store.
-    const source = await import("fs").then((fs) =>
-      fs.readFileSync("src/shared/infrastructure/event-bus/index.ts", "utf8"),
-    );
-    expect(source).toContain('eventType !== "presence.updated"');
+    globalEventBus.unsubscribe(monitor);
   });
 });

@@ -42,7 +42,21 @@ export const publish = (event: EventInput): AkiraEvent => {
     // 1. Run local client pipeline so we have a synchronous ID and timestamp locally
     const clientProcessed = defaultPublisher.publish(event);
 
-    // 2. Send the processed event to the server RPC for SQLite storage
+    // 2. Send the processed event to the server RPC for SQLite storage.
+    //
+    // Transient events stop here. The server round trip exists to persist, and
+    // PersistenceSubscriber would discard a transient event on arrival, so
+    // shipping it would burn a request per event to reach a guaranteed no-op.
+    // That matters because the first transient producer, presence, fires on
+    // every store change plus a decay timer.
+    //
+    // The consequence worth knowing: a transient event is client-local. It
+    // reaches every subscriber on the client bus and no server-side subscriber.
+    // Nothing server-side consumes one today.
+    if (clientProcessed.transient) {
+      return clientProcessed;
+    }
+
     if (persistPublishEventRpc) {
       persistPublishEventRpc({ data: clientProcessed }).catch((err: any) => {
         console.error("[Publisher] Failed to persist event on server:", err);
