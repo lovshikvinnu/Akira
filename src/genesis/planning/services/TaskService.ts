@@ -41,7 +41,7 @@ export class TaskService {
     const created = this.repository.createTask(task);
 
     eventService.record(
-      Events.TASK_CREATED as DomainEventName,
+      Events.PLANNING_TASK_CREATED as DomainEventName,
       "Task Created",
       `Task "${created.title}" created for milestone ${created.milestoneId}`,
       null,
@@ -90,7 +90,7 @@ export class TaskService {
     const saved = this.repository.updateTask(updated);
 
     eventService.record(
-      Events.TASK_COMPLETED as DomainEventName,
+      Events.PLANNING_TASK_COMPLETED as DomainEventName,
       "Task Completed",
       `Task "${saved.title}" completed`,
       null,

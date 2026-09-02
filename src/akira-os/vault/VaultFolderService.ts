@@ -14,7 +14,7 @@ export const VaultFolderService = {
   createFolder(name: string, parentId: string | null): string {
     const id = vaultFolderRepository.add({ name, parentId });
     publish({
-      type: "vault.folder.created",
+      type: Events.VAULT_FOLDER_CREATED,
       source: "vault-service",
       payload: { id, name, parentId },
       version: 1,
@@ -39,7 +39,7 @@ export const VaultFolderService = {
     vaultFolderRepository.update(folderId, { parentId: targetParentId });
 
     publish({
-      type: "vault.folder.moved",
+      type: Events.VAULT_FOLDER_MOVED,
       source: "vault-service",
       payload: {
         id: folderId,
@@ -59,7 +59,7 @@ export const VaultFolderService = {
     vaultFolderRepository.delete(folderId);
 
     publish({
-      type: "vault.folder.deleted",
+      type: Events.VAULT_FOLDER_DELETED,
       source: "vault-service",
       payload: {
         id: folderId,

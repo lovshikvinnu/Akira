@@ -167,7 +167,7 @@ export const VaultStorageService = {
       const fileRecord = vaultFileRepository.getById(registeredId);
       if (fileRecord) {
         publish({
-          type: "vault.file.uploaded",
+          type: Events.VAULT_FILE_UPLOADED,
           source: "vault-service",
           payload: {
             id: fileRecord.id,
@@ -204,7 +204,7 @@ export const VaultStorageService = {
     vaultFileRepository.update(fileId, { displayName: cleanName });
 
     publish({
-      type: "vault.file.renamed",
+      type: Events.VAULT_FILE_RENAMED,
       source: "vault-service",
       payload: { id: fileId, oldName: file.displayName, newName: cleanName },
       version: 1,
@@ -221,7 +221,7 @@ export const VaultStorageService = {
     vaultFileRepository.update(fileId, { folderId: targetFolderId });
 
     publish({
-      type: "vault.file.moved",
+      type: Events.VAULT_FILE_MOVED,
       source: "vault-service",
       payload: { id: fileId, oldFolderId: file.folderId, newFolderId: targetFolderId },
       version: 1,
@@ -279,7 +279,7 @@ export const VaultStorageService = {
     });
 
     publish({
-      type: "vault.file.deleted",
+      type: Events.VAULT_FILE_DELETED,
       source: "vault-service",
       payload: { id: file.id, displayName: file.displayName, hash: file.hash },
       version: 1,
@@ -324,7 +324,7 @@ export const VaultStorageService = {
     });
 
     publish({
-      type: "vault.file.restored",
+      type: Events.VAULT_FILE_RESTORED,
       source: "vault-service",
       payload: { id: file.id, displayName: file.displayName, hash: file.hash },
       version: 1,

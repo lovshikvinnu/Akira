@@ -116,7 +116,7 @@ export const akira = {
     };
 
     publish({
-      type: "project.created",
+      type: Events.PROJECT_CREATED,
       source: "projects-store",
       payload: { id: p.id, name: p.name, tag: p.tag },
       version: 1,
@@ -144,7 +144,7 @@ export const akira = {
       const p = { ...project, ...patch };
 
       publish({
-        type: "project.updated",
+        type: Events.PROJECT_UPDATED,
         source: "projects-store",
         payload: { id: p.id, name: p.name, patch },
         version: 1,
@@ -163,7 +163,7 @@ export const akira = {
   deleteProject(id: string) {
     set((s) => {
       publish({
-        type: "project.deleted",
+        type: Events.PROJECT_DELETED,
         source: "projects-store",
         payload: { id },
         version: 1,
@@ -208,7 +208,7 @@ export const akira = {
       };
 
       publish({
-        type: "project.continued",
+        type: Events.PROJECT_CONTINUED,
         source: "projects-store",
         payload: { id: p.id, name: p.name },
         version: 1,
@@ -246,7 +246,7 @@ export const akira = {
     };
     set((s) => {
       publish({
-        type: "task.created",
+        type: Events.TASK_CREATED,
         source: "tasks-store",
         payload: { id: t.id, title: t.title },
         version: 1,
@@ -267,7 +267,7 @@ export const akira = {
 
       if (t.done) {
         publish({
-          type: "task.completed",
+          type: Events.TASK_COMPLETED,
           source: "tasks-store",
           payload: { id: t.id, title: t.title, projectId: t.projectId },
           version: 1,
@@ -276,7 +276,7 @@ export const akira = {
         const allDone = nextTasks.every((tk) => tk.done) && nextTasks.length > 0;
         if (allDone) {
           publish({
-            type: "mission.completed",
+            type: Events.MISSION_COMPLETED,
             source: "tasks-store",
             payload: { totalTasks: nextTasks.length },
             version: 1,
@@ -284,7 +284,7 @@ export const akira = {
         }
       } else {
         publish({
-          type: "task.reopened",
+          type: Events.TASK_REOPENED,
           source: "tasks-store",
           payload: { id: t.id, title: t.title, projectId: t.projectId },
           version: 1,
@@ -304,7 +304,7 @@ export const akira = {
   updateTask(id: string, title: string) {
     set((s) => {
       publish({
-        type: "task.updated",
+        type: Events.TASK_UPDATED,
         source: "tasks-store",
         payload: { id, title },
         version: 1,
@@ -325,7 +325,7 @@ export const akira = {
   deleteTask(id: string) {
     set((s) => {
       publish({
-        type: "task.deleted",
+        type: Events.TASK_DELETED,
         source: "tasks-store",
         payload: { id },
         version: 1,
@@ -361,7 +361,7 @@ export const akira = {
     };
     set((s) => {
       publish({
-        type: "task.created",
+        type: Events.TASK_CREATED,
         source: "tasks-store",
         payload: { id: t.id, title: t.title, projectId: t.projectId },
         version: 1,
@@ -438,7 +438,7 @@ export const akira = {
 
     set((s) => {
       publish({
-        type: "note.created",
+        type: Events.NOTE_CREATED,
         source: "notes-store",
         payload: { id: n.id, title, tags, projectId },
         version: 1,
@@ -466,7 +466,7 @@ export const akira = {
 
       if (shouldLog) {
         publish({
-          type: "note.updated",
+          type: Events.NOTE_EDITED,
           source: "notes-store",
           payload: { id: n.id, title: n.title, projectId: n.projectId },
           version: 1,
@@ -486,7 +486,7 @@ export const akira = {
   deleteNote(id: string) {
     set((s) => {
       publish({
-        type: "note.deleted",
+        type: Events.NOTE_DELETED,
         source: "notes-store",
         payload: { id },
         version: 1,
@@ -604,7 +604,7 @@ export const akira = {
         settingsService.updateProfile(patch, s.profile);
       });
       publish({
-        type: "settings.updated",
+        type: Events.SETTINGS_UPDATED,
         source: "settings-store",
         payload: { patch },
         version: 1,
@@ -636,7 +636,7 @@ export const akira = {
       }
 
       publish({
-        type: "session.started",
+        type: Events.SESSION_STARTED,
         source: "sessions-store",
         payload: { projectId, task: task || "" },
         version: 1,
@@ -687,7 +687,7 @@ export const akira = {
       });
 
       publish({
-        type: "session.ended",
+        type: Events.SESSION_ENDED,
         source: "sessions-store",
         payload: {
           projectId: s.activeSession.projectId,

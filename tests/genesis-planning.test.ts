@@ -308,7 +308,7 @@ describe("GENESIS Cognitive Engine - Planning Capability Module", () => {
       expect(task.status).toBe("Pending");
       expect(task.estimatedEffort).toBe(4);
 
-      const event = recordedEvents.find((e) => e.eventType === Events.TASK_CREATED);
+      const event = recordedEvents.find((e) => e.eventType === Events.PLANNING_TASK_CREATED);
       expect(event).toBeDefined();
     });
 
@@ -336,7 +336,7 @@ describe("GENESIS Cognitive Engine - Planning Capability Module", () => {
       const completed = taskService.completeTask(task.id);
       expect(completed.status).toBe("Completed");
 
-      const event = recordedEvents.find((e) => e.eventType === Events.TASK_COMPLETED);
+      const event = recordedEvents.find((e) => e.eventType === Events.PLANNING_TASK_COMPLETED);
       expect(event).toBeDefined();
     });
   });

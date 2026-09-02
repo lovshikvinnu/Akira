@@ -1,4 +1,5 @@
 import { SearchProvider, SearchRequest, SearchResult } from "../../../contracts/search";
+import { Events } from "../../../contracts/events";
 import type { SearchHistoryEntry } from "../../../contracts/repositories/SearchHistoryRepository";
 import {
   persistRunSearch,
@@ -87,7 +88,7 @@ class SearchManager {
           // Publish instrumentation event
           const { publish } = await import("../../../instrumentation");
           publish({
-            type: "search.executed",
+            type: Events.SEARCH_EXECUTED,
             source: "search-service",
             payload: { query: queryTerm, resultCount: results.length },
             version: 1,
