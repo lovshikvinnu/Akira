@@ -101,6 +101,66 @@ export function useAkiraHydrated(): boolean {
   );
 }
 
+/**
+ * Persistence side effects started by store mutations, still in flight.
+ *
+ * Every mutation updates React state synchronously and then writes through to
+ * SQLite behind a dynamic import, which keeps better-sqlite3 out of the browser
+ * bundle. That write is deliberately not awaited: the UI must not block on disk.
+ *
+ * What was missing is that nobody owned the resulting promises, and there were
+ * two layers of them. The outer `import(...).then(...)` chain was unowned, and
+ * the service call inside the callback was a bare statement, so the promise it
+ * returned was discarded before it could even join that chain. A failed write
+ * therefore surfaced as an unhandled rejection instead of an error anyone could
+ * act on, and a module load still resolving when its environment disappeared --
+ * which is what happens when a test file ends -- became an unhandled
+ * EnvironmentTeardownError blamed on whichever test happened to be running.
+ */
+const pendingPersistence = new Set<Promise<void>>();
+
+/**
+ * Starts a write-through without blocking the caller, and without leaving the
+ * promise unowned.
+ *
+ * Timing is unchanged: `run()` is invoked immediately, exactly as the bare
+ * `import(...).then(...)` was, and nothing awaits it. The difference is that
+ * the whole chain -- module load and the service call it returns -- is tracked
+ * and its rejection is handled, so a genuine write failure is reported rather
+ * than escaping the process.
+ */
+function persist(operation: string, run: () => Promise<unknown>): void {
+  const task = run().then(
+    () => undefined,
+    (err: unknown) => {
+      console.error(`[akira-store] Persistence write "${operation}" failed:`, err);
+    },
+  );
+
+  pendingPersistence.add(task);
+  void task.finally(() => {
+    pendingPersistence.delete(task);
+  });
+}
+
+/**
+ * Resolves once every write-through started so far has settled.
+ *
+ * Intended for deterministic tests and for any lifecycle boundary that needs
+ * pending writes to land before it proceeds. A write can start another write,
+ * so this drains until the set is empty rather than awaiting one snapshot of it.
+ */
+export async function settlePendingPersistence(): Promise<void> {
+  while (pendingPersistence.size > 0) {
+    await Promise.all(Array.from(pendingPersistence));
+  }
+}
+
+/** Write-throughs started but not yet settled. */
+export function pendingPersistenceCount(): number {
+  return pendingPersistence.size;
+}
+
 export const akira = {
   getState() {
     return state;
@@ -154,12 +214,14 @@ export const akira = {
       lastProjectId: p.id,
     }));
 
-    import("../akira-os/projects").then(({ projectsService }) => {
-      projectsService.add(p);
-    });
-    import("../akira-os/settings").then(({ settingsService }) => {
-      settingsService.updateLastProjectId(p.id);
-    });
+    persist("projects.add", () =>
+      import("../akira-os/projects").then(({ projectsService }) => projectsService.add(p)),
+    );
+    persist("settings.updateLastProjectId", () =>
+      import("../akira-os/settings").then(({ settingsService }) =>
+        settingsService.updateLastProjectId(p.id),
+      ),
+    );
 
     return p.id;
   },
@@ -176,9 +238,11 @@ export const akira = {
         version: 1,
       });
 
-      import("../akira-os/projects").then(({ projectsService }) => {
-        projectsService.update(id, patch);
-      });
+      persist("projects.update", () =>
+        import("../akira-os/projects").then(({ projectsService }) =>
+          projectsService.update(id, patch),
+        ),
+      );
 
       return {
         ...s,
@@ -200,12 +264,14 @@ export const akira = {
           ? (s.projects.find((p) => p.id !== id)?.id ?? null)
           : s.lastProjectId;
 
-      import("../akira-os/projects").then(({ projectsService }) => {
-        projectsService.delete(id);
-      });
-      import("../akira-os/settings").then(({ settingsService }) => {
-        settingsService.updateLastProjectId(nextLastProjectId);
-      });
+      persist("projects.delete", () =>
+        import("../akira-os/projects").then(({ projectsService }) => projectsService.delete(id)),
+      );
+      persist("settings.updateLastProjectId", () =>
+        import("../akira-os/settings").then(({ settingsService }) =>
+          settingsService.updateLastProjectId(nextLastProjectId),
+        ),
+      );
 
       return {
         ...s,
@@ -240,12 +306,14 @@ export const akira = {
         version: 1,
       });
 
-      import("../akira-os/projects").then(({ projectsService }) => {
-        projectsService.touch(id);
-      });
-      import("../akira-os/settings").then(({ settingsService }) => {
-        settingsService.updateLastProjectId(id);
-      });
+      persist("projects.touch", () =>
+        import("../akira-os/projects").then(({ projectsService }) => projectsService.touch(id)),
+      );
+      persist("settings.updateLastProjectId", () =>
+        import("../akira-os/settings").then(({ settingsService }) =>
+          settingsService.updateLastProjectId(id),
+        ),
+      );
 
       return {
         ...s,
@@ -317,9 +385,11 @@ export const akira = {
         });
       }
 
-      import("../akira-os/tasks").then(({ tasksService }) => {
-        tasksService.update(id, { done: t.done, completed: t.completed });
-      });
+      persist("tasks.update", () =>
+        import("../akira-os/tasks").then(({ tasksService }) =>
+          tasksService.update(id, { done: t.done, completed: t.completed }),
+        ),
+      );
 
       return {
         ...s,
@@ -336,9 +406,11 @@ export const akira = {
         version: 1,
       });
 
-      import("../akira-os/tasks").then(({ tasksService }) => {
-        tasksService.update(id, { title: title.trim() });
-      });
+      persist("tasks.update", () =>
+        import("../akira-os/tasks").then(({ tasksService }) =>
+          tasksService.update(id, { title: title.trim() }),
+        ),
+      );
 
       return {
         ...s,
@@ -357,9 +429,9 @@ export const akira = {
         version: 1,
       });
 
-      import("../akira-os/tasks").then(({ tasksService }) => {
-        tasksService.delete(id);
-      });
+      persist("tasks.delete", () =>
+        import("../akira-os/tasks").then(({ tasksService }) => tasksService.delete(id)),
+      );
 
       return { ...s, tasks: s.tasks.filter((t) => t.id !== id) };
     });
@@ -393,9 +465,9 @@ export const akira = {
         version: 1,
       });
 
-      import("../akira-os/tasks").then(({ tasksService }) => {
-        tasksService.add(t);
-      });
+      persist("tasks.add", () =>
+        import("../akira-os/tasks").then(({ tasksService }) => tasksService.add(t)),
+      );
 
       return { ...s, tasks: [...s.tasks, t] };
     });
@@ -411,9 +483,9 @@ export const akira = {
         updated.completed = patch.done;
       }
 
-      import("../akira-os/tasks").then(({ tasksService }) => {
-        tasksService.update(id, patch);
-      });
+      persist("tasks.update", () =>
+        import("../akira-os/tasks").then(({ tasksService }) => tasksService.update(id, patch)),
+      );
 
       return {
         ...s,
@@ -470,9 +542,9 @@ export const akira = {
         version: 1,
       });
 
-      import("../akira-os/notes").then(({ notesService }) => {
-        notesService.add(n);
-      });
+      persist("notes.add", () =>
+        import("../akira-os/notes").then(({ notesService }) => notesService.add(n)),
+      );
 
       return { ...s, notes: [n, ...s.notes] };
     });
@@ -499,9 +571,9 @@ export const akira = {
         });
       }
 
-      import("../akira-os/notes").then(({ notesService }) => {
-        notesService.update(id, patch);
-      });
+      persist("notes.update", () =>
+        import("../akira-os/notes").then(({ notesService }) => notesService.update(id, patch)),
+      );
 
       return {
         ...s,
@@ -518,9 +590,9 @@ export const akira = {
         version: 1,
       });
 
-      import("../akira-os/notes").then(({ notesService }) => {
-        notesService.delete(id);
-      });
+      persist("notes.delete", () =>
+        import("../akira-os/notes").then(({ notesService }) => notesService.delete(id)),
+      );
 
       return {
         ...s,
@@ -541,9 +613,11 @@ export const akira = {
     };
     set((s) => {
       const nextChat = [...s.chat, msg];
-      import("../akira-os/settings").then(({ settingsService }) => {
-        settingsService.updateChat(nextChat);
-      });
+      persist("settings.updateChat", () =>
+        import("../akira-os/settings").then(({ settingsService }) =>
+          settingsService.updateChat(nextChat),
+        ),
+      );
       return {
         ...s,
         chat: nextChat,
@@ -556,9 +630,11 @@ export const akira = {
     set((s) => {
       const nextChat = s.chat.map((m) => (m.id === id ? { ...m, text } : m));
       if (!skipPersist) {
-        import("../akira-os/settings").then(({ settingsService }) => {
-          settingsService.updateChat(nextChat);
-        });
+        persist("settings.updateChat", () =>
+          import("../akira-os/settings").then(({ settingsService }) =>
+            settingsService.updateChat(nextChat),
+          ),
+        );
       }
       return {
         ...s,
@@ -573,9 +649,11 @@ export const akira = {
 
     set((s) => {
       const nextChat = [...s.chat, user];
-      import("../akira-os/settings").then(({ settingsService }) => {
-        settingsService.updateChat(nextChat);
-      });
+      persist("settings.updateChat", () =>
+        import("../akira-os/settings").then(({ settingsService }) =>
+          settingsService.updateChat(nextChat),
+        ),
+      );
       return { ...s, chat: nextChat };
     });
 
@@ -596,9 +674,11 @@ export const akira = {
     setTimeout(() => {
       set((s) => {
         const nextChat = [...s.chat, reply];
-        import("../akira-os/settings").then(({ settingsService }) => {
-          settingsService.updateChat(nextChat);
-        });
+        persist("settings.updateChat", () =>
+          import("../akira-os/settings").then(({ settingsService }) =>
+            settingsService.updateChat(nextChat),
+          ),
+        );
         return { ...s, chat: nextChat };
       });
     }, 450);
@@ -613,9 +693,11 @@ export const akira = {
           createdAt: nowISO(),
         },
       ];
-      import("../akira-os/settings").then(({ settingsService }) => {
-        settingsService.updateChat(cleared);
-      });
+      persist("settings.updateChat", () =>
+        import("../akira-os/settings").then(({ settingsService }) =>
+          settingsService.updateChat(cleared),
+        ),
+      );
       return {
         ...s,
         chat: cleared,
@@ -626,9 +708,11 @@ export const akira = {
   updateProfile(patch: Partial<Profile>) {
     set((s) => {
       const updatedProfile = { ...s.profile, ...patch };
-      import("../akira-os/settings").then(({ settingsService }) => {
-        settingsService.updateProfile(patch, s.profile);
-      });
+      persist("settings.updateProfile", () =>
+        import("../akira-os/settings").then(({ settingsService }) =>
+          settingsService.updateProfile(patch, s.profile),
+        ),
+      );
       publish({
         type: Events.SETTINGS_UPDATED,
         source: "settings-store",
@@ -668,9 +752,11 @@ export const akira = {
         version: 1,
       });
 
-      import("../akira-os/sessions").then(({ sessionsService }) => {
-        sessionsService.start(projectId, task);
-      });
+      persist("sessions.start", () =>
+        import("../akira-os/sessions").then(({ sessionsService }) =>
+          sessionsService.start(projectId, task),
+        ),
+      );
 
       return {
         ...s,
@@ -723,9 +809,9 @@ export const akira = {
         version: 1,
       });
 
-      import("../akira-os/sessions").then(({ sessionsService }) => {
-        sessionsService.end(notes);
-      });
+      persist("sessions.end", () =>
+        import("../akira-os/sessions").then(({ sessionsService }) => sessionsService.end(notes)),
+      );
 
       return {
         ...s,
@@ -739,9 +825,11 @@ export const akira = {
     set((s) => {
       if (!s.activeSession) return s;
 
-      import("../akira-os/sessions").then(({ sessionsService }) => {
-        sessionsService.updateActiveTask(task);
-      });
+      persist("sessions.updateActiveTask", () =>
+        import("../akira-os/sessions").then(({ sessionsService }) =>
+          sessionsService.updateActiveTask(task),
+        ),
+      );
 
       return {
         ...s,
@@ -765,9 +853,11 @@ export const akira = {
       ...s,
       vaultFolders: [...(s.vaultFolders || []), folder],
     }));
-    import("../akira-os/vault").then(({ VaultFolderService }) => {
-      VaultFolderService.createFolder(folder.name, folder.parentId);
-    });
+    persist("vault.createFolder", () =>
+      import("../akira-os/vault").then(({ VaultFolderService }) =>
+        VaultFolderService.createFolder(folder.name, folder.parentId),
+      ),
+    );
     return id;
   },
   renameFolder(id: string, name: string) {
@@ -777,9 +867,11 @@ export const akira = {
         f.id === id ? { ...f, name, updatedAt: nowISO() } : f,
       ),
     }));
-    import("../akira-os/vault").then(({ VaultFolderService }) => {
-      VaultFolderService.renameFolder(id, name);
-    });
+    persist("vault.renameFolder", () =>
+      import("../akira-os/vault").then(({ VaultFolderService }) =>
+        VaultFolderService.renameFolder(id, name),
+      ),
+    );
   },
   moveFolder(id: string, parentId: string | null) {
     set((s) => ({
@@ -788,9 +880,11 @@ export const akira = {
         f.id === id ? { ...f, parentId, updatedAt: nowISO() } : f,
       ),
     }));
-    import("../akira-os/vault").then(({ VaultFolderService }) => {
-      VaultFolderService.moveFolder(id, parentId);
-    });
+    persist("vault.moveFolder", () =>
+      import("../akira-os/vault").then(({ VaultFolderService }) =>
+        VaultFolderService.moveFolder(id, parentId),
+      ),
+    );
   },
   deleteFolder(id: string) {
     set((s) => {
@@ -810,9 +904,11 @@ export const akira = {
         ),
       };
     });
-    import("../akira-os/vault").then(({ VaultFolderService }) => {
-      VaultFolderService.deleteFolder(id);
-    });
+    persist("vault.deleteFolder", () =>
+      import("../akira-os/vault").then(({ VaultFolderService }) =>
+        VaultFolderService.deleteFolder(id),
+      ),
+    );
   },
   renameFile(id: string, name: string) {
     set((s) => ({
@@ -821,9 +917,11 @@ export const akira = {
         f.id === id ? { ...f, displayName: name, updatedAt: nowISO() } : f,
       ),
     }));
-    import("../akira-os/vault").then(({ VaultStorageService }) => {
-      VaultStorageService.renameFile(id, name);
-    });
+    persist("vault.renameFile", () =>
+      import("../akira-os/vault").then(({ VaultStorageService }) =>
+        VaultStorageService.renameFile(id, name),
+      ),
+    );
   },
   moveFile(id: string, folderId: string | null) {
     set((s) => ({
@@ -832,9 +930,11 @@ export const akira = {
         f.id === id ? { ...f, folderId, updatedAt: nowISO() } : f,
       ),
     }));
-    import("../akira-os/vault").then(({ VaultStorageService }) => {
-      VaultStorageService.moveFile(id, folderId);
-    });
+    persist("vault.moveFile", () =>
+      import("../akira-os/vault").then(({ VaultStorageService }) =>
+        VaultStorageService.moveFile(id, folderId),
+      ),
+    );
   },
   deleteFile(id: string) {
     set((s) => ({
@@ -850,9 +950,11 @@ export const akira = {
           : f,
       ),
     }));
-    import("../akira-os/vault").then(({ VaultStorageService }) => {
-      VaultStorageService.deleteFile(id);
-    });
+    persist("vault.deleteFile", () =>
+      import("../akira-os/vault").then(({ VaultStorageService }) =>
+        VaultStorageService.deleteFile(id),
+      ),
+    );
   },
   restoreFile(id: string) {
     set((s) => ({
@@ -872,18 +974,22 @@ export const akira = {
         };
       }),
     }));
-    import("../akira-os/vault").then(({ VaultStorageService }) => {
-      VaultStorageService.restoreFile(id);
-    });
+    persist("vault.restoreFile", () =>
+      import("../akira-os/vault").then(({ VaultStorageService }) =>
+        VaultStorageService.restoreFile(id),
+      ),
+    );
   },
   permanentDeleteFile(id: string) {
     set((s) => ({
       ...s,
       vaultFiles: (s.vaultFiles || []).filter((f) => f.id !== id),
     }));
-    import("../akira-os/vault").then(({ VaultStorageService }) => {
-      VaultStorageService.permanentDeleteFile(id);
-    });
+    persist("vault.permanentDeleteFile", () =>
+      import("../akira-os/vault").then(({ VaultStorageService }) =>
+        VaultStorageService.permanentDeleteFile(id),
+      ),
+    );
   },
   setFavorite(id: string, favorite: boolean) {
     set((s) => ({
@@ -892,9 +998,11 @@ export const akira = {
         f.id === id ? { ...f, favorite, updatedAt: nowISO() } : f,
       ),
     }));
-    import("../akira-os/vault").then(({ VaultStorageService }) => {
-      VaultStorageService.setFavorite(id, favorite);
-    });
+    persist("vault.setFavorite", () =>
+      import("../akira-os/vault").then(({ VaultStorageService }) =>
+        VaultStorageService.setFavorite(id, favorite),
+      ),
+    );
   },
   addUploadedFile(file: VaultFile) {
     set((s) => ({
@@ -909,9 +1017,11 @@ export const akira = {
         f.id === fileId ? { ...f, tags: [...(f.tags || []), tagName], updatedAt: nowISO() } : f,
       ),
     }));
-    import("../akira-os/vault").then(({ VaultTagService }) => {
-      VaultTagService.linkTagToFile(fileId, tagName);
-    });
+    persist("vault.linkTagToFile", () =>
+      import("../akira-os/vault").then(({ VaultTagService }) =>
+        VaultTagService.linkTagToFile(fileId, tagName),
+      ),
+    );
   },
   unlinkTagFromFile(fileId: string, tagName: string) {
     set((s) => ({
@@ -922,9 +1032,11 @@ export const akira = {
           : f,
       ),
     }));
-    import("../akira-os/vault").then(({ VaultTagService }) => {
-      VaultTagService.unlinkTagFromFile(fileId, tagName);
-    });
+    persist("vault.unlinkTagFromFile", () =>
+      import("../akira-os/vault").then(({ VaultTagService }) =>
+        VaultTagService.unlinkTagFromFile(fileId, tagName),
+      ),
+    );
   },
 
   reset() {
@@ -954,11 +1066,11 @@ registerStoreProvider({
       // Fire-and-forget, matching every other write in this store. A failed
       // persist costs the next reload some history; it must not break the
       // cognitive cycle that produced the event.
-      import("../akira-os/settings").then(({ settingsService }) => {
-        settingsService.updateMemories(memories).catch((err) => {
-          console.error("Failed to persist GENESIS memory stream:", err);
-        });
-      });
+      persist("settings.updateMemories", () =>
+        import("../akira-os/settings").then(({ settingsService }) =>
+          settingsService.updateMemories(memories),
+        ),
+      );
 
       return { ...s, memories };
     });
