@@ -11,4 +11,8 @@ export interface TimelineRepository {
   deleteByProjectId(projectId: string): void;
   clearAll(): void;
   count(): number;
+  /** Persists anything buffered in memory, returning how many are still waiting. */
+  flush(): number;
+  /** Events accepted but not yet durably stored. Included in count(). */
+  pendingCount(): number;
 }

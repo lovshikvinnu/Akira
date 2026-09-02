@@ -41,6 +41,62 @@ const fallbackQueue: TimelineEvent[] = [];
  */
 const NEXT_SEQ_SQL = "(SELECT IFNULL(MAX(seq), 0) + 1 FROM timeline_events)";
 
+/**
+ * Provisional sequences for buffered events start here.
+ *
+ * A buffered event is by definition the most recently recorded one, so while it
+ * waits it must sort above everything already stored. The database is
+ * unavailable in exactly this situation, so its MAX(seq) cannot be consulted;
+ * starting above any sequence a real database will ever reach gets the ordering
+ * right without a read that would fail anyway. The value is provisional only:
+ * draining assigns the real sequence from SQL.
+ */
+const FALLBACK_SEQ_BASE = Number.MAX_SAFE_INTEGER - 1_000_000;
+
+/** Guards against a drain re-entering itself. */
+let isDraining = false;
+
+/**
+ * Whether a write failed because the database was momentarily unavailable
+ * rather than because the row itself is unacceptable.
+ *
+ * The distinction decides whether an event may be queued at all. A locked or
+ * read-only database will accept the same row later; a constraint violation
+ * never will, so queuing one would park an event that is retried on every
+ * subsequent write forever and inflate count() permanently.
+ */
+function isTransientDbError(err: any): boolean {
+  const code = String(err?.code ?? "");
+  if (
+    code === "SQLITE_BUSY" ||
+    code === "SQLITE_LOCKED" ||
+    code === "SQLITE_READONLY" ||
+    code === "SQLITE_IOERR" ||
+    code === "SQLITE_CANTOPEN" ||
+    code === "SQLITE_PROTOCOL" ||
+    code === "SQLITE_NOTADB"
+  ) {
+    return true;
+  }
+  if (code.startsWith("SQLITE_CONSTRAINT")) return false;
+  const message = String(err?.message ?? "").toLowerCase();
+  return (
+    message.includes("locked") ||
+    message.includes("busy") ||
+    message.includes("readonly") ||
+    message.includes("unable to open")
+  );
+}
+
+/** Whether the row is already present, which makes a retry a no-op. */
+function isDuplicateIdError(err: any): boolean {
+  const code = String(err?.code ?? "");
+  if (code === "SQLITE_CONSTRAINT_PRIMARYKEY" || code === "SQLITE_CONSTRAINT_UNIQUE") return true;
+  return String(err?.message ?? "")
+    .toLowerCase()
+    .includes("unique constraint failed");
+}
+
 export class SqliteTimelineRepository implements TimelineRepository {
   private getDb() {
     return getDatabaseConnection();
@@ -59,25 +115,85 @@ export class SqliteTimelineRepository implements TimelineRepository {
   }
 
   /**
-   * Sequence for an event the database refused to accept.
+   * Writes one event. `seq` is assigned by SQL rather than by the caller so the
+   * database stays the single source of truth, including for the vault audit
+   * triggers that insert timeline rows directly.
+   */
+  private writeEvent(event: TimelineEvent): void {
+    this.getDb()
+      .prepare(
+        `
+          INSERT INTO timeline_events (
+            id, event_type, project_id, payload, timestamp, payload_version, seq
+          ) VALUES (?, ?, ?, ?, ?, ?, ${NEXT_SEQ_SQL})
+        `,
+      )
+      .run(
+        event.id,
+        event.eventType,
+        event.projectId,
+        JSON.stringify(event.payload),
+        event.timestamp,
+        event.payloadVersion,
+      );
+  }
+
+  /**
+   * Writes buffered events back in the order they were recorded, stopping at
+   * the first one the database still refuses.
    *
-   * A buffered event was recorded after everything currently persisted, so it
-   * must sort newer than every stored row and newer than anything buffered
-   * before it. Reading MAX(seq) keeps buffered and persisted rows on one scale;
-   * if the database is unreachable entirely, the queue still orders among itself.
+   * Each drained event takes a fresh SQL sequence rather than the provisional
+   * one it was buffered with. Because a drain runs before every write, the
+   * queue is only ever non-empty while writes are failing, so nothing else can
+   * have persisted in the meantime. Draining in order therefore lands these
+   * events after everything already stored and before anything written next,
+   * which is where they belong.
+   */
+  private drainFallbackQueue(): void {
+    if (isDraining || fallbackQueue.length === 0) return;
+    isDraining = true;
+    try {
+      while (fallbackQueue.length > 0) {
+        const event = fallbackQueue[0];
+        try {
+          this.writeEvent(event);
+          fallbackQueue.shift();
+        } catch (err: any) {
+          if (isDuplicateIdError(err)) {
+            // Already stored. Retrying must not create a second row.
+            fallbackQueue.shift();
+            continue;
+          }
+          if (isTransientDbError(err)) {
+            // Still unavailable. Keep this event and everything behind it
+            // queued so the recorded order is not broken by skipping ahead.
+            return;
+          }
+          console.error(
+            `Timeline event "${event.id}" can never be persisted and was dropped from the fallback queue:`,
+            err,
+          );
+          fallbackQueue.shift();
+        }
+      }
+    } finally {
+      isDraining = false;
+    }
+  }
+
+  /**
+   * Provisional sequence for an event the database refused to accept.
+   *
+   * It orders the event against anything else already buffered and keeps it
+   * above every persisted row while it waits. Draining replaces it with a real
+   * sequence allocated by SQL, so this value never reaches the database.
    */
   private nextFallbackSeq(): number {
-    let persistedMax = 0;
-    try {
-      const row = this.getDb()
-        .prepare(`SELECT IFNULL(MAX(seq), 0) AS maxSeq FROM timeline_events`)
-        .get() as { maxSeq: number } | undefined;
-      persistedMax = row ? row.maxSeq : 0;
-    } catch {
-      persistedMax = 0;
-    }
-    const bufferedMax = fallbackQueue.reduce((max, evt) => Math.max(max, evt.seq ?? 0), 0);
-    return Math.max(persistedMax, bufferedMax) + 1;
+    const bufferedMax = fallbackQueue.reduce(
+      (max, evt) => Math.max(max, evt.seq ?? 0),
+      FALLBACK_SEQ_BASE,
+    );
+    return bufferedMax + 1;
   }
 
   /** Compares two events on the (timestamp, seq) coordinate, ascending. */
@@ -91,26 +207,23 @@ export class SqliteTimelineRepository implements TimelineRepository {
   }
 
   insert(event: TimelineEvent): void {
-    // Attempt write transaction retry. SQLite natively blocks up to busy_timeout (5000ms),
-    // but if it fails completely (locked/read-only), we store the event in-memory to prevent app crashes.
+    // Recover anything buffered by an earlier outage before adding to it. This
+    // is the recovery trigger: ordinary write activity drains the queue, so no
+    // timer or background task is involved. It also keeps the queue empty
+    // whenever the database is healthy, which is what stops a buffered event
+    // and a later persisted one from being handed the same sequence.
+    this.drainFallbackQueue();
+
     try {
-      this.getDb()
-        .prepare(
-          `
-          INSERT INTO timeline_events (
-            id, event_type, project_id, payload, timestamp, payload_version, seq
-          ) VALUES (?, ?, ?, ?, ?, ?, ${NEXT_SEQ_SQL})
-        `,
-        )
-        .run(
-          event.id,
-          event.eventType,
-          event.projectId,
-          JSON.stringify(event.payload),
-          event.timestamp,
-          event.payloadVersion,
-        );
+      this.writeEvent(event);
     } catch (err: any) {
+      if (!isTransientDbError(err)) {
+        // SQLite natively blocks up to busy_timeout (5000ms), so reaching here
+        // with a non-transient error means the row itself was rejected. Queuing
+        // it would retry it forever, so report it instead.
+        console.error(`Timeline event "${event.id}" was rejected and not recorded:`, err);
+        return;
+      }
       console.warn(
         "Timeline SQL write failed (DB locked/offline). Buffering event in-memory:",
         err,
@@ -119,9 +232,42 @@ export class SqliteTimelineRepository implements TimelineRepository {
     }
   }
 
+  /**
+   * Attempts to persist everything buffered, and reports what is still waiting.
+   *
+   * Writes drain the queue on their own, so this exists for the case where
+   * nothing is being written: an idle system, or a shutdown path that wants one
+   * last attempt before the process goes away.
+   */
+  flush(): number {
+    this.drainFallbackQueue();
+    return fallbackQueue.length;
+  }
+
+  /**
+   * Events accepted by the repository but not yet in the database.
+   *
+   * count() deliberately still includes these, because they are visible to
+   * reads and excluding them would make the count disagree with findPaged().
+   * This exposes the difference so a backlog is observable rather than hidden
+   * inside an otherwise healthy-looking total.
+   */
+  pendingCount(): number {
+    return fallbackQueue.length;
+  }
+
   findPaged(request: TimelineQueryRequest): TimelineQueryResult {
     const { limit, cursor, filterProjectIds, filterCategories, sortDirection = "desc" } = request;
-    const db = this.getDb();
+
+    // Acquiring the connection is allowed to fail. Buffered events exist
+    // precisely because the database was unavailable, so a read during that
+    // outage must still surface them rather than throwing.
+    let db: ReturnType<SqliteTimelineRepository["getDb"]> | null = null;
+    try {
+      db = this.getDb();
+    } catch (err) {
+      console.error("Timeline database unavailable for reads (serving buffered events only):", err);
+    }
 
     const conditions: string[] = [];
     const params: Record<string, any> = {};
@@ -200,7 +346,7 @@ export class SqliteTimelineRepository implements TimelineRepository {
 
     let dbEvents: TimelineEvent[] = [];
     try {
-      const rows = db.prepare(query).all(params) as TimelineEventRow[];
+      const rows = (db ? db.prepare(query).all(params) : []) as TimelineEventRow[];
       dbEvents = rows.map((row) => this.mapRowToEvent(row));
     } catch (err) {
       console.error("Timeline repository read failed (falling back to in-memory only):", err);

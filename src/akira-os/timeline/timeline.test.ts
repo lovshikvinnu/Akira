@@ -5,6 +5,7 @@ process.env.NODE_ENV = "test";
 import { test } from "vitest";
 import { initializeDatabase } from "../../persistence/initializer";
 import { timelineRepository } from "../../persistence/repositories";
+import { SqliteTimelineRepository } from "../../persistence/repositories/SqliteTimelineRepository";
 import { timelineService } from "./service";
 import { eventBus } from "../../shared/infrastructure/event-bus";
 import { Events } from "../../contracts/events";
@@ -302,17 +303,31 @@ test("TimelineRepository - Fallback in-memory rows order against persisted rows"
     timestamp: TIED,
   });
 
-  // Force the SQL write to fail so the repository buffers in memory. A project
-  // id with no matching row violates the foreign key, and foreign_keys is ON.
-  timelineRepository.insert({
-    id: "buffered-1",
-    eventType: "task.created",
-    projectId: "no-such-project",
-    payload: { order: 1 },
-    payloadVersion: 1,
-    timestamp: TIED,
-  });
+  // Force the SQL write to fail the way a locked or read-only database does, so
+  // the repository buffers the event in memory. A constraint violation is
+  // deliberately not used here: those can never succeed on retry, so they are
+  // reported rather than queued.
+  const proto = SqliteTimelineRepository.prototype as unknown as { getDb: unknown };
+  const realGetDb = proto.getDb;
+  proto.getDb = () => {
+    const err = new Error("database is locked") as Error & { code?: string };
+    err.code = "SQLITE_BUSY";
+    throw err;
+  };
+  try {
+    timelineRepository.insert({
+      id: "buffered-1",
+      eventType: "task.created",
+      projectId: "proj-1",
+      payload: { order: 1 },
+      payloadVersion: 1,
+      timestamp: TIED,
+    });
+  } finally {
+    proto.getDb = realGetDb;
+  }
 
+  assertEquals(timelineRepository.pendingCount(), 1, "Event must buffer while the DB is down");
   assertEquals(timelineRepository.count(), 2, "Buffered event must still be counted");
 
   const items = timelineRepository.findPaged({ limit: 10 }).items;
