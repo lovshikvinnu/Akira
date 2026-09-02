@@ -23,6 +23,9 @@ export * from "./importance/types";
 // Cognitive Understanding & Identity
 export { identityService } from "./understanding/identity-service";
 export { hypothesesService } from "./understanding/hypotheses";
+// Exported alongside insightEngine so the understanding stage is observable
+// through this entry point; it is a composed processor (see ./composition.ts).
+export { understandingEngine } from "./understanding/engine";
 export * from "./understanding/types";
 export * from "./understanding/identity-types";
 
@@ -150,3 +153,17 @@ export { GoalCategory } from "./planning/types";
 // the newer Reasoning factory a distinct one, rather than silently changing either.
 export { createDefaultStrategyRegistry } from "./insights/reflection/engine";
 export { createDefaultStrategyRegistry as createDefaultReasoningStrategyRegistry } from "./reasoning";
+
+// --- Production composition ---
+// Declares and activates the cognitive processors. Importing this entry point
+// yields a wired pipeline; see ./composition.ts for why this is explicit rather
+// than left to module-scope import side effects.
+export {
+  initializeGenesisCognition,
+  GENESIS_COGNITIVE_PROCESSORS,
+  type GenesisProcessor,
+} from "./composition";
+
+import { initializeGenesisCognition as composeGenesis } from "./composition";
+
+composeGenesis();

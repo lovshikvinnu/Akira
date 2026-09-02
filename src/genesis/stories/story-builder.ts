@@ -90,5 +90,7 @@ export const storyBuilder = {
   },
 };
 
-// Automatic integration: initialize on load
-storyBuilder.initialize();
+// Activation is owned by src/genesis/composition.ts, which the production
+// entry point composes explicitly. This module previously initialised itself
+// on import — and nothing in the application imported it, so `storyBuilder`
+// never ran outside its own tests.

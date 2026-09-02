@@ -72,5 +72,7 @@ export const importanceBuilder = {
   },
 };
 
-// Automatic integration: initialize on load
-importanceBuilder.initialize();
+// Activation is owned by src/genesis/composition.ts, which the production
+// entry point composes explicitly. This module previously initialised itself
+// on import — and nothing in the application imported it, so `importanceBuilder`
+// never ran outside its own tests.
