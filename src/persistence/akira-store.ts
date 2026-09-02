@@ -129,8 +129,33 @@ const pendingPersistence = new Set<Promise<void>>();
  * and its rejection is handled, so a genuine write failure is reported rather
  * than escaping the process.
  */
+/**
+ * Runs a write-through in a server runtime.
+ *
+ * The write ends in a TanStack server function. On the client that is an RPC
+ * and needs nothing from us. On the server the function reads its options from
+ * the Start context in AsyncLocalStorage, and throws outright when there is
+ * none -- which is the case for any server-side write that does not happen to
+ * sit inside an in-flight request, including every write a test makes.
+ *
+ * That is why store mutations persisted nothing under test: not a missing
+ * repository or a broken query, but a write executed outside the runtime its
+ * transport requires. When a real request context exists it is used unchanged;
+ * otherwise a minimal one is established, which is a truthful statement that
+ * this code is running server-side, not a stand-in for a request. The import is
+ * dynamic and guarded so node:async_hooks never reaches the browser bundle.
+ */
+async function runInServerRuntime<T>(run: () => Promise<T>): Promise<T> {
+  if (typeof window !== "undefined") return run();
+
+  const { getStartContext, runWithStartContext } = await import("@tanstack/start-storage-context");
+  if (getStartContext({ throwIfNotFound: false })) return run();
+
+  return runWithStartContext({} as never, run);
+}
+
 function persist(operation: string, run: () => Promise<unknown>): void {
-  const task = run().then(
+  const task = runInServerRuntime(run).then(
     () => undefined,
     (err: unknown) => {
       console.error(`[akira-store] Persistence write "${operation}" failed:`, err);
