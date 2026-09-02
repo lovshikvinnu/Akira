@@ -5,6 +5,7 @@ if (typeof window !== "undefined") {
 }
 
 import {
+  TimelineCursor,
   TimelineEvent,
   TimelineQueryRequest,
   TimelineQueryResult,
@@ -19,10 +20,26 @@ interface TimelineEventRow {
   payload: string;
   payload_version: number;
   timestamp: string;
+  seq: number | null;
 }
 
 // In-memory fallback queue for offline/read-only resilience under database locks
 const fallbackQueue: TimelineEvent[] = [];
+
+/**
+ * Ordering coordinate.
+ *
+ * Rows are ordered by (timestamp, seq). `timestamp` resolves only to the
+ * millisecond, so a burst recorded inside one millisecond ties on it; `seq`
+ * breaks the tie in the order the events were actually recorded. It replaces an
+ * earlier tiebreak on `id`, which is a random UUID and therefore ordered tied
+ * events arbitrarily.
+ *
+ * Persisted rows take their sequence from SQL so the database stays the single
+ * source of truth, including for the vault audit triggers, which insert
+ * timeline rows without going through this repository.
+ */
+const NEXT_SEQ_SQL = "(SELECT IFNULL(MAX(seq), 0) + 1 FROM timeline_events)";
 
 export class SqliteTimelineRepository implements TimelineRepository {
   private getDb() {
@@ -37,7 +54,40 @@ export class SqliteTimelineRepository implements TimelineRepository {
       payload: JSON.parse(row.payload),
       payloadVersion: row.payload_version,
       timestamp: row.timestamp,
+      seq: row.seq ?? 0,
     };
+  }
+
+  /**
+   * Sequence for an event the database refused to accept.
+   *
+   * A buffered event was recorded after everything currently persisted, so it
+   * must sort newer than every stored row and newer than anything buffered
+   * before it. Reading MAX(seq) keeps buffered and persisted rows on one scale;
+   * if the database is unreachable entirely, the queue still orders among itself.
+   */
+  private nextFallbackSeq(): number {
+    let persistedMax = 0;
+    try {
+      const row = this.getDb()
+        .prepare(`SELECT IFNULL(MAX(seq), 0) AS maxSeq FROM timeline_events`)
+        .get() as { maxSeq: number } | undefined;
+      persistedMax = row ? row.maxSeq : 0;
+    } catch {
+      persistedMax = 0;
+    }
+    const bufferedMax = fallbackQueue.reduce((max, evt) => Math.max(max, evt.seq ?? 0), 0);
+    return Math.max(persistedMax, bufferedMax) + 1;
+  }
+
+  /** Compares two events on the (timestamp, seq) coordinate, ascending. */
+  private compareCoordinate(
+    a: { timestamp: string; seq?: number },
+    b: { timestamp: string; seq?: number },
+  ): number {
+    const byTimestamp = a.timestamp.localeCompare(b.timestamp);
+    if (byTimestamp !== 0) return byTimestamp;
+    return (a.seq ?? 0) - (b.seq ?? 0);
   }
 
   insert(event: TimelineEvent): void {
@@ -48,8 +98,8 @@ export class SqliteTimelineRepository implements TimelineRepository {
         .prepare(
           `
           INSERT INTO timeline_events (
-            id, event_type, project_id, payload, timestamp, payload_version
-          ) VALUES (?, ?, ?, ?, ?, ?)
+            id, event_type, project_id, payload, timestamp, payload_version, seq
+          ) VALUES (?, ?, ?, ?, ?, ?, ${NEXT_SEQ_SQL})
         `,
         )
         .run(
@@ -65,7 +115,7 @@ export class SqliteTimelineRepository implements TimelineRepository {
         "Timeline SQL write failed (DB locked/offline). Buffering event in-memory:",
         err,
       );
-      fallbackQueue.push(event);
+      fallbackQueue.push({ ...event, seq: this.nextFallbackSeq() });
     }
   }
 
@@ -76,17 +126,17 @@ export class SqliteTimelineRepository implements TimelineRepository {
     const conditions: string[] = [];
     const params: Record<string, any> = {};
 
-    // 1. Keyset Cursor logic (composite key of timestamp + id)
+    // 1. Keyset Cursor logic (composite key of timestamp + seq)
     if (cursor) {
       params.cursor_timestamp = cursor.timestamp;
-      params.cursor_id = cursor.id;
+      params.cursor_seq = cursor.seq;
       if (sortDirection === "desc") {
         conditions.push(
-          "(timestamp < :cursor_timestamp OR (timestamp = :cursor_timestamp AND id < :cursor_id))",
+          "(timestamp < :cursor_timestamp OR (timestamp = :cursor_timestamp AND seq < :cursor_seq))",
         );
       } else {
         conditions.push(
-          "(timestamp > :cursor_timestamp OR (timestamp = :cursor_timestamp AND id > :cursor_id))",
+          "(timestamp > :cursor_timestamp OR (timestamp = :cursor_timestamp AND seq > :cursor_seq))",
         );
       }
     }
@@ -135,11 +185,11 @@ export class SqliteTimelineRepository implements TimelineRepository {
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-    const orderClause = `ORDER BY timestamp ${sortDirection.toUpperCase()}, id ${sortDirection.toUpperCase()}`;
+    const orderClause = `ORDER BY timestamp ${sortDirection.toUpperCase()}, seq ${sortDirection.toUpperCase()}`;
 
     // Query limit + 1 to check if there is a next page
     const query = `
-      SELECT id, event_type, project_id, payload, payload_version, timestamp 
+      SELECT id, event_type, project_id, payload, payload_version, timestamp, seq
       FROM timeline_events
       ${whereClause}
       ${orderClause}
@@ -158,13 +208,11 @@ export class SqliteTimelineRepository implements TimelineRepository {
 
     // Blend in matching in-memory fallback events
     const matchingFallback = fallbackQueue.filter((evt) => {
-      // Cursor boundary matching
+      // Cursor boundary matching, on the same (timestamp, seq) coordinate the
+      // SQL predicate above uses.
       if (cursor) {
-        const cmp = evt.timestamp.localeCompare(cursor.timestamp);
-        const matchesCursor =
-          sortDirection === "desc"
-            ? cmp < 0 || (cmp === 0 && evt.id.localeCompare(cursor.id) < 0)
-            : cmp > 0 || (cmp === 0 && evt.id.localeCompare(cursor.id) > 0);
+        const cmp = this.compareCoordinate(evt, cursor);
+        const matchesCursor = sortDirection === "desc" ? cmp < 0 : cmp > 0;
         if (!matchesCursor) return false;
       }
       // Project ID filter
@@ -210,22 +258,23 @@ export class SqliteTimelineRepository implements TimelineRepository {
     combined.forEach((evt) => uniqueMap.set(evt.id, evt));
     const allItems = Array.from(uniqueMap.values());
 
-    // Sort together by composite keyset coordinate
+    // Sort together on the same coordinate as the SQL ORDER BY. These must not
+    // diverge: SQL decides which rows the LIMIT selects for the page, so a
+    // different order here would page over the wrong rows.
     allItems.sort((a, b) => {
-      const cmp = a.timestamp.localeCompare(b.timestamp);
-      if (cmp !== 0) return sortDirection === "desc" ? -cmp : cmp;
-      return sortDirection === "desc" ? b.id.localeCompare(a.id) : a.id.localeCompare(b.id);
+      const cmp = this.compareCoordinate(a, b);
+      return sortDirection === "desc" ? -cmp : cmp;
     });
 
     const hasMore = allItems.length > limit;
     const itemsToReturn = hasMore ? allItems.slice(0, limit) : allItems;
 
-    let nextCursor: { timestamp: string; id: string } | undefined;
+    let nextCursor: TimelineCursor | undefined;
     if (hasMore && itemsToReturn.length > 0) {
       const last = itemsToReturn[itemsToReturn.length - 1];
       nextCursor = {
         timestamp: last.timestamp,
-        id: last.id,
+        seq: last.seq ?? 0,
       };
     }
 

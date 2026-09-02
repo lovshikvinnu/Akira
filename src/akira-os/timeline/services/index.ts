@@ -1,4 +1,5 @@
 import { timelineService as serverTimelineService } from "../service";
+import { TimelineCursor } from "../types";
 import { getTimelineEvents } from "../server";
 
 export const timelineService = {
@@ -17,7 +18,7 @@ export const timelineService = {
   async getEvents(
     params: {
       limit: number;
-      cursor?: { timestamp: string; id: string };
+      cursor?: TimelineCursor;
       projectId?: string;
       categories?: ("tasks" | "notes" | "sessions")[];
       sort?: "asc" | "desc";

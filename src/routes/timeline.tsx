@@ -18,7 +18,7 @@ import { Shell, PageHeader } from "@/app/shell/Shell";
 import { useAkira, timelineService } from "@/akira-os";
 import { TimelineList, TimelineUIState } from "@/app/ui/timeline/TimelineList";
 import { DetailDrawer } from "@/app/ui/timeline/DetailDrawer";
-import { TimelineEvent, TimelineQueryResult } from "@/akira-os/timeline/types";
+import { TimelineCursor, TimelineEvent, TimelineQueryResult } from "@/akira-os/timeline/types";
 import { RendererRegistry } from "@/app/ui/timeline/RendererRegistry";
 import { TimelineErrorBoundary } from "@/app/ui/timeline/TimelineErrorBoundary";
 
@@ -98,7 +98,7 @@ function TimelinePage() {
       );
       return result as TimelineQueryResult;
     },
-    initialPageParam: undefined as { timestamp: string; id: string } | undefined,
+    initialPageParam: undefined as TimelineCursor | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     staleTime: 10000, // Stale Time: 10 seconds
     gcTime: 300000, // Garbage Collection Cache Time: 5 minutes

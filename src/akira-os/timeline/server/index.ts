@@ -1,10 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
+import { TimelineCursor } from "../types";
 
 export const getTimelineEvents = createServerFn({ method: "GET" })
   .validator((data: any) => {
     return data as {
       limit: number;
-      cursor?: { timestamp: string; id: string };
+      cursor?: TimelineCursor;
       projectId?: string;
       categories?: ("tasks" | "notes" | "sessions")[];
       sort?: "asc" | "desc";

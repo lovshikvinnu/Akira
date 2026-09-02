@@ -108,10 +108,16 @@ CREATE TABLE IF NOT EXISTS timeline_events (
   payload TEXT NOT NULL, -- JSON stringified metadata
   timestamp TEXT NOT NULL,
   payload_version INTEGER DEFAULT 1,
+  -- Monotonic record order. `timestamp` only has millisecond resolution, so a
+  -- burst recorded inside one millisecond ties; (timestamp, seq) is the total
+  -- order the Timeline sorts and paginates by.
+  seq INTEGER,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_timeline_timestamp ON timeline_events (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_timeline_seq ON timeline_events (seq);
+CREATE INDEX IF NOT EXISTS idx_timeline_timestamp_seq ON timeline_events (timestamp DESC, seq DESC);
 CREATE INDEX IF NOT EXISTS idx_timeline_project_event ON timeline_events (project_id, event_type);
 
 -- Search History and FTS5 Virtual Table for Universal Search
@@ -368,28 +374,30 @@ END;
 CREATE TRIGGER IF NOT EXISTS trg_vault_files_insert_audit 
 AFTER INSERT ON vault_files
 BEGIN
-  INSERT INTO timeline_events (id, event_type, project_id, payload, timestamp, payload_version)
+  INSERT INTO timeline_events (id, event_type, project_id, payload, timestamp, payload_version, seq)
   VALUES (
     lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(6))),
     'file.created',
     NULL,
     json_object('id', new.id, 'displayName', new.display_name, 'sizeBytes', new.size_bytes, 'mimeType', new.mime_type),
     STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
-    1
+    1,
+    (SELECT IFNULL(MAX(seq), 0) + 1 FROM timeline_events)
   );
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_vault_files_delete_audit 
 AFTER DELETE ON vault_files
 BEGIN
-  INSERT INTO timeline_events (id, event_type, project_id, payload, timestamp, payload_version)
+  INSERT INTO timeline_events (id, event_type, project_id, payload, timestamp, payload_version, seq)
   VALUES (
     lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(6))),
     'file.deleted',
     NULL,
     json_object('id', old.id, 'displayName', old.display_name, 'hash', old.hash),
     STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
-    1
+    1,
+    (SELECT IFNULL(MAX(seq), 0) + 1 FROM timeline_events)
   );
 END;
 

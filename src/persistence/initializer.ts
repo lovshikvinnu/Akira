@@ -71,14 +71,83 @@ export const initializeDatabase = (): void => {
           payload TEXT NOT NULL,
           timestamp TEXT NOT NULL,
           payload_version INTEGER DEFAULT 1,
+          seq INTEGER,
           FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
         );
 
         CREATE INDEX IF NOT EXISTS idx_timeline_timestamp ON timeline_events (timestamp DESC);
+        CREATE INDEX IF NOT EXISTS idx_timeline_seq ON timeline_events (seq);
+        CREATE INDEX IF NOT EXISTS idx_timeline_timestamp_seq ON timeline_events (timestamp DESC, seq DESC);
         CREATE INDEX IF NOT EXISTS idx_timeline_project_event ON timeline_events (project_id, event_type);
       `);
     })();
     console.log("SQLite Database migration completed: timeline_events table created.");
+  }
+
+  // Dynamic Migration: give timeline_events an explicit ordering sequence.
+  //
+  // `timestamp` is an ISO string with millisecond resolution, so events recorded
+  // inside the same millisecond tie on it. The tiebreaker used to be `id`, which
+  // is a random UUID, making the order of tied events arbitrary. `seq` restores
+  // the order events were actually recorded in, and (timestamp, seq) becomes the
+  // total order the Timeline sorts and paginates by.
+  const timelineColumns = db.prepare(`PRAGMA table_info(timeline_events)`).all() as {
+    name: string;
+  }[];
+
+  if (!timelineColumns.some((column) => column.name === "seq")) {
+    db.transaction(() => {
+      db.exec(`ALTER TABLE timeline_events ADD COLUMN seq INTEGER`);
+
+      // Backfill existing rows from rowid. It is the only record of historical
+      // insertion order still available, and it is monotonic, so pre-migration
+      // rows keep a stable relative order instead of collapsing to NULL.
+      db.exec(`UPDATE timeline_events SET seq = rowid WHERE seq IS NULL`);
+
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_timeline_seq ON timeline_events (seq);
+        CREATE INDEX IF NOT EXISTS idx_timeline_timestamp_seq ON timeline_events (timestamp DESC, seq DESC);
+      `);
+
+      // The vault audit triggers insert timeline rows directly, bypassing the
+      // repository. They were created with CREATE TRIGGER IF NOT EXISTS, so an
+      // existing database keeps the old seq-less definition unless it is dropped
+      // first. Recreate them so trigger-written rows also carry a sequence.
+      db.exec(`DROP TRIGGER IF EXISTS trg_vault_files_insert_audit`);
+      db.exec(`DROP TRIGGER IF EXISTS trg_vault_files_delete_audit`);
+      db.exec(`
+        CREATE TRIGGER trg_vault_files_insert_audit
+        AFTER INSERT ON vault_files
+        BEGIN
+          INSERT INTO timeline_events (id, event_type, project_id, payload, timestamp, payload_version, seq)
+          VALUES (
+            lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(6))),
+            'file.created',
+            NULL,
+            json_object('id', new.id, 'displayName', new.display_name, 'sizeBytes', new.size_bytes, 'mimeType', new.mime_type),
+            STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            1,
+            (SELECT IFNULL(MAX(seq), 0) + 1 FROM timeline_events)
+          );
+        END;
+
+        CREATE TRIGGER trg_vault_files_delete_audit
+        AFTER DELETE ON vault_files
+        BEGIN
+          INSERT INTO timeline_events (id, event_type, project_id, payload, timestamp, payload_version, seq)
+          VALUES (
+            lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(6))),
+            'file.deleted',
+            NULL,
+            json_object('id', old.id, 'displayName', old.display_name, 'hash', old.hash),
+            STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            1,
+            (SELECT IFNULL(MAX(seq), 0) + 1 FROM timeline_events)
+          );
+        END;
+      `);
+    })();
+    console.log("SQLite Database migration completed: timeline_events.seq added.");
   }
 
   // Dynamic Migration: Ensure search_history and fts_workspace tables and triggers are created if they do not exist

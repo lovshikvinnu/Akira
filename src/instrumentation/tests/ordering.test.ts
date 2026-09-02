@@ -82,75 +82,61 @@ test("Event Ordering - Sequential Flow Verification", async () => {
   assertEquals(storedEvents[2].type, "task.created", "Third latest must be task.created");
 });
 
-// KNOWN DEFECT — pinned, not fixed here.
+// Regression pin for the Timeline same-millisecond ordering defect.
 //
-// The Timeline half of the original "Sequential Flow Verification" test, with
-// its assertions preserved verbatim. It fails because
-// SqliteTimelineRepository.findPaged() re-sorts the SQL result in JavaScript by
-// `(timestamp, id)`, and `timeline_events.id` is the AkiraEvent id — a random
-// crypto.randomUUID(). Within a single millisecond the tiebreaker is therefore
-// arbitrary, so a user-visible timeline can show "Task Completed" above the
-// "Task Created" that preceded it. The failure is nondeterministic run to run.
-//
-// Repairing it means replacing the keyset coordinate `(timestamp, id)` with a
-// monotonic one. That is a contract change: `TimelineQueryResult.nextCursor` is
-// `{ timestamp, id }` and is consumed by routes/timeline.tsx via
-// getNextPageParam, and the in-memory fallbackQueue rows carry no rowid. It
-// also needs src/akira-os/timeline/timeline.test.ts revived first — that suite
-// is one of the dead runners and covers exactly this pagination path.
-//
-// `test.fails` is deliberate: it keeps the defect executing and visible, and it
-// turns RED the moment the bug is fixed, forcing whoever fixes it to promote
-// this back to a normal test rather than leaving a stale quarantine behind.
-test.fails(
-  "Event Ordering - Timeline same-millisecond order (KNOWN DEFECT: random-UUID tiebreaker)",
-  () => {
-    const db = getDatabaseConnection();
-    const timelineRepository = new SqliteTimelineRepository();
+// findPaged() used to re-sort the SQL result in JavaScript by `(timestamp, id)`,
+// and `timeline_events.id` is the AkiraEvent id — a random crypto.randomUUID().
+// Within a single millisecond the tiebreaker was therefore arbitrary, so the
+// timeline could show "Task Completed" above the "Task Created" that preceded
+// it. The ordering coordinate is now `(timestamp, seq)`, an explicit monotonic
+// record order. This test was quarantined with `test.fails` while the defect
+// stood and was promoted to a normal test when it was repaired.
+test("Event Ordering - Timeline same-millisecond order", () => {
+  const db = getDatabaseConnection();
+  const timelineRepository = new SqliteTimelineRepository();
 
-    db.prepare(`DELETE FROM timeline_events`).run();
+  db.prepare(`DELETE FROM timeline_events`).run();
 
-    // Explicit ids and one shared timestamp, so the defect is deterministic
-    // rather than a ~1-in-6 coin flip on random UUIDs: sorting these ids
-    // descending yields exactly the insertion order, i.e. oldest first, which
-    // is the opposite of what findPaged({sortDirection:"desc"}) promises.
-    const tied = "2026-09-03T10:00:00.000Z";
-    const rows = [
-      { id: "evt-c", eventType: "task.created" },
-      { id: "evt-b", eventType: "task.updated" },
-      { id: "evt-a", eventType: "task.completed" },
-    ];
-    for (const row of rows) {
-      timelineRepository.insert({
-        id: row.id,
-        eventType: row.eventType,
-        projectId: null,
-        payload: { id: "task-1" },
-        payloadVersion: 1,
-        timestamp: tied,
-      });
-    }
+  // Explicit ids and one shared timestamp, so the defect is deterministic
+  // rather than a ~1-in-6 coin flip on random UUIDs: sorting these ids
+  // descending yields exactly the insertion order, i.e. oldest first, which
+  // is the opposite of what findPaged({sortDirection:"desc"}) promises.
+  const tied = "2026-09-03T10:00:00.000Z";
+  const rows = [
+    { id: "evt-c", eventType: "task.created" },
+    { id: "evt-b", eventType: "task.updated" },
+    { id: "evt-a", eventType: "task.completed" },
+  ];
+  for (const row of rows) {
+    timelineRepository.insert({
+      id: row.id,
+      eventType: row.eventType,
+      projectId: null,
+      payload: { id: "task-1" },
+      payloadVersion: 1,
+      timestamp: tied,
+    });
+  }
 
-    const timelineResult = timelineRepository.findPaged({ limit: 10 });
-    // findPaged returns latest events first (descending timestamp order)
-    assertEquals(timelineResult.items.length, 3, "Should contain 3 timeline entries");
-    assertEquals(
-      timelineResult.items[0].eventType,
-      "task.completed",
-      "Latest timeline entry must be task.completed",
-    );
-    assertEquals(
-      timelineResult.items[1].eventType,
-      "task.updated",
-      "Second latest timeline entry must be task.updated",
-    );
-    assertEquals(
-      timelineResult.items[2].eventType,
-      "task.created",
-      "Third latest timeline entry must be task.created",
-    );
-  },
-);
+  const timelineResult = timelineRepository.findPaged({ limit: 10 });
+  // findPaged returns latest events first (descending timestamp order)
+  assertEquals(timelineResult.items.length, 3, "Should contain 3 timeline entries");
+  assertEquals(
+    timelineResult.items[0].eventType,
+    "task.completed",
+    "Latest timeline entry must be task.completed",
+  );
+  assertEquals(
+    timelineResult.items[1].eventType,
+    "task.updated",
+    "Second latest timeline entry must be task.updated",
+  );
+  assertEquals(
+    timelineResult.items[2].eventType,
+    "task.created",
+    "Third latest timeline entry must be task.created",
+  );
+});
 
 test("Event Ordering - Concurrent High Volume Publishing Verification", async () => {
   const db = getDatabaseConnection();

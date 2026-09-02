@@ -2,38 +2,13 @@
 process.env.AKIRA_DATABASE_PATH = ":memory:";
 process.env.NODE_ENV = "test";
 
+import { test } from "vitest";
 import { initializeDatabase } from "../../persistence/initializer";
 import { timelineRepository } from "../../persistence/repositories";
 import { timelineService } from "./service";
 import { eventBus } from "../../shared/infrastructure/event-bus";
 import { Events } from "../../contracts/events";
 import { getDatabaseConnection } from "../../persistence/connection";
-
-let totalTests = 0;
-let passedTests = 0;
-
-function test(name: string, fn: () => void | Promise<void>) {
-  totalTests++;
-  console.log(`Running: ${name}`);
-  try {
-    const res = fn();
-    if (res instanceof Promise) {
-      res
-        .then(() => {
-          passedTests++;
-        })
-        .catch((error) => {
-          console.error(`  ✗ Failed: ${name}`);
-          console.error(error);
-        });
-    } else {
-      passedTests++;
-    }
-  } catch (error) {
-    console.error(`  ✗ Failed: ${name}`);
-    console.error(error);
-  }
-}
 
 function assertEquals<T>(actual: T, expected: T, message: string) {
   if (actual !== expected) {
@@ -207,12 +182,147 @@ test("TimelineService - EventBus Integration", async () => {
   timelineService.shutdown();
 });
 
-// Since async tests complete in next tick, delay exit to ensure results print
-setTimeout(() => {
-  console.log(`\nTimeline Test Run Completed: ${passedTests} / ${totalTests} Passed.`);
-  if (passedTests < totalTests) {
-    // process.exit(1);
-  } else {
-    // process.exit(0);
+// ---------------------------------------------------------------------------
+// Ordering coordinate regression suite.
+//
+// timeline_events rows carry an ISO timestamp with millisecond resolution, so a
+// burst of events written inside one millisecond ties on timestamp alone. The
+// tiebreaker must be the order the events were actually recorded in.
+//
+// Every case below uses explicitly controlled ids, timestamps and insertion
+// order. Nothing here depends on how fast the machine is or on how random ids
+// happen to sort -- the ids are deliberately chosen so that ordering by `id`
+// produces exactly the wrong answer.
+// ---------------------------------------------------------------------------
+
+const TIED = "2026-09-03T10:00:00.000Z";
+
+// Lexically DESCENDING, so ordering by id descending reproduces insertion order
+// (oldest first) -- the exact inverse of what a newest-first query promises.
+const TIED_IDS = ["eee", "ddd", "ccc", "bbb", "aaa"];
+
+function seedTied(timestamp = TIED) {
+  setupMockProjects();
+  TIED_IDS.forEach((id, index) => {
+    timelineRepository.insert({
+      id,
+      eventType: "task.created",
+      projectId: "proj-1",
+      payload: { order: index },
+      payloadVersion: 1,
+      timestamp,
+    });
+  });
+}
+
+test("TimelineRepository - Same-millisecond events display newest-first", () => {
+  seedTied();
+
+  const items = timelineRepository.findPaged({ limit: 10 }).items;
+  assertEquals(items.length, 5, "Should return all 5 tied events");
+  assertEquals(
+    items.map((e) => e.id).join(","),
+    [...TIED_IDS].reverse().join(","),
+    "Tied events must be ordered newest-recorded first",
+  );
+  assertEquals(
+    items.map((e) => e.payload.order).join(","),
+    "4,3,2,1,0",
+    "Insertion order must be recoverable from display order",
+  );
+});
+
+test("TimelineRepository - Ascending order mirrors insertion order", () => {
+  seedTied();
+
+  const items = timelineRepository.findPaged({ limit: 10, sortDirection: "asc" }).items;
+  assertEquals(
+    items.map((e) => e.id).join(","),
+    TIED_IDS.join(","),
+    "Ascending order must return oldest-recorded first",
+  );
+});
+
+test("TimelineRepository - Insertion sequence is exposed and monotonic", () => {
+  seedTied();
+
+  const ascending = timelineRepository.findPaged({ limit: 10, sortDirection: "asc" }).items;
+  const seqs = ascending.map((e) => e.seq);
+
+  seqs.forEach((s, i) => {
+    assertEquals(typeof s, "number", `Event ${i} must carry a numeric sequence`);
+  });
+  for (let i = 1; i < seqs.length; i++) {
+    assertEquals(
+      (seqs[i] as number) > (seqs[i - 1] as number),
+      true,
+      `Sequence must strictly increase with insertion (index ${i})`,
+    );
   }
-}, 200);
+});
+
+test("TimelineRepository - Cursor continuation across identical timestamps", () => {
+  seedTied();
+
+  const singleShot = timelineRepository.findPaged({ limit: 10 }).items.map((e) => e.id);
+
+  const paged: string[] = [];
+  let cursor: { timestamp: string; seq: number } | undefined;
+  for (let page = 0; page < 10; page++) {
+    const result = timelineRepository.findPaged({ limit: 2, cursor });
+    paged.push(...result.items.map((e) => e.id));
+    if (!result.nextCursor) break;
+    cursor = result.nextCursor;
+  }
+
+  assertEquals(paged.length, 5, "Paging must yield every event exactly once");
+  assertEquals(
+    new Set(paged).size,
+    5,
+    "Paging across identical timestamps must not duplicate events",
+  );
+  assertEquals(
+    TIED_IDS.every((id) => paged.includes(id)),
+    true,
+    "Paging across identical timestamps must not skip events",
+  );
+  assertEquals(paged.join(","), singleShot.join(","), "Paged order must match single-shot order");
+});
+
+test("TimelineRepository - Fallback in-memory rows order against persisted rows", () => {
+  setupMockProjects();
+
+  // Persisted row.
+  timelineRepository.insert({
+    id: "persisted-1",
+    eventType: "task.created",
+    projectId: "proj-1",
+    payload: { order: 0 },
+    payloadVersion: 1,
+    timestamp: TIED,
+  });
+
+  // Force the SQL write to fail so the repository buffers in memory. A project
+  // id with no matching row violates the foreign key, and foreign_keys is ON.
+  timelineRepository.insert({
+    id: "buffered-1",
+    eventType: "task.created",
+    projectId: "no-such-project",
+    payload: { order: 1 },
+    payloadVersion: 1,
+    timestamp: TIED,
+  });
+
+  assertEquals(timelineRepository.count(), 2, "Buffered event must still be counted");
+
+  const items = timelineRepository.findPaged({ limit: 10 }).items;
+  assertEquals(items.length, 2, "Buffered event must appear alongside persisted rows");
+  assertEquals(
+    items.map((e) => e.id).join(","),
+    "buffered-1,persisted-1",
+    "Buffered event was recorded later, so it must sort newer",
+  );
+
+  // Do not leak the buffered event into later tests.
+  timelineRepository.clearAll();
+});
