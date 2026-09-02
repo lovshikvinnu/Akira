@@ -42,6 +42,15 @@ export interface GenesisRetentionPolicy {
   readonly maxImportanceHistoryPerMemory: number;
   /** Detected relationships between memories. */
   readonly maxRelationships: number;
+  /**
+   * Recall sessions kept as history.
+   *
+   * The bound that matters here is not the entry count but what each entry
+   * pins: a session holds the candidate snapshot of its cycle, so the memory
+   * retained is roughly this number multiplied by the live candidate count.
+   * See the note on the default below.
+   */
+  readonly maxRecallSessions: number;
 
   /**
    * Independent bound on what reaches the model.
@@ -69,6 +78,12 @@ export const DEFAULT_RETENTION_POLICY: GenesisRetentionPolicy = {
   maxMemoriesPerStory: 200,
   maxImportanceHistoryPerMemory: 20,
   maxRelationships: 1000,
+  // Lower than the 50 this replaces. Nothing reads `getSessionHistory()`; it is
+  // kept for inspection, and each entry holds a full candidate snapshot, so 50
+  // retained roughly 50 x maxMemories candidate objects at steady state --
+  // measured at ~17,900 held objects after only 90 completed tasks. Twelve
+  // keeps the trail useful for debugging at a small fraction of that.
+  maxRecallSessions: 12,
   context: {
     maxStories: 12,
     maxRecallCandidates: 12,

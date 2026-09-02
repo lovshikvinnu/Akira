@@ -1,4 +1,5 @@
 import { RecallCandidate, RecallSession, RecallAuditEntry, RecallContext } from "./types";
+import { getRetentionPolicy, trimOldest } from "../retention/policy";
 
 type RecallListener = (event: { type: "Updated"; session: RecallSession }) => void;
 const listeners = new Set<RecallListener>();
@@ -113,9 +114,14 @@ export const recallService = {
     activeSession = session;
     sessionHistory.push(session);
 
-    if (sessionHistory.length > 50) {
-      sessionHistory.shift(); // Cap history to prevent memory leak
-    }
+    // Oldest sessions go first: the trail exists to show what recall did
+    // recently, and a stale cycle describes candidates that have since been
+    // superseded. `activeSession` is held separately, so trimming here can
+    // never remove the session the UI is displaying.
+    //
+    // The limit lives in the retention policy rather than here so it sits
+    // beside every other cognitive bound and can be tuned and tested.
+    trimOldest(sessionHistory, getRetentionPolicy().maxRecallSessions);
 
     this.notify(session);
     return session;
