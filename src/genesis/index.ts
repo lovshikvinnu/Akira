@@ -125,3 +125,11 @@ export * from "./planning/repositories/MilestoneRepository";
 export * from "./planning/repositories/TaskRepository";
 export * from "./planning/repositories/DependencyRepository";
 export * from "./planning/repositories/TemplateRepository";
+
+// Reasoning Engine Foundation
+export * from "./reasoning";
+
+// Decision Subsystem Foundation
+export * from "./decision";
+
+
