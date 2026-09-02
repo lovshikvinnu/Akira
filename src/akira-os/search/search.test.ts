@@ -2,6 +2,7 @@
 process.env.AKIRA_DATABASE_PATH = ":memory:";
 process.env.NODE_ENV = "test";
 
+import { test } from "vitest";
 import { initializeDatabase } from "../../persistence/initializer";
 import { getDatabaseConnection } from "../../persistence/connection";
 import {
@@ -13,12 +14,6 @@ import {
   searchHistoryRepository,
 } from "../../persistence/repositories";
 import { searchService, searchHistoryService } from "./index";
-
-const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
-
-function test(name: string, fn: () => void | Promise<void>) {
-  tests.push({ name, fn });
-}
 
 function assertEquals<T>(actual: T, expected: T, message: string) {
   if (actual !== expected) {

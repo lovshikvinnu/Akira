@@ -1,3 +1,4 @@
+import { test } from "vitest";
 import {
   classifyTimePeriod,
   classifyReturnState,
@@ -7,21 +8,6 @@ import {
   calculatePresenceConfidence,
   buildPresenceContext,
 } from "./index";
-
-let totalTests = 0;
-let passedTests = 0;
-
-function test(name: string, fn: () => void) {
-  totalTests++;
-  console.log(`Running: ${name}`);
-  try {
-    fn();
-    passedTests++;
-  } catch (error) {
-    console.error(`  ✗ Failed: ${name}`);
-    console.error(error);
-  }
-}
 
 function assertEquals<T>(actual: T, expected: T, message: string) {
   if (actual !== expected) {
@@ -163,10 +149,3 @@ test("buildPresenceContext produces complete outputs with provenance", () => {
 });
 
 // ----------------------------------------------------
-
-console.log(`\nTest Run Completed: ${passedTests} / ${totalTests} Passed.`);
-if (passedTests < totalTests) {
-  // process.exit(1);
-} else {
-  // process.exit(0);
-}

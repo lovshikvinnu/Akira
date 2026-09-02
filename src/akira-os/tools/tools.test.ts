@@ -1,13 +1,5 @@
+import { test } from "vitest";
 import { getTools, getToolsByCategory, getEnabledTools, getVisibleTools, Tool } from "./registry";
-
-const totalTests = 0;
-const passedTests = 0;
-
-const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
-
-function test(name: string, fn: () => void | Promise<void>) {
-  tests.push({ name, fn });
-}
 
 function assertEquals<T>(actual: T, expected: T, message: string) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {

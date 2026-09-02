@@ -2,35 +2,10 @@
 process.env.AKIRA_DATABASE_PATH = ":memory:";
 process.env.NODE_ENV = "test";
 
+import { test } from "vitest";
 import { initializeDatabase } from "../../../persistence/initializer";
 import { timelineRepository } from "../../../persistence/repositories";
 import { getDatabaseConnection } from "../../../persistence/connection";
-
-let totalTests = 0;
-let passedTests = 0;
-
-function test(name: string, fn: () => void | Promise<void>) {
-  totalTests++;
-  console.log(`Running: ${name}`);
-  try {
-    const res = fn();
-    if (res instanceof Promise) {
-      res
-        .then(() => {
-          passedTests++;
-        })
-        .catch((error) => {
-          console.error(`  ✗ Failed: ${name}`);
-          console.error(error);
-        });
-    } else {
-      passedTests++;
-    }
-  } catch (error) {
-    console.error(`  ✗ Failed: ${name}`);
-    console.error(error);
-  }
-}
 
 function assertEquals<T>(actual: T, expected: T, message: string) {
   if (actual !== expected) {
@@ -139,11 +114,3 @@ test("Operational Resiliency - Lock Recovery and Fallback Queue", () => {
 });
 
 // Since async tests complete in next tick, delay exit to ensure results print
-setTimeout(() => {
-  console.log(`\nTimeline Performance Test Run Completed: ${passedTests} / ${totalTests} Passed.`);
-  if (passedTests < totalTests) {
-    // process.exit(1);
-  } else {
-    // process.exit(0);
-  }
-}, 200);

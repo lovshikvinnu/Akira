@@ -1,19 +1,5 @@
+import { test } from "vitest";
 import { Route } from "../../../routes/timeline";
-
-let totalTests = 0;
-let passedTests = 0;
-
-function test(name: string, fn: () => void) {
-  totalTests++;
-  console.log(`Running: ${name}`);
-  try {
-    fn();
-    passedTests++;
-  } catch (error) {
-    console.error(`  ✗ Failed: ${name}`);
-    console.error(error);
-  }
-}
 
 function assertEquals<T>(actual: T, expected: T, message: string) {
   if (actual !== expected) {
@@ -45,10 +31,3 @@ test("URL Query Parameter Schema Validation", () => {
   const invalidSort = schema.parse({ sort: "invalid" });
   assertEquals(invalidSort.sort, "desc", "Invalid sort parameter should recover to desc");
 });
-
-console.log(`\nTimeline Interaction Test Run Completed: ${passedTests} / ${totalTests} Passed.`);
-if (passedTests < totalTests) {
-  // process.exit(1);
-} else {
-  // process.exit(0);
-}

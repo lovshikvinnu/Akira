@@ -1,6 +1,7 @@
 process.env.AKIRA_DATABASE_PATH = ":memory:";
 process.env.NODE_ENV = "test";
 
+import { test } from "vitest";
 import { getDatabaseConnection } from "../../persistence/connection";
 import { SqliteEventRepository } from "../../instrumentation/event-store/sqlite-event-repository";
 import { EventBus } from "../../instrumentation/event-bus";
@@ -25,14 +26,6 @@ import { ConsistencyChecker } from "../validation/consistency-checker";
 import { AnalyticsValidator } from "../validation/analytics-validator";
 import { DiagnosticsService } from "../validation/diagnostics";
 import { BenchmarkRunner } from "../validation/benchmark";
-
-const totalTests = 0;
-const passedTests = 0;
-const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
-
-function test(name: string, fn: () => void | Promise<void>) {
-  tests.push({ name, fn });
-}
 
 function assertEquals<T>(actual: T, expected: T, message: string) {
   if (actual !== expected) {

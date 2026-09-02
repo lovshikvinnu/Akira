@@ -1,22 +1,8 @@
+import { test } from "vitest";
 import { RendererRegistry } from "./RendererRegistry";
 import { groupEventsByDate } from "./utils/grouping";
 import { formatTime, formatDateTime } from "./utils/time";
 import { TimelineEvent } from "@/akira-os/timeline/types";
-
-let totalTests = 0;
-let passedTests = 0;
-
-function test(name: string, fn: () => void) {
-  totalTests++;
-  console.log(`Running: ${name}`);
-  try {
-    fn();
-    passedTests++;
-  } catch (error) {
-    console.error(`  ✗ Failed: ${name}`);
-    console.error(error);
-  }
-}
 
 function assertEquals<T>(actual: T, expected: T, message: string) {
   if (actual !== expected) {
@@ -116,10 +102,3 @@ test("Grouping Utility - Segment Events Chronologically", () => {
   assertEquals(groups[2].title, "Earlier", "Third group must be Earlier");
   assertEquals(groups[2].items[0].id, "evt-earlier", "Earlier group should contain earlier event");
 });
-
-console.log(`\nTimeline Rendering Test Run Completed: ${passedTests} / ${totalTests} Passed.`);
-if (passedTests < totalTests) {
-  // process.exit(1);
-} else {
-  // process.exit(0);
-}
