@@ -4,11 +4,15 @@ import { Memory } from "../validation/types";
 import { validator } from "../validation/validator";
 import { recallService } from "../recall/recall-service";
 import { getMemories } from "../../shared/genesis-provider";
+import { getRetentionPolicy, trimOldest } from "../retention/policy";
 
 export type MemoryListener = (memory: Memory) => void;
 export type ClearListener = () => void;
+/** Receives the ids of memories dropped by retention, oldest first. */
+export type EvictionListener = (evictedMemoryIds: string[]) => void;
 const listeners = new Set<MemoryListener>();
 const clearListeners = new Set<ClearListener>();
+const evictionListeners = new Set<EvictionListener>();
 
 let rebuildRecallIndexCallback: (() => void) | null = null;
 
@@ -67,6 +71,20 @@ export const memoryService = {
       };
 
       memories.push(memory);
+
+      // Retention runs on write rather than on a timer: the only moment the
+      // collection can exceed its cap is the moment something was added, and a
+      // background sweep would be state nothing else in GENESIS needs.
+      //
+      // Eviction is by age. Importance would be the richer signal, but it is
+      // derived *from* memories, so consulting it here would make the root
+      // store depend on something downstream of itself. Recency is predictable
+      // and cannot invert that direction.
+      const evicted = trimOldest(memories, getRetentionPolicy().maxMemories);
+      if (evicted.length > 0) {
+        notifyEvicted(evicted.map((m) => m.id));
+      }
+
       listeners.forEach((listener) => {
         try {
           listener(memory);
@@ -137,6 +155,20 @@ export const memoryService = {
   },
 
   /**
+   * Subscribe to retention evictions.
+   *
+   * Derived stores hold memory ids; this is how they learn an id has gone so
+   * they can drop the reference instead of dangling. See
+   * ../retention/retention-service.ts, which is the only production subscriber.
+   */
+  subscribeEviction(listener: EvictionListener): () => void {
+    evictionListeners.add(listener);
+    return () => {
+      evictionListeners.delete(listener);
+    };
+  },
+
+  /**
    * Subscribe to memory clear events.
    */
   subscribeClear(listener: ClearListener): () => void {
@@ -146,6 +178,16 @@ export const memoryService = {
     };
   },
 };
+
+function notifyEvicted(evictedMemoryIds: string[]): void {
+  evictionListeners.forEach((listener) => {
+    try {
+      listener(evictedMemoryIds);
+    } catch (err) {
+      console.error("Error executing memory eviction listener:", err);
+    }
+  });
+}
 
 let candidateSub: (() => void) | null = null;
 

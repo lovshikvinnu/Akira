@@ -44,6 +44,7 @@ import { understandingEngine } from "./understanding/engine";
 import { insightEngine } from "./insights/insight-engine";
 import { contextBuilder } from "./context/context-builder";
 import { genesisRealityAdapter } from "./events/reality-adapter";
+import { retentionService } from "./retention/retention-service";
 
 /** A cognitive processor that must be subscribed for the pipeline to flow. */
 export interface GenesisProcessor {
@@ -81,6 +82,11 @@ export const GENESIS_COGNITIVE_PROCESSORS: readonly GenesisProcessor[] = [
   { name: "insightEngine", initialize: () => insightEngine.initialize() },
   // recall -> context package
   { name: "contextBuilder", initialize: () => contextBuilder.initialize() },
+
+  // Keeps stories, importance profiles and relationships consistent with
+  // memory retention. Listed before the intake so no event can be ingested
+  // while derived stores are still unguarded against eviction.
+  { name: "retentionService", initialize: () => retentionService.initialize() },
 
   // AKIRA OS platform event stream -> GENESIS. This is how a real user action
   // becomes cognition; see ./events/reality-adapter.ts. Attaching subscribes the

@@ -2,6 +2,7 @@ import { memoryService } from "../memory-service";
 import { Memory } from "../../validation/types";
 import { MemoryRelationship } from "./types";
 import { relationshipRules } from "./relationship-rules";
+import { getRetentionPolicy, trimOldest } from "../../retention/policy";
 
 type RelationshipListener = (relationship: MemoryRelationship) => void;
 const listeners = new Set<RelationshipListener>();
@@ -80,6 +81,7 @@ export const relationshipService = {
           };
 
           relationshipCache.push(relationship);
+          trimOldest(relationshipCache, getRetentionPolicy().maxRelationships);
           detected.push(relationship);
 
           listeners.forEach((listener) => {
@@ -94,6 +96,21 @@ export const relationshipService = {
     }
 
     return detected;
+  },
+  /**
+   * Drops relationships that point at memories retention has evicted. A
+   * relationship needs both ends to mean anything.
+   */
+  forgetMemories(evictedMemoryIds: string[]): void {
+    if (evictedMemoryIds.length === 0) return;
+    const evicted = new Set(evictedMemoryIds);
+
+    for (let i = relationshipCache.length - 1; i >= 0; i--) {
+      const link = relationshipCache[i];
+      if (evicted.has(link.sourceMemoryId) || evicted.has(link.targetMemoryId)) {
+        relationshipCache.splice(i, 1);
+      }
+    }
   },
 };
 

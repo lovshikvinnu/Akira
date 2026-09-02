@@ -2,6 +2,7 @@ import { eventService } from "../events/event-service";
 import { MemoryEvent } from "../../shared/types/event-types";
 import { MemoryCandidate } from "./candidate";
 import { rules } from "./candidate-rules";
+import { getRetentionPolicy, trimNewestFirst } from "../retention/policy";
 
 export type CandidateListener = (candidate: MemoryCandidate) => void;
 const listeners = new Set<CandidateListener>();
@@ -61,6 +62,10 @@ export const candidateService = {
         };
 
         candidateHistory.unshift(candidate);
+        // Held newest-first, so the stale end is the tail. This trail grows
+        // faster than memories do: every matched event produces a candidate,
+        // whether or not the validator promotes it.
+        trimNewestFirst(candidateHistory, getRetentionPolicy().maxCandidates);
         listeners.forEach((listener) => {
           try {
             listener(candidate);

@@ -1,4 +1,5 @@
 import { MemoryImportance, ImportanceSignal } from "./types";
+import { getRetentionPolicy, trimOldest } from "../retention/policy";
 
 type ImportanceListener = (event: {
   type: "Updated" | "Increased" | "Decreased" | "Recalculated";
@@ -73,6 +74,9 @@ export const importanceService = {
       reason,
     };
     signalHistory.push(historyEntry);
+    // Recalculated on every memory promotion and every story update, so this
+    // grows even when the number of memories is stable.
+    trimOldest(signalHistory, getRetentionPolicy().maxImportanceHistoryPerMemory);
 
     const importance: MemoryImportance = {
       memoryId,
@@ -84,6 +88,14 @@ export const importanceService = {
     importanceCache.set(memoryId, importance);
     this.notify(eventType, importance);
     return importance;
+  },
+
+  /**
+   * Drops importance profiles for memories retention has evicted. The cache is
+   * keyed by memory id, so an entry outliving its memory is pure leak.
+   */
+  forgetMemories(evictedMemoryIds: string[]): void {
+    evictedMemoryIds.forEach((id) => importanceCache.delete(id));
   },
 
   /**

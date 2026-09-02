@@ -1,4 +1,5 @@
 import { Story } from "./types";
+import { getRetentionPolicy, trimOldest } from "../retention/policy";
 
 export type StoryListener = (event: {
   type: "Created" | "Updated" | "Completed";
@@ -60,6 +61,8 @@ export const storyService = {
     };
 
     storyCache.push(story);
+    // Stories are created in order, so the front is the least recently created.
+    trimOldest(storyCache, getRetentionPolicy().maxStories);
     this.notify("Created", story);
     return story;
   },
@@ -95,8 +98,13 @@ export const storyService = {
     if (!story) return;
     if (story.relatedMemoryIds.includes(memoryId)) return;
 
+    // A single long-running project would otherwise accumulate memory ids
+    // without limit even though the story count stays flat. Oldest drop first.
+    const nextIds = [...story.relatedMemoryIds, memoryId];
+    const max = getRetentionPolicy().maxMemoriesPerStory;
+
     this.updateStory(storyId, {
-      relatedMemoryIds: [...story.relatedMemoryIds, memoryId],
+      relatedMemoryIds: nextIds.length > max ? nextIds.slice(nextIds.length - max) : nextIds,
     });
   },
 
@@ -116,6 +124,31 @@ export const storyService = {
   /**
    * Notify subscribers of story events.
    */
+  /**
+   * Drops references to memories retention has evicted.
+   *
+   * A story whose every memory has aged out no longer describes anything, so it
+   * is removed rather than left as an empty arc. If the project sees activity
+   * again, the clustering rule creates a fresh one.
+   */
+  forgetMemories(evictedMemoryIds: string[]): void {
+    if (evictedMemoryIds.length === 0) return;
+    const evicted = new Set(evictedMemoryIds);
+
+    for (let i = storyCache.length - 1; i >= 0; i--) {
+      const story = storyCache[i];
+      const remaining = story.relatedMemoryIds.filter((id) => !evicted.has(id));
+      if (remaining.length === story.relatedMemoryIds.length) continue;
+
+      if (remaining.length === 0) {
+        storyCache.splice(i, 1);
+        continue;
+      }
+      story.relatedMemoryIds = remaining;
+      story.updatedAt = new Date().toISOString();
+    }
+  },
+
   notify(type: "Created" | "Updated" | "Completed", story: Story): void {
     listeners.forEach((listener) => {
       try {
