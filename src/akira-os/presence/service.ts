@@ -22,7 +22,16 @@ class PresenceService {
     // Publish to local presence listeners
     presenceEvents.publish(context);
 
-    // Record the transition event in the global Event Bus
+    // Record the transition event in the global Event Bus.
+    //
+    // This is the legacy bus, whose publish(type, payload) signature carries no
+    // AkiraEvent envelope, so there is nowhere to set `transient` yet. When
+    // these three sites move to instrumentation `publish()`, each must pass
+    // `transient: true`: presence fires on every store change plus a decay
+    // timer, and it is momentary state rather than a durable fact. Putting the
+    // flag in the payload today would look right and do nothing — the bridge
+    // copies payloads but builds its own envelope, and PersistenceSubscriber
+    // reads the envelope.
     eventBus.publish(Events.PRESENCE_UPDATED, { context });
 
     // Subscribe to store updates to dynamically sync active focus & project changes
