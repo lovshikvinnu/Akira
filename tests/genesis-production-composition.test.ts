@@ -126,9 +126,10 @@ describe("GENESIS production reachability", () => {
   it("names every self-initialising processor in the composition manifest", () => {
     const manifest = new Set(genesis.GENESIS_COGNITIVE_PROCESSORS.map((p) => p.name));
 
-    // eventService is intentionally excluded: it is the AKIRA OS event-bus
-    // intake, owned by the event-pipeline remediation task.
-    const exempt = new Set(["eventService"]);
+    // Nothing is exempt any more. eventService used to self-initialise a legacy
+    // bus subscription at module scope; the P4 cutover removed it, and GENESIS's
+    // intake is now the composed reality adapter.
+    const exempt = new Set<string>();
 
     const unmanaged = selfInitialisingModules()
       .map((m) => m.subject)

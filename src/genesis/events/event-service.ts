@@ -1,6 +1,4 @@
 import { MemoryEvent } from "../../shared/types/event-types";
-import { eventBus } from "../../shared/infrastructure/event-bus";
-import { translatePlatformEvent } from "./event-translation";
 import { saveMemory } from "../../shared/genesis-provider";
 
 const uid = () =>
@@ -10,6 +8,23 @@ const uid = () =>
 
 const nowISO = () => new Date().toISOString();
 
+/**
+ * GENESIS's intake is `src/genesis/events/reality-adapter.ts`, attached to the
+ * instrumentation `globalEventBus` by `genesis/composition.ts`.
+ *
+ * This module used to open a second one: an `initialize()` that subscribed
+ * `"*"` on the legacy `shared/infrastructure/event-bus`. That was the S1 defect
+ * — workspace events are published on the instrumentation bus, so the legacy
+ * subscription carried only `presence.updated` and GENESIS observed no user
+ * activity at all. It is removed rather than left dormant, because the legacy
+ * bus forwards everything except `presence.updated` onward to the
+ * instrumentation bus with a *fresh* event id; had both paths stayed live, the
+ * same real action would have been processed twice and id-based idempotency
+ * could not have detected it.
+ *
+ * `eventService` is now purely a recorder. Its public `record()` / `onRecord()`
+ * API is unchanged, and all 77 internal callers are unaffected.
+ */
 export type PersistHandler = (event: MemoryEvent) => void;
 export type EventCallback = (event: MemoryEvent) => void;
 
@@ -83,33 +98,4 @@ export const eventService = {
 
     return event;
   },
-
-  /**
-   * Initialize Event Bus subscription to bridge namespaced events.
-   */
-  initialize(): void {
-    if (isInitialized) return;
-    isInitialized = true;
-
-    eventBus.subscribe("*", (evt) => {
-      // Translation lives in ./event-translation so this subscription and the
-      // instrumentation-bus reality adapter cannot drift apart. Behaviour is
-      // unchanged: unsupported types are skipped, and a malformed payload for a
-      // supported type still throws into the bus's per-subscriber try/catch.
-      const translated = translatePlatformEvent(evt.type, evt.payload);
-      if (!translated) return;
-
-      this.record(
-        translated.eventType,
-        translated.title,
-        translated.description,
-        translated.relatedProjectId,
-        translated.relatedNoteId,
-        evt.payload || {},
-      );
-    });
-  },
 };
-
-let isInitialized = false;
-eventService.initialize();

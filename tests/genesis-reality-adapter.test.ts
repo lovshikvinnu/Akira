@@ -445,28 +445,28 @@ describe("reality adapter — attachment lifecycle", () => {
   });
 });
 
-describe("reality adapter — dormancy in production", () => {
-  it("is not attached merely by being imported", () => {
-    // The shared instance exists but must be inert until a later phase says so.
-    expect(genesisRealityAdapter.isAttached()).toBe(false);
-    expect(globalEventBus.hasSubscriber(genesisRealityAdapter)).toBe(false);
+describe("reality adapter — production wiring", () => {
+  // P2 asserted the inverse of every case below: the adapter was deliberately
+  // dormant then, and the cutover deliberately activates it. These are the
+  // replacement assertions, not weakened ones — they now pin that production
+  // actually opens the boundary.
+  it("is attached simply by importing GENESIS", () => {
+    expect(genesisRealityAdapter.isAttached()).toBe(true);
+    expect(globalEventBus.hasSubscriber(genesisRealityAdapter)).toBe(true);
   });
 
-  it("is absent from the GENESIS production composition", () => {
+  it("is named in the GENESIS production composition", () => {
     const names = genesis.GENESIS_COGNITIVE_PROCESSORS.map((p) => p.name);
-    expect(names).not.toContain("realityAdapter");
-    expect(names).not.toContain("genesisRealityAdapter");
+    expect(names).toContain("realityAdapter");
   });
 
-  it("leaves real OS actions unobserved while dormant", () => {
+  it("observes a real OS action without any test wiring", () => {
     const recorded = captureRecorded();
+    const before = genesisRealityAdapter.getMetrics().received;
 
-    // A genuine store action, published for real, with nothing attached.
-    akira.addTask("Dormant-phase task");
+    akira.addTask("Cutover-phase task");
 
-    expect(recorded.events).toHaveLength(0);
-    expect(genesisRealityAdapter.getMetrics().received).toBe(0);
-
+    expect(genesisRealityAdapter.getMetrics().received).toBeGreaterThan(before);
     recorded.stop();
   });
 });
@@ -554,12 +554,12 @@ describe("reality adapter — real OS action integration", () => {
   });
 });
 
-describe("legacy event-service subscription — behaviour preserved", () => {
-  // The switch that used to live inline in event-service.ts was extracted into
-  // event-translation.ts so the adapter could share it. That refactor is only
-  // safe if the legacy bus path still behaves exactly as before, so this drives
-  // the legacy bus directly rather than the adapter.
-  it("still translates a legacy-bus event into a MemoryEvent", async () => {
+describe("legacy GENESIS intake — removed by the cutover", () => {
+  // The S1 defect was that GENESIS subscribed "*" on the legacy bus while every
+  // workspace event was published on the instrumentation bus. That subscription
+  // is gone; the reality adapter is the sole intake. These cases pin the removal
+  // so it cannot quietly return and start double-processing.
+  it("no longer records anything published on the legacy bus", async () => {
     const { eventBus } = await import("../src/shared/infrastructure/event-bus");
     const recorded = captureRecorded();
 
@@ -571,30 +571,31 @@ describe("legacy event-service subscription — behaviour preserved", () => {
       },
     });
 
-    const presence = recorded.events.find((e) => e.eventType === "presence_updated");
-    expect(presence, "the legacy bus path must still reach eventService.record").toBeDefined();
-    expect(presence!.title).toBe("Presence Context Resolved");
-    expect(presence!.description).toBe("Resolved: returning during the evening");
-    expect(presence!.relatedProjectId).toBe("proj-legacy");
-
+    // presence.updated is excluded from the legacy bus's forward-bridge, so it
+    // reaches neither the instrumentation bus nor GENESIS. It matched no
+    // candidate rule when it did arrive, so nothing cognitive is lost; moving
+    // presence onto the platform bus is P5.
+    expect(recorded.events).toHaveLength(0);
     recorded.stop();
   });
 
-  it("still ignores legacy-bus events it has no translation for", async () => {
-    const { eventBus } = await import("../src/shared/infrastructure/event-bus");
+  it("exposes no initialize() that could re-open the legacy subscription", () => {
+    expect((eventService as unknown as Record<string, unknown>).initialize).toBeUndefined();
+  });
+
+  it("still records through its own public API", () => {
+    // record()/onRecord() are unchanged for all 77 internal GENESIS callers.
     const recorded = captureRecorded();
-
-    eventBus.publish("some.unmapped.event", { anything: true });
-
-    expect(recorded.events).toHaveLength(0);
+    eventService.record("note_created", "Direct", "Direct call", null, "note-1", {});
+    expect(recorded.events.map((e) => e.eventType)).toContain("note_created");
     recorded.stop();
   });
 });
 
 describe("shared translation table", () => {
-  it("is the same logic the legacy event-service subscription uses", () => {
-    // Extracting the switch was only safe if both callers agree; this pins the
-    // contract the legacy path now depends on.
+  it("is the single definition the reality adapter translates through", () => {
+    // One table, one translation path. A second copy of these strings is how
+    // note.updated drifted away from its consumers before P1.
     const translated = translatePlatformEvent(Events.TASK_COMPLETED, {
       id: "t",
       title: "Shared",

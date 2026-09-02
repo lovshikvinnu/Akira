@@ -43,6 +43,7 @@ import { identityBuilder } from "./understanding/identity-builder";
 import { understandingEngine } from "./understanding/engine";
 import { insightEngine } from "./insights/insight-engine";
 import { contextBuilder } from "./context/context-builder";
+import { genesisRealityAdapter } from "./events/reality-adapter";
 
 /** A cognitive processor that must be subscribed for the pipeline to flow. */
 export interface GenesisProcessor {
@@ -55,10 +56,11 @@ export interface GenesisProcessor {
 /**
  * The cognitive processors of the GENESIS pipeline, in pipeline order.
  *
- * `eventService` is deliberately absent. It is the intake stage and its
- * `initialize()` subscribes to the AKIRA OS event bus — a boundary owned by the
- * event-pipeline remediation task. It continues to self-initialise on import;
- * composing it here would move that boundary.
+ * The reality adapter is listed last on purpose. It is the intake: attaching it
+ * opens the platform event stream into GENESIS, and every consumer downstream of
+ * it should already be subscribed when that happens. Composition is synchronous
+ * and nothing publishes during it, so this is discipline rather than a live
+ * race — but it is the ordering that stays correct if that ever changes.
  */
 export const GENESIS_COGNITIVE_PROCESSORS: readonly GenesisProcessor[] = [
   // event -> candidate
@@ -79,6 +81,12 @@ export const GENESIS_COGNITIVE_PROCESSORS: readonly GenesisProcessor[] = [
   { name: "insightEngine", initialize: () => insightEngine.initialize() },
   // recall -> context package
   { name: "contextBuilder", initialize: () => contextBuilder.initialize() },
+
+  // AKIRA OS platform event stream -> GENESIS. This is how a real user action
+  // becomes cognition; see ./events/reality-adapter.ts. Attaching subscribes the
+  // adapter to the instrumentation globalEventBus, which both branches of
+  // `publish()` reach, so one attachment serves browser and server alike.
+  { name: "realityAdapter", initialize: () => genesisRealityAdapter.attach() },
 ];
 
 let composed = false;
