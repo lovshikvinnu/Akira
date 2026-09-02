@@ -12,6 +12,8 @@ import { publish } from "../../instrumentation";
 import { Events } from "../../contracts/events";
 import { VaultFile } from "../../shared/types/store-types";
 
+const TRASH_DIRECTORY = "Trash";
+
 function getCategoryFromMime(mimeType: string): string {
   const mimeLower = mimeType.toLowerCase();
   if (mimeLower.startsWith("image/")) return "Images";
@@ -87,12 +89,22 @@ export const VaultStorageService = {
 
     try {
       db.transaction(() => {
-        // Deduplication Check: Look for matching hashes
-        const duplicates = VaultHashService.findDuplicates(hash);
-        if (duplicates.length > 0) {
+        // Deduplication Check: only a live, fully written record whose physical
+        // file is still on disk may back a new logical record. Reusing a
+        // soft-deleted record would aim the new file at Trash/, where a later
+        // restore or purge of the original would carry the content away with it.
+        // A record whose file is already missing is skipped so the fresh upload
+        // is preserved rather than discarded against a dangling path.
+        const reusableDuplicate = VaultHashService.findDuplicates(hash).find(
+          (candidate) =>
+            candidate.deletedAt === null &&
+            candidate.status === "Ready" &&
+            fs.existsSync(VaultValidationService.resolveSafePath(candidate.storagePath)),
+        );
+
+        if (reusableDuplicate) {
           // Deduplication Match Found: Reuse physical file path
-          const existingFile = duplicates[0];
-          targetRelativePath = existingFile.storagePath;
+          targetRelativePath = reusableDuplicate.storagePath;
 
           // Register a new logical file pointing to the duplicate storage path
           registeredId = vaultFileRepository.add({
@@ -237,21 +249,33 @@ export const VaultStorageService = {
     const file = vaultFileRepository.getById(fileId);
     if (!file || file.deletedAt) return;
 
-    const sourcePath = VaultValidationService.resolveSafePath(file.storagePath);
-    const trashRelativePath = `Trash/${file.id}${file.extension}`;
-    const trashAbsolutePath = VaultValidationService.resolveSafePath(trashRelativePath);
+    // Deduplicated records share a single physical file. Relocating that file
+    // into Trash on behalf of one record would strip the content from every
+    // other record still pointing at it, so only an exclusively owned file is
+    // moved. A shared file keeps its active path and is merely marked deleted;
+    // it becomes movable again once it is the last remaining reference.
+    const isExclusivelyOwned =
+      vaultFileRepository.countReferencesByStoragePath(file.storagePath) <= 1;
 
-    fs.mkdirSync(path.dirname(trashAbsolutePath), { recursive: true });
+    let storagePath = file.storagePath;
 
-    // Move physical file to Trash
-    if (fs.existsSync(sourcePath)) {
-      fs.renameSync(sourcePath, trashAbsolutePath);
+    if (isExclusivelyOwned) {
+      const sourcePath = VaultValidationService.resolveSafePath(file.storagePath);
+      storagePath = `${TRASH_DIRECTORY}/${file.id}${file.extension}`;
+      const trashAbsolutePath = VaultValidationService.resolveSafePath(storagePath);
+
+      fs.mkdirSync(path.dirname(trashAbsolutePath), { recursive: true });
+
+      // Move physical file to Trash
+      if (fs.existsSync(sourcePath)) {
+        fs.renameSync(sourcePath, trashAbsolutePath);
+      }
     }
 
     // Update metadata path and status
     vaultFileRepository.update(fileId, {
       deletedAt: new Date().toISOString(),
-      storagePath: trashRelativePath,
+      storagePath,
     });
 
     publish({
@@ -269,22 +293,34 @@ export const VaultStorageService = {
     const file = vaultFileRepository.getById(fileId);
     if (!file || !file.deletedAt) return;
 
-    const trashPath = VaultValidationService.resolveSafePath(file.storagePath);
+    // A record that was never physically moved — because its file is shared
+    // with another record — already sits at an active path and only needs its
+    // deletion marker cleared. Only a file parked in Trash is relocated, and
+    // only while it is the sole reference to those bytes.
+    const isInTrash = file.storagePath.startsWith(`${TRASH_DIRECTORY}/`);
+    const isExclusivelyOwned =
+      vaultFileRepository.countReferencesByStoragePath(file.storagePath) <= 1;
 
-    const category = getCategoryFromMime(file.mimeType);
-    const activeRelativePath = `${category}/${file.id}${file.extension}`;
-    const activeAbsolutePath = VaultValidationService.resolveSafePath(activeRelativePath);
+    let storagePath = file.storagePath;
 
-    fs.mkdirSync(path.dirname(activeAbsolutePath), { recursive: true });
+    if (isInTrash && isExclusivelyOwned) {
+      const trashPath = VaultValidationService.resolveSafePath(file.storagePath);
 
-    // Move physical file back
-    if (fs.existsSync(trashPath)) {
-      fs.renameSync(trashPath, activeAbsolutePath);
+      const category = getCategoryFromMime(file.mimeType);
+      storagePath = `${category}/${file.id}${file.extension}`;
+      const activeAbsolutePath = VaultValidationService.resolveSafePath(storagePath);
+
+      fs.mkdirSync(path.dirname(activeAbsolutePath), { recursive: true });
+
+      // Move physical file back
+      if (fs.existsSync(trashPath)) {
+        fs.renameSync(trashPath, activeAbsolutePath);
+      }
     }
 
     vaultFileRepository.update(fileId, {
       deletedAt: null,
-      storagePath: activeRelativePath,
+      storagePath,
     });
 
     publish({
@@ -297,8 +333,8 @@ export const VaultStorageService = {
 
   /**
    * Permanent Deletion / Purging:
-   * Validates duplicate references sharing same hash.
-   * Deletes physical disk file ONLY if no other active metadata references exist.
+   * Validates duplicate references sharing the same physical storage path.
+   * Deletes physical disk file ONLY if no other metadata record references it.
    */
   permanentDeleteFile(fileId: string): void {
     const file = vaultFileRepository.getById(fileId);
@@ -307,13 +343,18 @@ export const VaultStorageService = {
     const db = getDatabaseConnection();
 
     db.transaction(() => {
-      // 1. Check logical reference count for this hash
-      const count = vaultFileRepository.countReferencesByHash(file.hash);
+      // 1. Physical lifetime is owned by the storage path, not the content
+      // hash. Two records can share a hash while occupying separate physical
+      // files (a duplicate added after the original was trashed), and only
+      // records sharing a path share the bytes on disk. Counting by hash would
+      // both spare files that nothing references and, in the reverse case,
+      // leave orphans behind.
+      const references = vaultFileRepository.countReferencesByStoragePath(file.storagePath);
 
       // 2. Delete metadata record first
       vaultFileRepository.purge(fileId);
 
-      if (count === 1) {
+      if (references <= 1) {
         // This is the last logical reference, purge physical disk file
         const physicalPath = VaultValidationService.resolveSafePath(file.storagePath);
         if (fs.existsSync(physicalPath)) {

@@ -8,6 +8,7 @@ const scratchDir = path.join(process.cwd(), "src", "persistence", "scratch");
 const testVaultPath = path.join(scratchDir, "VaultTest");
 process.env.AKIRA_VAULT_PATH = testVaultPath;
 
+import { it } from "vitest";
 import { initializeDatabase } from "../../persistence/initializer";
 import { getDatabaseConnection } from "../../persistence/connection";
 import {
@@ -23,13 +24,11 @@ import { VaultStorageService } from "./VaultStorageService";
 import { eventBus } from "../../shared/infrastructure/event-bus";
 import { Events } from "../../contracts/events";
 
-const totalTests = 0;
-const passedTests = 0;
-
-const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
-
+// Registers each case with the vitest runner. This file previously collected
+// its cases into a local array that nothing ever executed, so the whole suite
+// silently reported "no tests".
 function test(name: string, fn: () => void | Promise<void>) {
-  tests.push({ name, fn });
+  it(name, fn);
 }
 
 function assertEquals<T>(actual: T, expected: T, message: string) {
@@ -247,15 +246,20 @@ test("Vault Service - Deletion Reference Counting & Recovery", async () => {
   VaultStorageService.deleteFile(fileId1);
   const file1Deleted = vaultFileRepository.getById(fileId1)!;
   assertExists(file1Deleted.deletedAt, "Soft deletion must set deletedAt");
+  // file1 and file2 were deduplicated onto a single physical file. Moving that
+  // file into Trash on file1's behalf would strip the content out from under
+  // file2, which the user never deleted, so the shared file stays put.
+  // Trash relocation for an exclusively owned file is covered in
+  // vault-security.test.ts.
   assertEquals(
-    file1Deleted.storagePath.startsWith("Trash/"),
-    true,
-    "Soft-deleted physical file must be moved to Trash",
+    file1Deleted.storagePath,
+    file1.storagePath,
+    "Soft-deleting a deduplicated file must not relocate the shared physical file",
   );
   assertEquals(
     fs.existsSync(path.join(testVaultPath, file1Deleted.storagePath)),
     true,
-    "Soft-deleted physical file must exist in Trash directory",
+    "Shared physical file must remain on disk after one reference is soft-deleted",
   );
 
   // 2. Restore file1
@@ -270,13 +274,14 @@ test("Vault Service - Deletion Reference Counting & Recovery", async () => {
 
   // 3. Soft-delete again to verify permanent delete unlinks
   VaultStorageService.deleteFile(fileId1);
-  const file1Trash = vaultFileRepository.getById(fileId1)!;
+  const file1Deleted2 = vaultFileRepository.getById(fileId1)!;
 
-  // Purge File 1 -> since File 2 still exists (ref count is 2), physical file on disk should NOT be deleted
+  // Purge File 1 -> since File 2 still references the same physical file,
+  // the file on disk should NOT be deleted
   VaultStorageService.permanentDeleteFile(fileId1);
-  const physicalTrashPath = path.join(testVaultPath, file1Trash.storagePath);
+  const physicalSharedPath = path.join(testVaultPath, file1Deleted2.storagePath);
   assertEquals(
-    fs.existsSync(physicalTrashPath),
+    fs.existsSync(physicalSharedPath),
     true,
     "Physical file should survive permanent deletion if another logical reference exists",
   );
@@ -329,5 +334,3 @@ test("Vault Service - Timeline Integration event logging", async () => {
 
   unsub();
 });
-
-// Run serial runner

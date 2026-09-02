@@ -18,14 +18,29 @@ export function getVaultRoot(): string {
 
 export const VaultValidationService = {
   /**
-   * Resolves a relative path to the absolute Vault root.
-   * Enforces path boundary restrictions to prevent directory traversal attacks (../).
+   * Resolves a Vault-relative path to an absolute path inside the Vault root.
+   *
+   * Boundary enforcement is done by segment comparison rather than string prefix
+   * matching. A prefix test treats a sibling directory whose name merely starts
+   * with the root name (e.g. "<root>_secrets") as being inside the Vault, which
+   * lets "../Vault_secrets/x" escape. Deriving the relative path and rejecting
+   * any result that walks up ("..") or stays absolute (different drive/root)
+   * compares whole path segments and closes that bypass.
+   *
+   * Absolute inputs are resolved as-is, so an external absolute path is rejected
+   * instead of being silently rewritten into a Vault-relative one.
    */
   resolveSafePath(relativePath: string): string {
     const root = getVaultRoot();
-    const resolved = path.resolve(path.join(root, relativePath));
+    const resolved = path.resolve(root, relativePath);
+    const relativeToRoot = path.relative(root, resolved);
 
-    if (!resolved.startsWith(root)) {
+    const escapesRoot =
+      relativeToRoot === ".." ||
+      relativeToRoot.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relativeToRoot);
+
+    if (escapesRoot) {
       throw new Error("Security Violation: Access denied outside the Vault boundary.");
     }
     return resolved;

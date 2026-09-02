@@ -1,32 +1,14 @@
+import { it } from "vitest";
 import { useSelection } from "../../hooks/useSelection";
 import { useFolderTree } from "../../hooks/useFolderTree";
 import { VaultFolder, VaultFile } from "../../shared/types/store-types";
 
 // Mock global states if needed.
-let totalTests = 0;
-let passedTests = 0;
-
+// Registers each case with the vitest runner. This file previously collected
+// its cases into a local harness that vitest never executed, so the suite
+// reported no tests at all.
 function test(name: string, fn: () => void | Promise<void>) {
-  totalTests++;
-  console.log(`Running: ${name}`);
-  try {
-    const res = fn();
-    if (res instanceof Promise) {
-      res
-        .then(() => {
-          passedTests++;
-        })
-        .catch((error) => {
-          console.error(`  ✗ Failed: ${name}`);
-          console.error(error);
-        });
-    } else {
-      passedTests++;
-    }
-  } catch (error) {
-    console.error(`  ✗ Failed: ${name}`);
-    console.error(error);
-  }
+  it(name, fn);
 }
 
 function assertEquals<T>(actual: T, expected: T, message: string) {
@@ -235,5 +217,3 @@ test("UI Components - Sorting and Filters Calculation", () => {
   assertEquals(favorites.length, 1, "Only 1 favorite file exists");
   assertEquals(favorites[0].id, "file-a", "Z-Report is the favorited file");
 });
-
-// Run serial runner

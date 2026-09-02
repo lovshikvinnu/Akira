@@ -266,6 +266,13 @@ export class SqliteVaultFileRepository implements VaultFileRepository {
     return result ? result.count : 0;
   }
 
+  countReferencesByStoragePath(storagePath: string): number {
+    const result = this.getDb()
+      .prepare("SELECT COUNT(*) as count FROM vault_files WHERE storage_path = ?")
+      .get(storagePath) as { count: number } | undefined;
+    return result ? result.count : 0;
+  }
+
   addLink(fileId: string, entityType: string, entityId: string): string {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();

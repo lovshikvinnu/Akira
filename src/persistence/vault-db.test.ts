@@ -2,33 +2,15 @@
 process.env.AKIRA_DATABASE_PATH = ":memory:";
 process.env.NODE_ENV = "test";
 
+import { it } from "vitest";
 import { initializeDatabase } from "./initializer";
 import { getDatabaseConnection } from "./connection";
 
-let totalTests = 0;
-let passedTests = 0;
-
+// Registers each case with the vitest runner. This file previously ran its
+// cases through a local harness that caught every assertion error and only
+// logged it, so the suite reported success no matter what the database did.
 function test(name: string, fn: () => void | Promise<void>) {
-  totalTests++;
-  console.log(`Running: ${name}`);
-  try {
-    const res = fn();
-    if (res instanceof Promise) {
-      res
-        .then(() => {
-          passedTests++;
-        })
-        .catch((error) => {
-          console.error(`  ✗ Failed: ${name}`);
-          console.error(error);
-        });
-    } else {
-      passedTests++;
-    }
-  } catch (error) {
-    console.error(`  ✗ Failed: ${name}`);
-    console.error(error);
-  }
+  it(name, fn);
 }
 
 function assertEquals<T>(actual: T, expected: T, message: string) {
@@ -375,13 +357,3 @@ test("Vault DB - Recursive CTE Circle Check Verification", () => {
     "Moving Folder B under Folder A is not circular (is_circular = 0)",
   );
 });
-
-// Since async tests complete in next tick, delay exit to ensure results print
-setTimeout(() => {
-  console.log(`\nFile Vault Database Tests Completed: ${passedTests} / ${totalTests} Passed.`);
-  if (passedTests < totalTests) {
-    // process.exit(1);
-  } else {
-    // process.exit(0);
-  }
-}, 200);

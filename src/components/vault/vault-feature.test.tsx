@@ -1,13 +1,12 @@
+import { it } from "vitest";
 import path from "path";
 import fs from "fs";
 
-const totalTests = 0;
-const passedTests = 0;
-
-const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
-
+// Registers each case with the vitest runner. This file previously collected
+// its cases into a local harness that vitest never executed, so the suite
+// reported no tests at all.
 function test(name: string, fn: () => void | Promise<void>) {
-  tests.push({ name, fn });
+  it(name, fn);
 }
 
 function assertEquals<T>(actual: T, expected: T, message: string) {
@@ -148,5 +147,3 @@ test("Feature Tests - Tag Editing Links & Unlinks", () => {
   removeTag("Report");
   assertEquals(file.tags, ["Work", "Invoice"], "Tag report successfully removed");
 });
-
-// Run serial runner

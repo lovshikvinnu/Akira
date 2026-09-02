@@ -21,6 +21,13 @@ export interface VaultFileRepository {
 
   // Reference checks
   countReferencesByHash(hash: string): number;
+  /**
+   * Counts logical records backed by the same physical file, including
+   * soft-deleted ones. This is the ownership key for physical file lifetime:
+   * deduplicated records share a storage path, so a physical file may only be
+   * moved or unlinked when exactly one record still refers to it.
+   */
+  countReferencesByStoragePath(storagePath: string): number;
 
   // Polymorphic Links
   addLink(fileId: string, entityType: string, entityId: string): string;
