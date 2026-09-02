@@ -1,4 +1,5 @@
-import { telemetryService, telemetryFactory } from "../telemetry-service";
+import { telemetryService } from "./telemetry-service";
+import { telemetryFactory } from "./telemetry-factory";
 import { telemetryContext } from "./context";
 import { TelemetryRecord, TelemetryValidator } from "../contracts/telemetry";
 import { TelemetryCorrelation } from "../models/correlation";

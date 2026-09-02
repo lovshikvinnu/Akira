@@ -42,7 +42,7 @@ export class ReflectionEngine {
               const validatedItem: Reflection = {
                 id: String(item.id),
                 strategyId: String(item.strategyId || strategy.id),
-                type: String(item.type || ""),
+                type: item.type,
                 insight: String(item.insight || ""),
               };
               aggregated.push(Object.freeze(validatedItem));

@@ -32,4 +32,16 @@ export type MemoryService = unknown;
 export type SearchService = unknown;
 export type NotificationService = unknown;
 export type EventBus = unknown;
-export type PermissionManager = unknown;
+/**
+ * Minimal permission-check contract the SDK actually depends on.
+ *
+ * Kept deliberately narrow: every SDK API calls `require(permissionId)` and ignores
+ * the return value. The runtime's PermissionManager
+ * (src/runtime/permissions/permission-manager.ts) satisfies this shape.
+ *
+ * NOTE: the other service types above remain `unknown`. Giving them real contracts is
+ * SDK design work, not build repair — see docs/audits (DEP-006).
+ */
+export interface PermissionManager {
+  require(permissionId: string): void;
+}

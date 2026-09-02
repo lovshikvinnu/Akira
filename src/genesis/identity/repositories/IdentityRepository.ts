@@ -40,6 +40,13 @@ export interface IdentityRepository {
   updateEvidence(evidence: IdentityEvidence): void;
   deleteEvidence(evidenceId: string): void;
 
+  /**
+   * Optional bulk read of every evidence record in the store.
+   * Declared optional because no implementation provides it yet;
+   * IdentityValidationService probes for it and degrades to [] when absent.
+   */
+  findEvidence?(): IdentityEvidence[];
+
   // Transaction Placeholders (Reserved for future execution boundaries)
   beginTransaction(): void;
   commitTransaction(): void;

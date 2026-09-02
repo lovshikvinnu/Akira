@@ -1,4 +1,4 @@
-import { RuntimeAdapter } from "../interfaces/runtime-adapter";
+import { RuntimeAdapter } from "../../compatibility/interfaces/runtime-adapter";
 import { RuntimeReport } from "./diagnostics-report";
 import { DiagnosticWarning, DiagnosticError } from "./diagnostics-report";
 
@@ -7,11 +7,15 @@ import { DiagnosticWarning, DiagnosticError } from "./diagnostics-report";
  * It is read‑only for consumers; the DiagnosticsManager updates it internally.
  */
 export class DiagnosticsContext {
-  constructor(public readonly runtimeAdapter: RuntimeAdapter) {}
-
   // Runtime metadata
-  runtimeVersion: string = this.runtimeAdapter.runtimeVersion;
+  runtimeVersion: string;
   startTimestamp: number = Date.now();
+
+  constructor(public readonly runtimeAdapter: RuntimeAdapter) {
+    // Assigned in the constructor body: class field initializers run before parameter
+    // properties are assigned under ES2022 class-fields semantics.
+    this.runtimeVersion = runtimeAdapter.runtimeVersion;
+  }
 
   // Snapshots of collected metrics (filled by DiagnosticsManager)
   runtimeReport: RuntimeReport | null = null;

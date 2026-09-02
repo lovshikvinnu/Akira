@@ -3,6 +3,7 @@ import { SimpleMetricRegistry } from "./registry";
 import { MetricRegistrationError, MetricValidationError } from "./errors";
 import { telemetry, factory, TelemetrySeverity, TelemetrySink, TelemetryRecord } from "../index";
 import { MetricAggregator, MetricDataPoint } from "./aggregation";
+import { MetricRecord } from "../models/record";
 import { CounterImpl } from "./types";
 
 describe("Metrics Subsystem Specification Tests", () => {
@@ -209,11 +210,13 @@ describe("Metrics Subsystem Specification Tests", () => {
         { ...snap.metadata.labels, unit: snap.metadata.unit },
       );
 
-      let writtenRecord: TelemetryRecord | null = null;
+      // Captured through a holder object: a `let` assigned only inside the sink
+      // closure gets narrowed to null by control-flow analysis at the read site.
+      const sinkCapture: { record: TelemetryRecord | null } = { record: null };
       const pipelineSink: TelemetrySink = {
         name: "TestSink",
         write: async (rec) => {
-          writtenRecord = rec;
+          sinkCapture.record = rec;
         },
       };
 
@@ -222,8 +225,8 @@ describe("Metrics Subsystem Specification Tests", () => {
 
       await testTelemetry.record(record);
 
-      expect(writtenRecord).toBeDefined();
-      expect(writtenRecord?.metricName).toBe("isolated.counter");
+      expect(sinkCapture.record).not.toBeNull();
+      expect((sinkCapture.record as MetricRecord).metricName).toBe("isolated.counter");
     });
   });
 });

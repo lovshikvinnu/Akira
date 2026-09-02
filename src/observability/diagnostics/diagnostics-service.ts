@@ -1,5 +1,5 @@
 import { AbstractTelemetryService } from "../services/abstract-telemetry-service";
-import { telemetryFactory } from "../telemetry-service";
+import { telemetryFactory } from "../services/telemetry-factory";
 import { TelemetrySeverity } from "../models/severity";
 import { TelemetryMetadata, deepFreeze } from "../models/metadata";
 import { DiagnosticsValidator } from "../validation/diagnostics-validator";

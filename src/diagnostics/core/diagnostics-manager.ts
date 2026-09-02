@@ -1,4 +1,4 @@
-import { RuntimeAdapter } from "../interfaces/runtime-adapter";
+import { RuntimeAdapter } from "../../compatibility/interfaces/runtime-adapter";
 import { DiagnosticWarning, DiagnosticError, RuntimeReport } from "../core/diagnostics-report";
 import { HealthChecker } from "../health/health-checker";
 import { PerformanceMonitor } from "../performance/performance-monitor";

@@ -1,5 +1,5 @@
 // src/genesis/planning/health/HealthRuleEngine.ts
-import { PlanningGraph } from "../types";
+import { PlanningGraph, PlanHealthStatus } from "../types";
 import { HealthRule } from "./HealthRule";
 import { HealthEvaluation } from "./HealthEvaluation";
 import { InactiveRule } from "./rules/InactiveRule";
@@ -42,16 +42,9 @@ export class HealthRuleEngine {
     }
     // Fallback – should never happen because HealthyRule always matches
     return {
-      status: "Healthy" as any,
-      ruleName: "Fallback",
+      status: PlanHealthStatus.Healthy,
+      ruleId: "fallback",
       reason: "No rule matched – defaulting to Healthy",
     };
   }
-}
-
-// src/genesis/planning/health/createHealthRuleEngine.ts
-import { HealthRuleEngine } from "./HealthRuleEngine";
-/** Factory returning a new HealthRuleEngine instance. */
-export function createHealthRuleEngine(): HealthRuleEngine {
-  return new HealthRuleEngine();
 }

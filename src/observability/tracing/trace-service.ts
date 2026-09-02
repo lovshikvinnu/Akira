@@ -1,5 +1,6 @@
 import { AbstractTelemetryService } from "../services/abstract-telemetry-service";
-import { telemetryService, telemetryFactory } from "../telemetry-service";
+import { telemetryService } from "../services/telemetry-service";
+import { telemetryFactory } from "../services/telemetry-factory";
 import { telemetryClock } from "../utils/clock";
 import { TelemetryCorrelation } from "../models/correlation";
 import { TelemetrySeverity } from "../models/severity";
@@ -58,7 +59,9 @@ export class TraceService extends AbstractTelemetryService {
     this.spanMap.set(spanId, spanInfo);
 
     // Update async context with new span information
-    this.context.runWith({ traceId, spanId, parentSpanId }, () => {});
+    // TelemetryCorrelation models an absent parent as undefined; the trace record
+    // models it as explicit null. Convert at the boundary rather than changing either contract.
+    this.context.runWith({ traceId, spanId, parentSpanId: parentSpanId ?? undefined }, () => {});
     return spanId;
   }
 

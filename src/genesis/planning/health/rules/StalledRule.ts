@@ -20,7 +20,7 @@ export class StalledRule implements HealthRule {
       return {
         status: PlanHealthStatus.Stalled,
         reason: "Plan has unresolved blockers → Stalled",
-        ruleName: this.id,
+        ruleId: this.id,
       };
     }
     return undefined;

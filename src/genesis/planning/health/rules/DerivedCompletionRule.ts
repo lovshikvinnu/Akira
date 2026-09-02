@@ -16,11 +16,20 @@ export class DerivedCompletionRule implements HealthRule {
 
   evaluate(graph: PlanningGraph): HealthEvaluation | undefined {
     // Guard against missing progress information
-    if (graph.progress && graph.progress.percentage === 100) {
+    if (!graph.progress) {
+      return undefined;
+    }
+
+    // ProgressService reports an empty plan as 100% (division-by-zero convention for
+    // progress display). Completion cannot be *derived* when there is no work to
+    // complete, so require at least one milestone or task before inferring it.
+    const hasWork = graph.progress.totalTasks > 0 || graph.progress.totalMilestones > 0;
+
+    if (hasWork && graph.progress.percentage === 100) {
       return {
         status: PlanHealthStatus.Completed,
         reason: "Plan progress is 100% → Derived Completed",
-        ruleName: this.id,
+        ruleId: this.id,
       };
     }
     return undefined;

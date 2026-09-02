@@ -350,7 +350,11 @@ test("Sprint 1.2 - Transaction rollback on insert failure", () => {
 
   const baseline = repository.findById("evt-baseline");
   assertExists(baseline, "Baseline event must remain intact");
-  assertEquals(baseline!.payload.state, "clean", "Baseline payload must not have changed");
+  assertEquals(
+    (baseline!.payload as { state: string }).state,
+    "clean",
+    "Baseline payload must not have changed",
+  );
 });
 
 test("Sprint 1.2 - Persistence Subscriber Integration through Publisher", () => {
@@ -375,7 +379,7 @@ test("Sprint 1.2 - Persistence Subscriber Integration through Publisher", () => 
   assertEquals(events.length, 1, "Should find 1 event persisted via the subscriber");
   assertEquals(events[0].source, "app-service", "Correct source should be stored");
   assertEquals(
-    events[0].payload.data,
+    (events[0].payload as { data: string }).data,
     "hello persistent world",
     "Correct payload should be stored",
   );
@@ -421,7 +425,7 @@ test("Sprint 1.2 - Stress testing with large number of inserts (1000 events)", (
   // Verify a random middle record
   const middle = repository.findById("stress-evt-500");
   assertExists(middle, "Middle stress event must exist");
-  assertEquals(middle!.payload.index, 500, "Index must match");
+  assertEquals((middle!.payload as { index: number }).index, 500, "Index must match");
 });
 
 // ----------------------------------------------------

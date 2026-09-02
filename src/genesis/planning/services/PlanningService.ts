@@ -10,6 +10,9 @@ import {
   PlanningGraphEdge,
   GoalCategory,
   PlanningTemplate,
+  PlanAnalysisResult,
+  PlanDiagnostics,
+  Recommendation,
 } from "../types";
 import { PlanRepository } from "../repositories/PlanRepository";
 import { BlockerRepository } from "../repositories/BlockerRepository";

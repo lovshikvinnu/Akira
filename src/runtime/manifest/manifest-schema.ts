@@ -31,4 +31,8 @@ export const ModuleManifestSchema = z.strictObject({
   startup: z.string().optional(),
   shutdown: z.string().optional(),
   enabled: z.boolean().optional(),
+  startupTimeout: z.number().int().positive().optional(),
+  shutdownTimeout: z.number().int().positive().optional(),
+  pauseTimeout: z.number().int().positive().optional(),
+  resumeTimeout: z.number().int().positive().optional(),
 });

@@ -1,5 +1,5 @@
 import { TelemetryValidationError } from "../models/errors";
-import { TelemetryRecord } from "../contracts/telemetry";
+import { TelemetryRecord, TelemetryValidator } from "../contracts/telemetry";
 import { TraceStateError, TraceValidationError } from "../errors/telemetry-errors";
 import { TelemetrySeverity } from "../models/severity";
 

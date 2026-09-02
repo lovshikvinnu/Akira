@@ -1,4 +1,4 @@
-import { ContextAssemblyResult } from "../../../context/assembly/types";
+import { ContextAssemblyResult } from "../../../../context/assembly/types";
 import { Reflection, ReflectionStrategy } from "../types";
 
 export class ContradictionReflectionStrategy implements ReflectionStrategy {

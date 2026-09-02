@@ -10,6 +10,11 @@ export interface IModuleInstance {
   state: ModuleState;
   context: ModuleContext;
   manifest: ModuleManifest;
+  /**
+   * The module's lifecycle definition. LifecycleManager invokes
+   * definition.startup/shutdown/pause/resume through this interface.
+   */
+  definition: ModuleDefinition;
   startup(): Promise<void>;
   shutdown(): Promise<void>;
   pause(): Promise<void>;

@@ -23,4 +23,11 @@ export interface ModuleManifest {
   startup?: string;
   shutdown?: string;
   enabled?: boolean;
+
+  // Optional per-module lifecycle timeouts in milliseconds.
+  // Consumed by LifecycleManager, which falls back to its global defaults when absent.
+  startupTimeout?: number;
+  shutdownTimeout?: number;
+  pauseTimeout?: number;
+  resumeTimeout?: number;
 }

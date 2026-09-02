@@ -1,4 +1,4 @@
-import { SDKContext } from "./core/sdk-context";
+import { SDKContext } from "./sdk-context";
 import { WorkspaceAPI } from "../workspace/workspace-api";
 import { StorageAPI } from "../storage/storage-api";
 import { TimelineAPI } from "../timeline/timeline-api";

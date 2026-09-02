@@ -1,6 +1,6 @@
 import { ReflectionResult } from "../insights/reflection";
 import { ReasoningStrategyRegistry } from "./registry";
-import { Reasoning, ReasoningCollection } from "./types";
+import { Reasoning, ReasoningCollection, ReasoningType } from "./types";
 
 /**
  * ReasoningEngine

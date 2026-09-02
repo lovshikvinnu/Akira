@@ -1,5 +1,5 @@
 import { TelemetrySeverity } from "../models/severity";
-import { TelemetryRecord } from "../contracts/telemetry";
+import { TelemetryRecord, TelemetryValidator } from "../contracts/telemetry";
 import { TelemetryValidationError } from "../models/errors";
 import { DiagnosticsValidationError } from "../errors/telemetry-errors";
 import { DiagnosticRegistry } from "../diagnostics/diagnostic-registry";

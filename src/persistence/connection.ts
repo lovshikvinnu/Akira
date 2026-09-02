@@ -8,11 +8,42 @@ import path from "path";
 import os from "os";
 import fs from "fs";
 
+/**
+ * Isolated database used whenever code runs under a test runner without an
+ * explicit AKIRA_DATABASE_PATH. Each connection gets its own private database,
+ * so parallel workers cannot corrupt one another and nothing is left on disk.
+ */
+export const TEST_DATABASE_PATH = ":memory:";
+
+/**
+ * True when running under a test runner.
+ *
+ * Vitest sets both `VITEST` and `NODE_ENV=test` in every worker process, so this
+ * requires no cooperation from individual test files. That matters: a test file
+ * cannot protect itself by assigning `process.env.AKIRA_DATABASE_PATH` at the top
+ * of the module, because ESM evaluates all `import` declarations *before* any
+ * statement in the module body — and several imported modules open the database
+ * at module scope (e.g. `persistence/repositories/index.ts`,
+ * `analytics/validation/diagnostics.ts`). The assignment therefore lands after the
+ * connection has already been resolved and cached.
+ */
+const isTestEnvironment = (): boolean =>
+  process.env.VITEST === "true" || process.env.NODE_ENV === "test";
+
 // Determine the local database file path
 export const getDatabasePath = (): string => {
+  // 1. An explicit override always wins — production, development, and any test
+  //    that deliberately wants a real file on disk.
   if (process.env.AKIRA_DATABASE_PATH) {
     return process.env.AKIRA_DATABASE_PATH;
   }
+
+  // 2. Under a test runner, never fall back to the user's persistent database.
+  if (isTestEnvironment()) {
+    return TEST_DATABASE_PATH;
+  }
+
+  // 3. Production / development default: the user's persistent database.
   const appDataDir = process.env.APPDATA
     ? path.join(process.env.APPDATA, "AKIRA")
     : path.join(os.homedir(), ".akira");

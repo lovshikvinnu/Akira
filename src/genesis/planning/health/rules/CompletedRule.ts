@@ -18,7 +18,7 @@ export class CompletedRule implements HealthRule {
       return {
         status: PlanHealthStatus.Completed,
         reason: `Plan status is "Completed"`,
-        ruleName: this.id,
+        ruleId: this.id,
       };
     }
     return undefined;

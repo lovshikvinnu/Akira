@@ -20,7 +20,7 @@ export class InactiveRule implements HealthRule {
       return {
         status: PlanHealthStatus.Inactive,
         reason: `Plan status is "${graph.plan.status}" → Inactive`,
-        ruleName: this.id,
+        ruleId: this.id,
       };
     }
     return undefined;

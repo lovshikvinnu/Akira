@@ -1,13 +1,13 @@
 import { TelemetrySeverity } from "../models/severity";
 import { TelemetryMetadata, deepFreeze } from "../models/metadata";
 import { TelemetryValidationError } from "../models/errors";
-import { TelemetryRecord } from "../contracts/telemetry";
+import { TelemetryRecord, TelemetryValidator } from "../contracts/telemetry";
 import {
   LoggerConfigurationError,
   LoggerValidationError,
   CategoryRegistrationError,
 } from "../errors/telemetry-errors";
-import { AbstractTelemetryService } from "./abstract-telemetry-service";
+import { AbstractTelemetryService } from "../services/abstract-telemetry-service";
 import { LoggerRegistry } from "./logger-registry";
 /**
  * Simple validator for log records.

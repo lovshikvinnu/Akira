@@ -811,9 +811,13 @@ test("Sprint 1.2 - Large Datasets Performance boundary checking", () => {
 test("Sprint 2.1 - Query Parameter Validation & Date Range Resolution", () => {
   // 1. Predefined ranges
   const resToday = validateAndResolveQuery({ range: "today", filters: { timezone: 330 } });
-  assertExists(resToday.startDate);
-  assertExists(resToday.endDate);
-  assertEquals(resToday.timezoneOffsetMinutes, 330);
+  assertExists(resToday.startDate, "resolved today range should have a start date");
+  assertExists(resToday.endDate, "resolved today range should have an end date");
+  assertEquals(
+    resToday.timezoneOffsetMinutes,
+    330,
+    "resolved today range should carry the requested timezone offset",
+  );
 
   const res7Days = validateAndResolveQuery({ range: "last7Days" });
   assert(
@@ -972,10 +976,18 @@ test("Sprint 2.1 - AnalyticsService & QueryService End-to-End Integration", () =
     startDate: "2026-07-25T00:00:00.000Z",
     endDate: "2026-07-25T23:59:59.999Z",
   });
-  assertEquals(emptySummary.tasksCompleted, 0);
-  assertEquals(emptySummary.productivityScore, 0);
-  assertEquals(emptySummary.activeProjects, 0);
-  assertEquals(emptySummary.sessionDuration, 0);
+  assertEquals(emptySummary.tasksCompleted, 0, "empty summary should report zero tasks completed");
+  assertEquals(
+    emptySummary.productivityScore,
+    0,
+    "empty summary should report a zero productivity score",
+  );
+  assertEquals(emptySummary.activeProjects, 0, "empty summary should report zero active projects");
+  assertEquals(
+    emptySummary.sessionDuration,
+    0,
+    "empty summary should report zero session duration",
+  );
 });
 
 test("Sprint 2.2 - DashboardService, DashboardBuilder, and query optimizations", () => {
@@ -1044,9 +1056,9 @@ test("Sprint 2.2 - DashboardService, DashboardBuilder, and query optimizations",
     endDate: "2026-07-19T23:59:59.999Z",
   });
 
-  assertExists(dashboard);
-  assertExists(dashboard.summary);
-  assertExists(dashboard.widgets);
+  assertExists(dashboard, "dashboard should be built");
+  assertExists(dashboard.summary, "dashboard should include a summary section");
+  assertExists(dashboard.widgets, "dashboard should include widgets");
 
   // Assert widget properties
   assertEquals(dashboard.widgets.productivity.score, 14, "Current score matches");
@@ -1064,7 +1076,7 @@ test("Sprint 2.2 - DashboardService, DashboardBuilder, and query optimizations",
     startDate: "2026-07-25T00:00:00.000Z",
     endDate: "2026-07-25T23:59:59.999Z",
   });
-  assertExists(emptyDashboard);
+  assertExists(emptyDashboard, "dashboard should still be built for an empty dataset");
   assertEquals(emptyDashboard.widgets.productivity.score, 0, "Empty score is 0");
   assertEquals(emptyDashboard.widgets.productivity.delta, 0, "Empty delta is 0");
   assertEquals(emptyDashboard.widgets.activity.activeDays, 0, "Empty activeDays is 0");
@@ -1103,9 +1115,16 @@ test("Sprint 3.1 - Historical Rebuild Manager (Full, Incremental, Resume)", () =
 
   // Verify state persisted
   const state = analyticsRepo.getRebuildState();
-  assertExists(state);
-  assertEquals(state!.lastProcessedEventId, "reb-2");
-  assertExists(state!.lastProcessedTimestamp);
+  assertExists(state, "rebuild state should be persisted");
+  assertEquals(
+    state!.lastProcessedEventId,
+    "reb-2",
+    "rebuild state should record the last processed event id",
+  );
+  assertExists(
+    state!.lastProcessedTimestamp,
+    "rebuild state should record the last processed timestamp",
+  );
 
   // 2. Incremental Rebuild
   eventRepo.insert({
@@ -1153,9 +1172,13 @@ test("Sprint 3.1 - Consistency Checker & Diagnostics (Daily, Project, Mismatches
 
   // Fetch health report
   const health = diag.getAnalyticsHealth();
-  assertEquals(health.status, "HEALTHY");
-  assertEquals(health.schemaValid, true);
-  assertEquals(health.consistent, true);
+  assertEquals(
+    health.status,
+    "HEALTHY",
+    "diagnostics should report HEALTHY for a consistent store",
+  );
+  assertEquals(health.schemaValid, true, "diagnostics should report the schema as valid");
+  assertEquals(health.consistent, true, "diagnostics should report derived data as consistent");
 
   // Interrupted / corrupted state simulation (introducing a database mismatch manually)
   db.prepare("UPDATE daily_metrics SET tasks_created = 99 WHERE date = '2026-07-19'").run();
@@ -1163,11 +1186,19 @@ test("Sprint 3.1 - Consistency Checker & Diagnostics (Daily, Project, Mismatches
   const reportMismatch = checker.checkConsistency();
   assertEquals(reportMismatch.isConsistent, false, "Inconsistency detected");
   assertEquals(reportMismatch.mismatches.length, 1, "1 mismatch recorded");
-  assertEquals(reportMismatch.mismatches[0].checkType, "tasks_created mismatch");
+  assertEquals(
+    reportMismatch.mismatches[0].checkType,
+    "tasks_created mismatch",
+    "consistency report should name the mismatching check",
+  );
 
   // Health report must update to DEGRADED
   const degradedHealth = diag.getAnalyticsHealth();
-  assertEquals(degradedHealth.status, "DEGRADED");
+  assertEquals(
+    degradedHealth.status,
+    "DEGRADED",
+    "diagnostics should report DEGRADED when a mismatch exists",
+  );
 });
 
 test("Sprint 3.1 - Fault Tolerance on Malformed & Corrupted payload events", () => {

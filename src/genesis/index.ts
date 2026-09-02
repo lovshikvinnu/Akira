@@ -52,7 +52,6 @@ export { reflectionService } from "./insights/reflection/service";
 export * from "./insights/reflection/types";
 export * from "./insights/reflection/engine";
 
-
 // Context Subsystem & Subsystem Contexts
 export { contextService } from "./context/context-service";
 export { contextBuilder } from "./context/context-builder";
@@ -60,9 +59,6 @@ export * from "./context/types";
 export * from "./context/intelligence";
 export * from "./context/relevance";
 export * from "./context/assembly";
-
-
-
 
 export { goalService } from "./context/goals/service";
 export * from "./context/goals/types";
@@ -132,4 +128,25 @@ export * from "./reasoning";
 // Decision Subsystem Foundation
 export * from "./decision";
 
+// --- Explicit disambiguation of cross-subsystem name collisions ---
+// These five names are declared by two subsystems each with genuinely different
+// shapes, so `export *` left them ambiguous (TS2308) and therefore unusable through
+// this barrel. The picks below match what the barrel's own consumers already rely on;
+// the underlying collisions are a modelling issue recorded for a later decision
+// (see docs/recovery/phase-a-build-recovery.md).
+//
+// Type-only picks — the identity variants remain available from ./identity/types.
+// Chosen to match the services this barrel exports alongside them
+// (goalService, habitService, relationshipService).
+export type { GoalStatus } from "./context/goals/types";
+export type { HabitStatus } from "./context/habits/types";
+export type { RelationshipStatus } from "./context/relationships/types";
 
+// Value pick — planning's GoalCategory is an enum and is the only one with a runtime
+// binding, so this is already what consumers resolve to today.
+export { GoalCategory } from "./planning/types";
+
+// Value pick — keeps the committed Reflection factory on the unprefixed name and gives
+// the newer Reasoning factory a distinct one, rather than silently changing either.
+export { createDefaultStrategyRegistry } from "./insights/reflection/engine";
+export { createDefaultStrategyRegistry as createDefaultReasoningStrategyRegistry } from "./reasoning";
