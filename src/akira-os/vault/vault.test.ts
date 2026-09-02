@@ -8,7 +8,13 @@ const scratchDir = path.join(process.cwd(), "src", "persistence", "scratch");
 const testVaultPath = path.join(scratchDir, "VaultTest");
 process.env.AKIRA_VAULT_PATH = testVaultPath;
 
-import { it } from "vitest";
+// Removes this suite's own scratch tree so a normal test run leaves no
+// untracked artifacts behind. Scoped to the directory this suite creates.
+afterAll(() => {
+  fs.rmSync(testVaultPath, { recursive: true, force: true });
+});
+
+import { it, afterAll } from "vitest";
 import { initializeDatabase } from "../../persistence/initializer";
 import { getDatabaseConnection } from "../../persistence/connection";
 import {

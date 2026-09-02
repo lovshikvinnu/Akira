@@ -12,8 +12,4 @@ export default defineConfig({
   // runtime `@/...` import dies with "Cannot find package". Reading tsconfig.json
   // keeps the alias defined in exactly one place.
   plugins: [tsconfigPaths()],
-  test: {
-    // Runs before each test file.
-    setupFiles: "./src/testing/setup.ts",
-  },
 });

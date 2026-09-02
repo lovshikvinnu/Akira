@@ -350,3 +350,80 @@ test("TimelineRepository - Fallback in-memory rows order against persisted rows"
   // Do not leak the buffered event into later tests.
   timelineRepository.clearAll();
 });
+
+test("TimelineService - shutdown persists events buffered during an outage", async () => {
+  setupMockProjects();
+  await timelineService.initialize();
+
+  // Buffer an event the way a locked or read-only database does.
+  const proto = SqliteTimelineRepository.prototype as unknown as { getDb: unknown };
+  const realGetDb = proto.getDb;
+  proto.getDb = () => {
+    const err = new Error("database is locked") as Error & { code?: string };
+    err.code = "SQLITE_BUSY";
+    throw err;
+  };
+  try {
+    timelineRepository.insert({
+      id: "shutdown-buffered-1",
+      eventType: "task.created",
+      projectId: "proj-1",
+      payload: { title: "Buffered before shutdown" },
+      payloadVersion: 1,
+      timestamp: TIED,
+    });
+  } finally {
+    proto.getDb = realGetDb;
+  }
+
+  assertEquals(timelineRepository.pendingCount(), 1, "Event must be buffered before shutdown");
+
+  // Shutting the service down must not strand it.
+  timelineService.shutdown();
+
+  assertEquals(timelineRepository.pendingCount(), 0, "Shutdown must flush the fallback queue");
+  const persisted = getDatabaseConnection()
+    .prepare(`SELECT COUNT(*) AS n FROM timeline_events WHERE id = 'shutdown-buffered-1'`)
+    .get() as { n: number };
+  assertEquals(persisted.n, 1, "Buffered event must be durably persisted by shutdown");
+});
+
+test("TimelineService - shutdown still releases subscriptions when the flush fails", async () => {
+  setupMockProjects();
+  await timelineService.initialize();
+
+  const proto = SqliteTimelineRepository.prototype as unknown as { getDb: unknown };
+  const realGetDb = proto.getDb;
+  proto.getDb = () => {
+    const err = new Error("database is locked") as Error & { code?: string };
+    err.code = "SQLITE_BUSY";
+    throw err;
+  };
+  try {
+    timelineRepository.insert({
+      id: "shutdown-unflushable-1",
+      eventType: "task.created",
+      projectId: "proj-1",
+      payload: { title: "Still unwritable at shutdown" },
+      payloadVersion: 1,
+      timestamp: TIED,
+    });
+
+    // The database is still unavailable, so the flush cannot succeed. Shutdown
+    // must complete regardless rather than throwing out of the lifecycle.
+    timelineService.shutdown();
+  } finally {
+    proto.getDb = realGetDb;
+  }
+
+  assertEquals(
+    timelineRepository.pendingCount(),
+    1,
+    "An unflushable event stays queued rather than being dropped",
+  );
+
+  // The service is genuinely shut down and can be initialised again.
+  await timelineService.initialize();
+  timelineService.shutdown();
+  timelineRepository.clearAll();
+});

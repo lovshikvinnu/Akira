@@ -16,7 +16,7 @@
  * declaration before any statement in the module body, so a static import
  * would read the database and Vault paths before these assignments land.
  */
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import path from "path";
 import fs from "fs";
 import { randomUUID } from "crypto";
@@ -37,6 +37,15 @@ const { VaultStorageService } = await import("./VaultStorageService");
 
 fs.mkdirSync(path.join(vaultRoot, "Temp"), { recursive: true });
 initializeDatabase();
+
+// These suites write real files under src/persistence/scratch/. beforeEach
+// clears them between cases, but nothing removed the last case's output, so a
+// normal test run left untracked artifacts in the working tree. Each suite
+// removes the tree it owns, and only that tree.
+afterAll(() => {
+  fs.rmSync(vaultRoot, { recursive: true, force: true });
+  fs.rmSync(siblingRoot, { recursive: true, force: true });
+});
 
 const PDF_CONTENT = "%PDF-1.5 Vault recovery fixture";
 const OTHER_PDF_CONTENT = "%PDF-1.5 A different document entirely";

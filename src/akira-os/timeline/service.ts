@@ -11,6 +11,16 @@ export class TimelineService {
   private unsubscribers: (() => void)[] = [];
   private isInitialized = false;
 
+  /**
+   * Kept from initialize() so shutdown() can flush without awaiting.
+   *
+   * getRepo() is async because it dynamically imports better-sqlite3 to keep it
+   * out of the browser bundle. shutdown() is synchronous and its callers do not
+   * await it, so resolving the repository there would let the process move on
+   * before the flush ran.
+   */
+  private repo: TimelineRepository | null = null;
+
   private async getRepo(): Promise<TimelineRepository> {
     // Dynamic import to prevent better-sqlite3 from leaking to the browser bundle
     const { timelineRepository } = await import("../../persistence/repositories");
@@ -31,6 +41,7 @@ export class TimelineService {
     const { TimelineSubscriber } =
       await import("../../instrumentation/subscribers/timeline-subscriber");
     const repo = await this.getRepo();
+    this.repo = repo;
 
     const timelineSub = new TimelineSubscriber(repo);
     globalEventBus.subscribe(timelineSub);
@@ -172,7 +183,22 @@ export class TimelineService {
   }
 
   /**
-   * Shut down EventBus subscriptions and release listeners.
+   * Releases EventBus subscriptions, then makes a final attempt to persist
+   * anything the repository is still holding in memory.
+   *
+   * The repository buffers an event when SQLite is momentarily unavailable and
+   * drains that buffer on the next write. If writes stop — which is exactly
+   * what shutting down means — nothing would trigger the drain, so this is the
+   * last chance to persist. Subscriptions are released first so no further
+   * event can be buffered after the final flush.
+   *
+   * The guarantee is narrow and worth stating precisely: it covers a shutdown
+   * that is actually executed. It is not process-exit durability. If the
+   * process dies while SQLite is still unavailable, or without this method
+   * running, the buffered events are lost, because the buffer is memory only.
+   *
+   * A failed flush must not prevent shutdown: the events stay queued and the
+   * service still winds down cleanly.
    */
   public shutdown(): void {
     this.unsubscribers.forEach((unsub) => {
@@ -183,6 +209,21 @@ export class TimelineService {
       }
     });
     this.unsubscribers = [];
+
+    if (this.repo) {
+      try {
+        const stillPending = this.repo.flush();
+        if (stillPending > 0) {
+          console.warn(
+            `Timeline shutdown: ${stillPending} buffered event(s) could not be persisted and will be lost.`,
+          );
+        }
+      } catch (err) {
+        console.error("Error flushing buffered timeline events during shutdown:", err);
+      }
+    }
+
+    this.repo = null;
     this.isInitialized = false;
   }
 }

@@ -1,6 +1,5 @@
 import { PresenceInputs, PresenceContext, SessionType } from "./types";
 import { buildPresenceContext } from "./builder";
-import { presenceEvents } from "./events";
 import { akira } from "../../persistence/akira-store";
 import { publish } from "../../instrumentation";
 import { Events } from "../../contracts/events";
@@ -51,9 +50,6 @@ class PresenceService {
     const context = buildPresenceContext(presenceInputs);
     this.currentContext = context;
 
-    // Publish to local presence listeners
-    presenceEvents.publish(context);
-
     this.announcePresence(context);
 
     // Subscribe to store updates to dynamically sync active focus & project changes
@@ -66,7 +62,6 @@ class PresenceService {
         const freshContext = buildPresenceContext(freshInputs);
         if (this.isContextChanged(this.currentContext, freshContext)) {
           this.currentContext = freshContext;
-          presenceEvents.publish(freshContext);
           this.announcePresence(freshContext);
         }
       }
@@ -149,7 +144,6 @@ class PresenceService {
     const newContext = buildPresenceContext(inputs);
     if (this.isContextChanged(this.currentContext, newContext)) {
       this.currentContext = newContext;
-      presenceEvents.publish(newContext);
       this.announcePresence(newContext);
     }
   }
