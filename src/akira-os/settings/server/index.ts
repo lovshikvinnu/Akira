@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { Profile, ChatMessage, HabitStreak } from "../../../shared/types/store-types";
+import type { MemoryEvent } from "../../../shared/types/event-types";
 
 export const persistUpdateProfile = createServerFn({ method: "POST" })
   .validator((profile: Profile) => profile)
@@ -31,6 +32,22 @@ export const persistUpdateStreaks = createServerFn({ method: "POST" })
   .handler(async ({ data: streaks }) => {
     const { settingsRepository } = await import("../../../persistence/repositories");
     settingsRepository.set("streaks", JSON.stringify(streaks));
+  });
+
+/**
+ * Persists the GENESIS MemoryEvent stream.
+ *
+ * This is the whole durable cognitive layer: candidates, memories, stories,
+ * importance, relationships and understandings are all rebuilt from it on
+ * startup, so none of them are stored. Kept as a settings blob rather than a
+ * table because it is read wholesale at boot, never queried by field, and
+ * bounded by the retention policy — the same shape as `chat` and `streaks`.
+ */
+export const persistUpdateMemories = createServerFn({ method: "POST" })
+  .validator((memories: MemoryEvent[]) => memories)
+  .handler(async ({ data: memories }) => {
+    const { settingsRepository } = await import("../../../persistence/repositories");
+    settingsRepository.set("genesis_memories", JSON.stringify(memories));
   });
 
 export const persistGetSetting = createServerFn({ method: "GET" })

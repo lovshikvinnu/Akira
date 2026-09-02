@@ -24,6 +24,12 @@
 
 /** Caps on what GENESIS keeps in memory, and on what it puts in a prompt. */
 export interface GenesisRetentionPolicy {
+  /**
+   * The durable MemoryEvent stream — GENESIS's intake record, and the only
+   * cognitive state that survives a reload. Everything else is rebuilt from it,
+   * so this is the cap that decides how much history a restart can recover.
+   */
+  readonly maxMemoryEvents: number;
   /** Validated long-term memories. The root source; everything else derives from it. */
   readonly maxMemories: number;
   /** Candidate audit trail. Larger than maxMemories because not every candidate promotes. */
@@ -54,6 +60,9 @@ export interface GenesisRetentionPolicy {
 }
 
 export const DEFAULT_RETENTION_POLICY: GenesisRetentionPolicy = {
+  // Slightly above maxMemories: not every recorded event promotes to a memory,
+  // so the stream needs headroom to still yield a full memory set on replay.
+  maxMemoryEvents: 750,
   maxMemories: 500,
   maxCandidates: 500,
   maxStories: 100,

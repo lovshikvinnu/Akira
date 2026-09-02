@@ -1,9 +1,11 @@
 import type { Profile, ChatMessage, HabitStreak } from "../../../shared/types/store-types";
+import type { MemoryEvent } from "../../../shared/types/event-types";
 import {
   persistUpdateProfile,
   persistUpdateLastProjectId,
   persistUpdateChat,
   persistUpdateStreaks,
+  persistUpdateMemories,
   persistGetSetting,
   persistSetSetting,
   persistDeleteSetting,
@@ -22,6 +24,10 @@ export const settingsService = {
   },
   async updateChat(chat: ChatMessage[]): Promise<void> {
     await persistUpdateChat({ data: chat });
+  },
+  /** Persists the GENESIS MemoryEvent stream. See persistUpdateMemories. */
+  async updateMemories(memories: MemoryEvent[]): Promise<void> {
+    await persistUpdateMemories({ data: memories });
   },
   async updateStreaks(streaks: HabitStreak[]): Promise<void> {
     await persistUpdateStreaks({ data: streaks });

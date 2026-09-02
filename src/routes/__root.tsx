@@ -231,6 +231,17 @@ function RootComponent() {
         const { akira } = await import("../persistence/akira-store");
         const state = await getInitialState();
         akira.initializeState(state);
+
+        // Rebuild cognition from the stream that just arrived.
+        //
+        // Ordering matters here and is easy to get wrong: this loader is async,
+        // while companionStateService.bootstrap() runs synchronously in the
+        // effect below it. Bootstrap therefore reconstructs before the database
+        // has answered, against an empty stream. Reconstruction is
+        // clear-then-replay, so running it again now is safe and is what
+        // actually restores memories, stories, importance and understanding.
+        const { memoryService } = await import("../genesis/memory/memory-service");
+        memoryService.initialize();
       } catch (err) {
         console.error("Failed to load initial state from SQLite:", err);
         const errMsg = err instanceof Error ? err.message : String(err);

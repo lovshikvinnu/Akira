@@ -41,6 +41,12 @@ export const getInitialState = createServerFn({ method: "GET" }).handler(async (
   const streaksRaw = settingsRepository.get("streaks");
   const streaks = streaksRaw ? JSON.parse(streaksRaw) : [];
 
+  // The GENESIS MemoryEvent stream. Absent on a first run, which is why the
+  // fallback is an empty list rather than an error: GENESIS simply starts with
+  // nothing to reconstruct.
+  const memoriesRaw = settingsRepository.get("genesis_memories");
+  const memories = memoriesRaw ? JSON.parse(memoriesRaw) : [];
+
   return {
     projects,
     tasks,
@@ -51,7 +57,7 @@ export const getInitialState = createServerFn({ method: "GET" }).handler(async (
     lastProjectId,
     chat,
     streaks,
-    memories: [],
+    memories,
     vaultFiles,
     vaultFolders,
   };

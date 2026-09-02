@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { getRetentionPolicy } from "../genesis/retention/policy";
 import { seed } from "./seed";
 import { registerStoreProvider } from "../shared/genesis-provider";
 import { registerWorkspaceProvider } from "../contracts/workspace-provider";
@@ -46,8 +47,33 @@ function emit() {
   listeners.forEach((l) => l());
 }
 
+let applyingUpdate = false;
+const pendingUpdaters: Array<(s: AkiraState) => AkiraState> = [];
+
 function set(updater: (s: AkiraState) => AkiraState) {
-  state = updater(state);
+  // Re-entrancy guard.
+  //
+  // Several mutations publish a platform event from inside their updater, and a
+  // subscriber may write back to this store — GENESIS recording a MemoryEvent
+  // is exactly that. Without queueing, the nested write assigns `state` and
+  // then the outer `state = updater(state)` lands on top of it, silently
+  // discarding the nested change. That cost every memory produced by a real
+  // store action: they reached GENESIS but never reached the durable stream.
+  if (applyingUpdate) {
+    pendingUpdaters.push(updater);
+    return;
+  }
+
+  applyingUpdate = true;
+  try {
+    state = updater(state);
+    while (pendingUpdaters.length > 0) {
+      state = pendingUpdaters.shift()!(state);
+    }
+  } finally {
+    applyingUpdate = false;
+    pendingUpdaters.length = 0;
+  }
   emit();
 }
 
@@ -918,10 +944,24 @@ registerStoreProvider({
   getMemories: () => state.memories,
   getChat: () => state.chat,
   saveMemory: (event) => {
-    set((s) => ({
-      ...s,
-      memories: [event, ...s.memories],
-    }));
+    set((s) => {
+      // Newest first, so the stale end is the tail. Bounding here bounds the
+      // durable layer too: this array is what gets written to the database and
+      // replayed on the next start, and an unbounded stream would mean an
+      // unbounded blob and an ever-slower startup.
+      const memories = [event, ...s.memories].slice(0, getRetentionPolicy().maxMemoryEvents);
+
+      // Fire-and-forget, matching every other write in this store. A failed
+      // persist costs the next reload some history; it must not break the
+      // cognitive cycle that produced the event.
+      import("../akira-os/settings").then(({ settingsService }) => {
+        settingsService.updateMemories(memories).catch((err) => {
+          console.error("Failed to persist GENESIS memory stream:", err);
+        });
+      });
+
+      return { ...s, memories };
+    });
   },
 });
 
