@@ -1,6 +1,7 @@
 process.env.AKIRA_DATABASE_PATH = ":memory:";
 process.env.NODE_ENV = "test";
 
+import { test } from "vitest";
 import { initializeDatabase } from "../../persistence/initializer";
 import { getDatabaseConnection } from "../../persistence/connection";
 import { SqliteTimelineRepository } from "../../persistence/repositories/SqliteTimelineRepository";
@@ -11,15 +12,6 @@ import { EventBus } from "../event-bus";
 import { Publisher } from "../publisher";
 import { EventSubscriber } from "../subscriber";
 import { AkiraEvent } from "../event-types";
-
-const totalTests = 0;
-const passedTests = 0;
-
-const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
-
-function test(name: string, fn: () => void | Promise<void>) {
-  tests.push({ name, fn });
-}
 
 function assertEquals<T>(actual: T, expected: T, message: string) {
   if (actual !== expected) {

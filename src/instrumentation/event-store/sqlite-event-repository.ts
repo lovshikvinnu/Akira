@@ -77,20 +77,24 @@ export class SqliteEventRepository implements EventRepository {
   }
 
   findByType(type: string): AkiraEvent[] {
-    const stmt = this.db.prepare(`SELECT * FROM events WHERE type = ? ORDER BY timestamp DESC`);
+    const stmt = this.db.prepare(
+      `SELECT * FROM events WHERE type = ? ORDER BY timestamp DESC, rowid DESC`,
+    );
     const rows = stmt.all(type);
     return rows.map((row) => this.mapRowToEvent(row));
   }
 
   findBySource(source: string): AkiraEvent[] {
-    const stmt = this.db.prepare(`SELECT * FROM events WHERE source = ? ORDER BY timestamp DESC`);
+    const stmt = this.db.prepare(
+      `SELECT * FROM events WHERE source = ? ORDER BY timestamp DESC, rowid DESC`,
+    );
     const rows = stmt.all(source);
     return rows.map((row) => this.mapRowToEvent(row));
   }
 
   findByCorrelationId(correlationId: string): AkiraEvent[] {
     const stmt = this.db.prepare(
-      `SELECT * FROM events WHERE correlation_id = ? ORDER BY timestamp DESC`,
+      `SELECT * FROM events WHERE correlation_id = ? ORDER BY timestamp DESC, rowid DESC`,
     );
     const rows = stmt.all(correlationId);
     return rows.map((row) => this.mapRowToEvent(row));
@@ -109,7 +113,7 @@ export class SqliteEventRepository implements EventRepository {
     const stmt = this.db.prepare(`
       SELECT * FROM events 
       WHERE timestamp >= ? AND timestamp <= ? 
-      ORDER BY timestamp ASC
+      ORDER BY timestamp ASC, rowid ASC
     `);
     const rows = stmt.all(startMs, endMs);
     return rows.map((row) => this.mapRowToEvent(row));

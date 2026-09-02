@@ -1,14 +1,6 @@
+import { test } from "vitest";
 import { isSerializable } from "../event";
 import { defaultMiddlewarePipeline } from "../middleware";
-
-const totalTests = 0;
-const passedTests = 0;
-
-const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
-
-function test(name: string, fn: () => void | Promise<void>) {
-  tests.push({ name, fn });
-}
 
 function assertEquals<T>(actual: T, expected: T, message: string) {
   if (actual !== expected) {

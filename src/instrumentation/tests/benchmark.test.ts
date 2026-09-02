@@ -1,6 +1,7 @@
 process.env.AKIRA_DATABASE_PATH = ":memory:";
 process.env.NODE_ENV = "test";
 
+import { test, expect } from "vitest";
 import { initializeDatabase } from "../../persistence/initializer";
 import { getDatabaseConnection } from "../../persistence/connection";
 import { SqliteEventRepository } from "../event-store/sqlite-event-repository";
@@ -66,6 +67,31 @@ async function runBenchmark(batchSize: number) {
   };
 }
 
+// Volume soak for the publish -> PersistenceSubscriber -> SQLite path.
+//
+// This file previously ran at module top level with no assertions at all, so
+// vitest reported "No test suite found" and nothing it measured could ever
+// fail. It now asserts on throughput completion rather than on timings, which
+// would be machine-dependent and flaky: the value here is proving that 61,000
+// events survive the persistence path intact, not that they are fast.
+test(
+  "Instrumentation Benchmark - Persistence path survives volume",
+  { timeout: 120_000 },
+  async () => {
+    const results = await startAll();
+
+    expect(results).toHaveLength(3);
+    for (const r of results) {
+      expect(r.throughput).toBeGreaterThan(0);
+      expect(Number.isFinite(r.avgLatency)).toBe(true);
+    }
+
+    // Every published event must have reached the store.
+    const repo = new SqliteEventRepository(getDatabaseConnection());
+    expect(repo.findByType("benchmark.event")).toHaveLength(61_000);
+  },
+);
+
 async function startAll() {
   console.log("=== STARTING INSTRUMENTATION BENCHMARKS ===");
   initializeDatabase();
@@ -86,10 +112,5 @@ async function startAll() {
     );
   });
 
-  // process.exit(0);
+  return [results1k, results10k, results50k];
 }
-
-startAll().catch((err) => {
-  console.error(err);
-  // process.exit(1);
-});

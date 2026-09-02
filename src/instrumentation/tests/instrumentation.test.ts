@@ -1,3 +1,4 @@
+import { test } from "vitest";
 import { EventBus } from "../event-bus";
 import { Publisher } from "../publisher";
 import { EventSubscriber } from "../subscriber";
@@ -10,15 +11,6 @@ import {
   serializationValidator,
   validator,
 } from "../middleware";
-
-const totalTests = 0;
-const passedTests = 0;
-
-const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
-
-function test(name: string, fn: () => void | Promise<void>) {
-  tests.push({ name, fn });
-}
 
 function assertEquals<T>(actual: T, expected: T, message: string) {
   if (actual !== expected) {
