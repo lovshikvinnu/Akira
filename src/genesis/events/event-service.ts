@@ -1,6 +1,6 @@
 import { MemoryEvent } from "../../shared/types/event-types";
 import { eventBus } from "../../shared/infrastructure/event-bus";
-import { Events } from "../../contracts/events";
+import { translatePlatformEvent } from "./event-translation";
 import { saveMemory } from "../../shared/genesis-provider";
 
 const uid = () =>
@@ -92,72 +92,21 @@ export const eventService = {
     isInitialized = true;
 
     eventBus.subscribe("*", (evt) => {
-      let legacyType: MemoryEvent["eventType"] | null = null;
-      let title = "";
-      let description = "";
-      let relatedProjectId: string | null = null;
-      let relatedNoteId: string | null = null;
-      const metadata = evt.payload || {};
+      // Translation lives in ./event-translation so this subscription and the
+      // instrumentation-bus reality adapter cannot drift apart. Behaviour is
+      // unchanged: unsupported types are skipped, and a malformed payload for a
+      // supported type still throws into the bus's per-subscriber try/catch.
+      const translated = translatePlatformEvent(evt.type, evt.payload);
+      if (!translated) return;
 
-      switch (evt.type) {
-        case Events.PROJECT_CREATED:
-          legacyType = "project_created";
-          title = "Project Created";
-          description = `Started new project: ${evt.payload.name}`;
-          relatedProjectId = evt.payload.id;
-          break;
-        case Events.PROJECT_UPDATED:
-          legacyType = "project_updated";
-          title = "Project Updated";
-          description = `Updated details for project: ${evt.payload.name}`;
-          relatedProjectId = evt.payload.id;
-          break;
-        case Events.PROJECT_CONTINUED:
-          legacyType = "project_continued";
-          title = "Project Continued";
-          description = `Logged 5 minutes of work on project: ${evt.payload.name}`;
-          relatedProjectId = evt.payload.id;
-          break;
-        case Events.TASK_COMPLETED:
-          legacyType = "task_completed";
-          title = "Task Completed";
-          description = `Completed task: "${evt.payload.title}"`;
-          relatedProjectId = evt.payload.projectId;
-          break;
-        case Events.MISSION_COMPLETED:
-          legacyType = "mission_completed";
-          title = "Daily Mission Completed";
-          description = `Finished all ${evt.payload.totalTasks} missions for today!`;
-          break;
-        case Events.NOTE_CREATED:
-          legacyType = "note_created";
-          title = "Note Created";
-          description = evt.payload.title
-            ? `Captured thought: "${evt.payload.title}"`
-            : "Captured raw thought";
-          relatedNoteId = evt.payload.id;
-          relatedProjectId = evt.payload.projectId;
-          break;
-        case Events.NOTE_EDITED:
-          legacyType = "note_edited";
-          title = "Note Edited";
-          description = evt.payload.title
-            ? `Updated thought: "${evt.payload.title}"`
-            : "Updated raw thought";
-          relatedNoteId = evt.payload.id;
-          relatedProjectId = evt.payload.projectId;
-          break;
-        case Events.PRESENCE_UPDATED:
-          legacyType = "presence_updated";
-          title = "Presence Context Resolved";
-          description = `Resolved: ${evt.payload.context.returnState} during the ${evt.payload.context.timePeriod}`;
-          relatedProjectId = evt.payload.context.recentProjectReference;
-          break;
-      }
-
-      if (legacyType) {
-        this.record(legacyType, title, description, relatedProjectId, relatedNoteId, metadata);
-      }
+      this.record(
+        translated.eventType,
+        translated.title,
+        translated.description,
+        translated.relatedProjectId,
+        translated.relatedNoteId,
+        evt.payload || {},
+      );
     });
   },
 };
