@@ -6,6 +6,21 @@ export interface EventBusEvent<T = any> {
 
 export type EventBusSubscriber<T = any> = (event: EventBusEvent<T>) => void;
 
+/**
+ * String-topic pub/sub retained for the runtime/module subsystem.
+ *
+ * This bus used to forward everything it received to the instrumentation
+ * publisher, with `presence.updated` excluded by name so that a high-frequency
+ * signal would not fill the event store. Both halves of that are gone: the
+ * workspace producers, GENESIS and presence all publish directly to the
+ * platform bus now, so nothing needed forwarding and nothing needed excluding.
+ *
+ * What remains uses it as a plain in-process bus: `runtime/lifecycle`,
+ * `runtime/registry`, and the `ModuleContext.eventBus` passthrough that the SDK
+ * contract requires. Those are a separate architecture and are not dead code —
+ * they carry tested behaviour — so this class stays. There is no longer any
+ * path from here to the platform bus.
+ */
 class SimpleEventBus {
   private subscribers = new Map<string, Set<EventBusSubscriber>>();
 
@@ -57,33 +72,6 @@ class SimpleEventBus {
         }
       });
     }
-
-    // Forward to the new instrumentation publisher (Sprint 2.1 fallback bridge)
-    try {
-      import("../../../instrumentation")
-        .then(({ publish }) => {
-          if (eventType !== "presence.updated") {
-            publish({
-              type: eventType,
-              source: this.deriveSourceFromEventType(eventType),
-              payload: payload || {},
-              version: 1,
-            });
-          }
-        })
-        .catch(() => {});
-    } catch {
-      // ignore
-    }
-  }
-
-  private deriveSourceFromEventType(type: string): string {
-    if (type.startsWith("project.")) return "projects-legacy-bus";
-    if (type.startsWith("task.")) return "tasks-legacy-bus";
-    if (type.startsWith("note.")) return "notes-legacy-bus";
-    if (type.startsWith("session.")) return "sessions-legacy-bus";
-    if (type.startsWith("vault.")) return "vault-legacy-bus";
-    return "legacy-event-bus";
   }
 }
 

@@ -7,7 +7,7 @@ import { initializeDatabase } from "../../persistence/initializer";
 import { timelineRepository } from "../../persistence/repositories";
 import { SqliteTimelineRepository } from "../../persistence/repositories/SqliteTimelineRepository";
 import { timelineService } from "./service";
-import { eventBus } from "../../shared/infrastructure/event-bus";
+import { publish } from "../../instrumentation";
 import { Events } from "../../contracts/events";
 import { getDatabaseConnection } from "../../persistence/connection";
 
@@ -155,22 +155,31 @@ test("TimelineRepository - Category and Project Filters", () => {
   assertEquals(noteResult.items[0].id, "evt-2", "Should match note event evt-2");
 });
 
-test("TimelineService - EventBus Integration", async () => {
+test("TimelineService - Platform EventBus Integration", async () => {
   setupMockProjects();
   await timelineService.initialize();
 
-  // Publish a project.created event to the eventBus
-  eventBus.publish(Events.PROJECT_CREATED, {
-    id: "proj-new",
-    name: "Subsystem Refactor",
-    icon: "cpu",
+  // Publish through instrumentation publish(), which is what every production
+  // producer calls. This used to publish on the legacy bus and rely on its
+  // forward bridge to reach the platform bus; the bridge is gone, and going
+  // direct tests the path the application actually uses.
+  publish({
+    type: Events.PROJECT_CREATED,
+    source: "projects-store",
+    payload: {
+      id: "proj-new",
+      name: "Subsystem Refactor",
+      icon: "cpu",
+    },
+    version: 1,
   });
 
-  // Wait a small moment for async database logging to complete
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  // TimelineSubscriber.onEvent is async, so let its microtask settle. No timer
+  // is needed now that there is no asynchronous bridge hop in front of it.
+  await new Promise((resolve) => setTimeout(resolve, 0));
 
   const count = timelineRepository.count();
-  assertEquals(count, 1, "Count should increase after eventBus publish");
+  assertEquals(count, 1, "Count should increase after platform publish");
 
   const result = await timelineService.getEvents({ limit: 1 });
   assertEquals(result.items[0].eventType, Events.PROJECT_CREATED, "Logged event type should match");

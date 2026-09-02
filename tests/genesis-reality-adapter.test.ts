@@ -570,9 +570,9 @@ describe("legacy GENESIS intake — removed by the cutover", () => {
       },
     });
 
-    // presence.updated is excluded from the legacy bus's forward-bridge, so it
-    // reaches neither the instrumentation bus nor GENESIS. It matched no
-    // candidate rule when it did arrive, so nothing cognitive is lost; moving
+    // The legacy bus no longer forwards anything to the platform bus -- the
+    // bridge is gone -- so a legacy publish reaches neither the platform bus nor
+    // GENESIS. presence matched no candidate rule when it did arrive, so
     // presence onto the platform bus is P5.
     expect(recorded.events).toHaveLength(0);
     recorded.stop();

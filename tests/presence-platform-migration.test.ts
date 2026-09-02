@@ -6,6 +6,7 @@
  * and the forward bridge had to exclude it by name to keep it out of the event
  * store. It now publishes through instrumentation `publish()` with
  * `transient: true`, and its two consumers filter for it on `globalEventBus`.
+ * The forward bridge that once had to exclude presence by name is gone.
  *
  * The invariant these tests exist to protect: `companionStateService.bootstrap()`
  * throws unless a presence context has already reached it. Presence delivery is
