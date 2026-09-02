@@ -21,7 +21,8 @@ import { VaultHashService } from "./VaultHashService";
 import { VaultValidationService, getVaultRoot } from "./VaultValidationService";
 import { VaultFolderService } from "./VaultFolderService";
 import { VaultStorageService } from "./VaultStorageService";
-import { eventBus } from "../../shared/infrastructure/event-bus";
+import { globalEventBus } from "../../instrumentation/event-bus";
+import type { AkiraEvent } from "../../instrumentation/event-types";
 import { Events } from "../../contracts/events";
 
 // Registers each case with the vitest runner. This file previously collected
@@ -319,18 +320,29 @@ test("Vault Service - Timeline Integration event logging", async () => {
 
   // Create listener for Events.VAULT_FOLDER_CREATED
   let eventPayload: any = null;
-  const unsub = eventBus.subscribe(Events.VAULT_FOLDER_CREATED, (event) => {
-    eventPayload = event.payload;
-  });
+  // VaultFolderService publishes through instrumentation `publish()`, which
+  // reaches the platform globalEventBus. This test previously listened on the
+  // legacy bus, which never receives it — the forward bridge runs legacy ->
+  // instrumentation, not the reverse — so the assertion could not pass no
+  // matter what production did.
+  const listener = {
+    id: "vault-test-folder-listener",
+    onEvent: (event: AkiraEvent) => {
+      if (event.type === Events.VAULT_FOLDER_CREATED) {
+        eventPayload = event.payload;
+      }
+    },
+  };
+  globalEventBus.subscribe(listener);
 
   const folderId = VaultFolderService.createFolder("Audit Test Folder", null);
 
   // Wait a small moment
   await new Promise((resolve) => setTimeout(resolve, 20));
 
-  assertExists(eventPayload, "Event VAULT_FOLDER_CREATED should be published to eventBus");
+  assertExists(eventPayload, "Event VAULT_FOLDER_CREATED should be published to globalEventBus");
   assertEquals(eventPayload.id, folderId, "Payload should carry created folder ID");
   assertEquals(eventPayload.name, "Audit Test Folder", "Payload should carry folder name");
 
-  unsub();
+  globalEventBus.unsubscribe(listener);
 });

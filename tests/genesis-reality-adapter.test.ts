@@ -175,7 +175,6 @@ describe("reality adapter — translation", () => {
         Events.MISSION_COMPLETED,
         Events.NOTE_CREATED,
         Events.NOTE_EDITED,
-        Events.PRESENCE_UPDATED,
       ].sort(),
     );
 
@@ -258,7 +257,7 @@ describe("reality adapter — failure isolation", () => {
     // prove the bus is safe, not the adapter. The adapter's own contract is
     // that onEvent absorbs its faults, and only a direct call tests that.
     const adapter = new GenesisRealityAdapter();
-    const malformed = makeEvent(Events.PRESENCE_UPDATED, {}, "direct-bad");
+    const malformed = makeEvent(Events.PROJECT_CREATED, null, "direct-bad");
 
     expect(() => adapter.onEvent(malformed)).not.toThrow();
     expect(adapter.getMetrics().failed).toBe(1);
@@ -275,9 +274,9 @@ describe("reality adapter — failure isolation", () => {
     const peerAfter: string[] = [];
     bus.subscribe({ id: "peer-timeline", onEvent: (e) => void peerAfter.push(e.id) });
 
-    // A supported type whose payload is malformed: the presence translator
-    // dereferences payload.context, so this throws inside the adapter.
-    const bad = makeEvent(Events.PRESENCE_UPDATED, {}, "bad-1");
+    // A supported type whose payload is malformed: the project translator
+    // dereferences payload.name, so a null payload throws inside the adapter.
+    const bad = makeEvent(Events.PROJECT_CREATED, null, "bad-1");
     expect(() => bus.publish(bad)).not.toThrow();
 
     // Both peers — registered before and after the adapter — still received it.
@@ -288,7 +287,7 @@ describe("reality adapter — failure isolation", () => {
     expect(metrics.failed).toBe(1);
     expect(metrics.translated).toBe(0);
     expect(metrics.lastError?.eventId).toBe("bad-1");
-    expect(metrics.lastError?.eventType).toBe(Events.PRESENCE_UPDATED);
+    expect(metrics.lastError?.eventType).toBe(Events.PROJECT_CREATED);
 
     adapter.detach();
   });
@@ -299,7 +298,7 @@ describe("reality adapter — failure isolation", () => {
     adapter.attach(bus);
     const recorded = captureRecorded();
 
-    bus.publish(makeEvent(Events.PRESENCE_UPDATED, {}, "bad-2"));
+    bus.publish(makeEvent(Events.PROJECT_CREATED, null, "bad-2"));
     bus.publish(
       makeEvent(Events.TASK_COMPLETED, { id: "t", title: "After failure", projectId: "p" }, "ok-1"),
     );

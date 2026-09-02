@@ -53,14 +53,6 @@ interface NotePayload {
   projectId: string | null;
 }
 
-interface PresencePayload {
-  context: {
-    returnState: string;
-    timePeriod: string;
-    recentProjectReference: string | null;
-  };
-}
-
 /**
  * One translator per supported platform event type.
  *
@@ -125,23 +117,19 @@ const TRANSLATORS: Record<string, (payload: never) => TranslatedEvent> = {
     relatedProjectId: payload.projectId,
     relatedNoteId: payload.id,
   }),
-
-  [Events.PRESENCE_UPDATED]: (payload: PresencePayload): TranslatedEvent => ({
-    eventType: "presence_updated",
-    title: "Presence Context Resolved",
-    description: `Resolved: ${payload.context.returnState} during the ${payload.context.timePeriod}`,
-    relatedProjectId: payload.context.recentProjectReference,
-    relatedNoteId: null,
-  }),
 };
 
 /**
  * The platform event types GENESIS currently understands.
  *
  * Derived from the translator table, so it cannot fall out of step with what
- * is actually translatable. Note that `presence.updated` travels only on the
- * legacy bus today; it is listed because the legacy subscription shares this
- * table, not because the instrumentation bus carries it.
+ * is actually translatable.
+ *
+ * `presence.updated` is deliberately absent. It translated cleanly but matched
+ * no candidate rule, so it produced a MemoryEvent and nothing else — and it
+ * fires on every store change plus a decay timer, which would have made it by
+ * far the highest-volume input to an unbounded memory list. Re-admitting it
+ * needs a candidate rule and a use case, not just an allowlist entry.
  */
 export const SUPPORTED_PLATFORM_EVENT_TYPES: readonly string[] = Object.freeze(
   Object.keys(TRANSLATORS),

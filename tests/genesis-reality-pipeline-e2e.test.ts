@@ -221,13 +221,13 @@ describe("unknown events and failure isolation", () => {
 
     const before = genesisRealityAdapter.getMetrics();
 
-    // A supported type with a malformed payload: the presence translator
-    // dereferences payload.context, so the adapter faults on a real publish.
+    // A supported type with a malformed payload: the project translator
+    // dereferences payload.name, so the adapter faults on a real publish.
     expect(() =>
       publish({
-        type: Events.PRESENCE_UPDATED,
-        source: "presence-service",
-        payload: {},
+        type: Events.PROJECT_CREATED,
+        source: "projects-store",
+        payload: null,
         version: 1,
       }),
     ).not.toThrow();
