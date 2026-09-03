@@ -1,4 +1,5 @@
 import { IdentityObservation } from "./identity-types";
+import { getRetentionPolicy, trimOldest } from "../retention/policy";
 
 export type IdentityListener = (event: {
   type: "Updated" | "Confirmed" | "Refined";
@@ -7,6 +8,24 @@ export type IdentityListener = (event: {
 const listeners = new Set<IdentityListener>();
 
 const observationCache: IdentityObservation[] = [];
+
+/**
+ * Keeps a bounded provenance trail rather than one string that grows forever.
+ *
+ * Provenance concatenated a segment on every reinforcement, so a trait touched
+ * by a thousand story updates carried a thousand-segment string. The newest
+ * segments are the ones that explain the current confidence, so the stale end
+ * is what goes, and an ellipsis marks that something was dropped.
+ */
+function appendProvenance(previous: string, addition: string): string {
+  const segments = previous
+    .split(" | ")
+    .filter((segment) => segment !== "…")
+    .concat(addition);
+  const limit = getRetentionPolicy().maxObservationHistory;
+  if (segments.length <= limit) return segments.join(" | ");
+  return ["…", ...segments.slice(segments.length - limit)].join(" | ");
+}
 
 export const identityService = {
   /**
@@ -73,21 +92,26 @@ export const identityService = {
         eventType = "Confirmed";
       }
 
+      // trimOldest mutates in place and returns what it removed, so the array
+      // is built first and then bounded.
+      const nextConfidenceHistory = [
+        ...oldObs.confidenceHistory,
+        {
+          confidence: nextConfidence,
+          timestamp: new Date().toISOString(),
+          reason: mergeReason,
+        },
+      ];
+      trimOldest(nextConfidenceHistory, getRetentionPolicy().maxObservationHistory);
+
       const updatedObs: IdentityObservation = {
         ...oldObs,
         value: obs.value,
         confidence: nextConfidence,
         supportingStoryIds: mergedStoryIds,
         supportingMemoryIds: mergedMemoryIds,
-        provenance: `${oldObs.provenance} | ${obs.provenance}`,
-        confidenceHistory: [
-          ...oldObs.confidenceHistory,
-          {
-            confidence: nextConfidence,
-            timestamp: new Date().toISOString(),
-            reason: mergeReason,
-          },
-        ],
+        provenance: appendProvenance(oldObs.provenance, obs.provenance),
+        confidenceHistory: nextConfidenceHistory,
         updatedAt: new Date().toISOString(),
       };
       observationCache[idx] = updatedObs;

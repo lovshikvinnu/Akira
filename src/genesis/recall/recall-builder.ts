@@ -109,6 +109,12 @@ export const recallBuilder = {
       }
     }
 
-    recallService.startRecallSession(candidates, resolvedContext);
+    // The candidate list above is built from `memories`, so that same set is
+    // the definition of which cached candidates can still be resolved.
+    recallService.startRecallSession(
+      candidates,
+      resolvedContext,
+      new Set(memories.map((m) => m.id)),
+    );
   },
 };

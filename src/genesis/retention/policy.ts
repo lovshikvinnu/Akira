@@ -40,6 +40,17 @@ export interface GenesisRetentionPolicy {
   readonly maxMemoriesPerStory: number;
   /** Recalculation entries kept per memory's importance profile. */
   readonly maxImportanceHistoryPerMemory: number;
+  /**
+   * Confidence entries, and provenance segments, kept per identity
+   * observation.
+   *
+   * Observations merge on (category, name), so the number of observations
+   * tracks distinct traits. What grew was the inside of one: identity is
+   * rebuilt from stories and stories update on every memory, so the same
+   * trait is reinforced indefinitely and both its history array and its
+   * provenance string gained an entry each time.
+   */
+  readonly maxObservationHistory: number;
   /** Detected relationships between memories. */
   readonly maxRelationships: number;
   /**
@@ -77,6 +88,10 @@ export const DEFAULT_RETENTION_POLICY: GenesisRetentionPolicy = {
   maxStories: 100,
   maxMemoriesPerStory: 200,
   maxImportanceHistoryPerMemory: 20,
+  // Matches the importance history limit: both answer the same question,
+  // which is how much of a derived signal's recalculation trail is worth
+  // keeping to explain the current value.
+  maxObservationHistory: 20,
   maxRelationships: 1000,
   // Lower than the 50 this replaces. Nothing reads `getSessionHistory()`; it is
   // kept for inspection, and each entry holds a full candidate snapshot, so 50

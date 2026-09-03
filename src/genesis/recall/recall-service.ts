@@ -60,6 +60,7 @@ export const recallService = {
   startRecallSession(
     newActiveCandidates: Omit<RecallCandidate, "status">[],
     context?: RecallContext,
+    liveMemoryIds?: ReadonlySet<string>,
   ): RecallSession {
     const sessionId = uid();
     const timestamp = new Date().toISOString();
@@ -96,8 +97,21 @@ export const recallService = {
           timestamp,
         });
       } else if (old.status === "Inactive" && !isNewActive) {
-        // Retain inactive history for context package rules
-        nextCache.push(old);
+        // Carry the candidate forward only while its memory still exists.
+        //
+        // This is the cache's only bound, and it is a referential one rather
+        // than a count. The builder derives candidates solely from live
+        // memories, so once a memory is evicted its candidate can never become
+        // Active again -- it is unreachable data, and keeping it meant the
+        // cache grew with everything the process had ever recalled rather than
+        // with what it currently holds. Each retained session references the
+        // array containing them, so the leak was pinned several times over.
+        //
+        // `liveMemoryIds` is optional so a caller that has no view of memory
+        // keeps the previous behaviour instead of silently discarding history.
+        if (!liveMemoryIds || liveMemoryIds.has(old.memoryId)) {
+          nextCache.push(old);
+        }
       }
     }
 
