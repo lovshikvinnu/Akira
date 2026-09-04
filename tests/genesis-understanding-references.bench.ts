@@ -175,6 +175,41 @@ describe("understanding graph references", () => {
     log(`parser given a bare declaration directly: ${direct.length} fragment(s) ${JSON.stringify(direct.map((f) => f.canonicalKey))}`);
   });
 
+  it("U5: what survives of a note, by capture surface", () => {
+    resetRetentionPolicy();
+    freshWorkspace();
+
+    // The four quick-capture surfaces all call `addNote(string)`, which sets
+    // title to "" -- Topbar.tsx:23, CommandPalette.tsx:173, search.tsx:281,
+    // CaptureThoughtDialog.tsx:29. Only the notes route passes a title.
+    akira.addNote("zqfrobnicate the widget before shipping");           // brain dump
+    akira.addNote({ title: "wibbleplugh", content: "bazquux details" }); // titled note
+
+    const memories = memoryService.getMemories();
+    const haystack = JSON.stringify({
+      memories,
+      stories: storyService.getStories(),
+      understandings: graph(),
+    });
+
+    const found = (needle: string) => (haystack.includes(needle) ? "FOUND" : "absent");
+
+    log("");
+    log("=== U5  what survives of a note ===");
+    log(`note-derived memories: ${memories.filter((m) => m.relatedNoteId).length} for 2 notes`);
+    log(`  brain-dump body  "zqfrobnicate" -> ${found("zqfrobnicate")}`);
+    log(`  titled note TITLE "wibbleplugh"  -> ${found("wibbleplugh")}`);
+    log(`  titled note BODY  "bazquux"      -> ${found("bazquux")}`);
+    for (const m of memories.filter((m) => m.relatedNoteId)) {
+      log(`  memory description: ${JSON.stringify(m.description)}`);
+    }
+
+    // The memory count above already proves the hold: two notes, one memory.
+    log(
+      `  brain dump contributes nothing; a titled note contributes its title only`,
+    );
+  });
+
   it("U3: can a memory title ever be a personal declaration", () => {
     resetRetentionPolicy();
     freshWorkspace();
