@@ -2,6 +2,7 @@ import { Memory } from "../validation/types";
 import { MemoryImportance } from "../importance/types";
 import { Story } from "../stories/types";
 import { storyService } from "../stories/story-service";
+import { REFLECTIONS_ARC_TITLE } from "../stories/story-identity";
 import { getChat, getCompanionState } from "../../shared/genesis-provider";
 import { RecallContext } from "./types";
 
@@ -392,7 +393,7 @@ export const recallRules: RecallRule[] = [
       if (
         parentStory &&
         parentStory.status === "Active" &&
-        !(context === "BOOTSTRAP" && parentStory.title === "Personal Growth Reflections")
+        !(context === "BOOTSTRAP" && parentStory.title === REFLECTIONS_ARC_TITLE)
       ) {
         return {
           shouldRecall: true,

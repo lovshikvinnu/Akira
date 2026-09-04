@@ -55,6 +55,7 @@ const {
   projectArcTitleRemainder,
 } = await import("../src/genesis/stories/story-identity");
 const { identityRules } = await import("../src/genesis/understanding/identity-rules");
+const { recallRules } = await import("../src/genesis/recall/recall-rules");
 const { resetRetentionPolicy } = await import("../src/genesis/retention/policy");
 
 function freshWorkspace(): void {
@@ -202,6 +203,59 @@ describe("the coupling itself, stated as behaviour", () => {
     // rename even though every title-keyed consumer does not. That asymmetry is
     // the argument for moving the coupling onto a structured field.
     expect(renamed.summary).toContain("Project ID:");
+  });
+});
+
+describe("recall still keys on the same constant", () => {
+  beforeEach(() => {
+    resetRetentionPolicy();
+    freshWorkspace();
+  });
+  afterEach(() => resetRetentionPolicy());
+
+  /**
+   * `recall-rules.ts` suppresses the reflections arc under BOOTSTRAP and only
+   * under BOOTSTRAP. That is the single mechanism deciding whether a
+   * free-standing user note is recalled at all, so the constant swap is pinned
+   * here against both context values rather than assumed equivalent.
+   */
+  it("suppresses the reflections arc under BOOTSTRAP and not under QUERY", () => {
+    buildBothArcs();
+
+    const arcRule = recallRules.find((r) => r.name === "Active Story Recall Rule")!;
+    const arc = reflectionsArc()!;
+    const member = memoryService
+      .getMemories()
+      .find((m) => arc.relatedMemoryIds.includes(m.id))!;
+
+    expect(arc.status).toBe("Active");
+
+    // Suppressed at BOOTSTRAP -- the behaviour the literal used to encode.
+    expect(arcRule.evaluate(member, null, storyService.getStories(), "BOOTSTRAP").shouldRecall).toBe(
+      false,
+    );
+    // and not suppressed otherwise.
+    expect(arcRule.evaluate(member, null, storyService.getStories(), "QUERY").shouldRecall).toBe(
+      true,
+    );
+  });
+
+  it("suppresses by title, so a renamed reflections arc is recalled at BOOTSTRAP", () => {
+    buildBothArcs();
+
+    const arcRule = recallRules.find((r) => r.name === "Active Story Recall Rule")!;
+    const arc = reflectionsArc()!;
+    const member = memoryService
+      .getMemories()
+      .find((m) => arc.relatedMemoryIds.includes(m.id))!;
+
+    storyService.updateStory(arc.id, { title: "Reflections" });
+
+    // Same story, same members, same status -- recalled now, because the
+    // suppression is keyed on words. The coupling, stated for recall too.
+    expect(arcRule.evaluate(member, null, storyService.getStories(), "BOOTSTRAP").shouldRecall).toBe(
+      true,
+    );
   });
 });
 
