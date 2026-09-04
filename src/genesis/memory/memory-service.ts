@@ -64,7 +64,28 @@ export const memoryService = {
         candidateId: candidate.id,
         timestamp: candidate.timestamp || new Date().toISOString(),
         reason: candidate.reason,
-        explanation: result.explanation || candidate.explanation,
+        // The candidate's account of what happened, not the validator's account
+        // of why it was promoted.
+        //
+        // `result.explanation` is always truthy for a promotion, so it always
+        // won, and every Memory carried a fixed sentence of the form
+        // `Milestone candidate "Project Updated" promoted immediately.` That
+        // restates `reason` and `title` -- both already on the Memory -- and
+        // discards the only text describing the occurrence.
+        //
+        // It also made the Milestone Causality relationship rule unreachable.
+        // That rule asks whether an explanation mentions "completed"/"100%" and
+        // "initiated"/"created", and the surviving sentence interpolates the
+        // translator's fixed event title rather than anything the user wrote,
+        // so no input could ever satisfy it. The rule had never produced a
+        // relationship and could not.
+        //
+        // The validator's rationale is not preserved elsewhere because nothing
+        // reads it: the three consumers of this field -- the Milestone
+        // importance signal, the Brain Inspector's "Rationale" line, and the
+        // memory context sent to the model -- all want the description of the
+        // event, and all were being handed boilerplate.
+        explanation: candidate.explanation,
         title: candidate.title,
         description: candidate.description,
         relatedProjectId: candidate.relatedProjectId,
