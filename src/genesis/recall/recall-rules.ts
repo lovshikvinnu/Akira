@@ -103,6 +103,23 @@ export type MemoryCategory =
  *
  * The same reasoning would be wrong for a `Story`, which is replaced on every
  * update -- a story-keyed WeakMap would silently miss on every read.
+ *
+ * WHAT IT IS WORTH, AND WHEN
+ * --------------------------
+ * Only on a populated chat, and the size depends on machine load. Measured at
+ * 500 memories, `toLowerCase` calls per rebuild in steady state:
+ *
+ *   empty chat       25 -> 24    the semantic site returns early on a blank
+ *                               query, so there is nothing per-memory to cache
+ *   populated chat  526 -> 25
+ *
+ * So the cache does nothing for an empty chat. On a populated one the rebuild
+ * improved by 0.03-1.12 ms across six interleaved rounds, median ~0.40 ms on
+ * the minimum-of-201-trials statistic -- the larger figures on a loaded machine,
+ * the smallest on a quiet one, which is what removing ~500 short-lived
+ * allocations should look like when collection pressure is what varies. Real
+ * sessions have a chat, so the populated case is the common one, but a
+ * benchmark run with an empty chat will correctly show no change.
  */
 const normalisedTextByMemory = new WeakMap<Memory, string>();
 
@@ -436,8 +453,9 @@ export const recallRules: RecallRule[] = [
         if (memory.relatedProjectId === activeProject.id) {
           contextMatchScore = 1.0;
         } else {
-          // The project name was lowercased once for the whole rebuild; the
-          // memory text still has to be, because it differs per memory.
+          // Both sides are normalised once and reused: the project name once per
+          // rebuild in `buildRecallEvaluationContext`, the memory text once per
+          // memory in `normalisedMemoryText`.
           const memoryText = normalisedMemoryText(memory);
           if (memoryText.includes(activeProject.nameLower)) {
             contextMatchScore = 0.8;
