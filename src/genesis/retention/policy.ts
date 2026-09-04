@@ -83,8 +83,24 @@ export interface GenesisRetentionPolicy {
    * provenance string gained an entry each time.
    */
   readonly maxObservationHistory: number;
-  /** Detected relationships between memories. */
-  readonly maxRelationships: number;
+  /**
+   * Detected relationships retained per memory.
+   *
+   * Bounded per memory rather than globally. A single global cap made coverage
+   * a function of cache position: one completed task in a large project emits
+   * a relationship against every peer, so the shared cache turned over faster
+   * than anything could read it and only the newest ~50% of memories held any
+   * relationship at all. The two importance rules that consume them returned
+   * null for everyone else, which made a memory's measured connectedness
+   * depend on when it was looked at rather than on what it was connected to.
+   *
+   * Eight sits above the point where both consumers stop distinguishing:
+   * `min(1, 0.4 + n * 0.15)` reaches 1.0 at four relationships and
+   * `min(1, 0.4 + n * 0.2)` at three. Retaining more changes no signal any
+   * rule can currently express, and eight leaves headroom for one that counts
+   * further.
+   */
+  readonly maxRelationshipsPerMemory: number;
   /**
    * Recall sessions kept as history.
    *
@@ -128,7 +144,7 @@ export const DEFAULT_RETENTION_POLICY: GenesisRetentionPolicy = {
   // which is how much of a derived signal's recalculation trail is worth
   // keeping to explain the current value.
   maxObservationHistory: 20,
-  maxRelationships: 1000,
+  maxRelationshipsPerMemory: 8,
   // Lower than the 50 this replaces. Nothing reads `getSessionHistory()`; it is
   // kept for inspection, and each entry holds a full candidate snapshot, so 50
   // retained roughly 50 x maxMemories candidate objects at steady state --

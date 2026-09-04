@@ -73,7 +73,7 @@ describe("policy primitives", () => {
       p.maxStories,
       p.maxMemoriesPerStory,
       p.maxImportanceHistoryPerMemory,
-      p.maxRelationships,
+      p.maxRelationshipsPerMemory,
       p.context.maxStories,
       p.context.maxRecallCandidates,
       p.context.maxIdentityObservations,

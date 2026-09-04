@@ -9,7 +9,7 @@
  *
  * The index is a projection, so the only thing worth testing is that it cannot
  * disagree with the cache it projects. Every path that changes the cache is
- * exercised separately -- creation, the `maxRelationships` eviction, retention's
+ * exercised separately -- creation, the per-memory bound's eviction, retention's
  * `forgetMemories`, `clearHistory` -- and after each, the index is compared
  * against the filter it replaced, over every memory in play.
  *
@@ -111,15 +111,24 @@ describe("adjacency index tracks every cache mutation", () => {
     expectIndexMatchesScan();
   });
 
-  it("follows the maxRelationships eviction", () => {
-    // trimOldest drops from the front and notifies nobody; the index learns
-    // about it only through the return value.
-    setRetentionPolicy({ maxRelationships: 12 });
+  it("follows the per-memory bound as it evicts", () => {
+    // The bound replaced a single global cap. Eviction now happens inside the
+    // detection pass rather than after it, and the cache learns about it from
+    // one compaction at the end.
+    setRetentionPolicy({ maxRelationshipsPerMemory: 3 });
 
     const projectId = newProject("Adjacency Evict");
     for (let i = 0; i < 14; i++) completeTask(projectId, `evict-${i}`);
 
-    expect(relationshipService.getRelationships().length).toBeLessThanOrEqual(12);
+    // Scoped to this test's own memories: the file shares module state, and
+    // earlier tests created their relationships under the default bound.
+    const mine = memoryService.getMemories().filter((m) => m.relatedProjectId === projectId);
+    expect(mine.length).toBeGreaterThan(3);
+    for (const memory of mine) {
+      expect(relationshipService.getRelationshipsForMemory(memory.id).length).toBeLessThanOrEqual(
+        3,
+      );
+    }
     expectIndexMatchesScan();
   });
 
