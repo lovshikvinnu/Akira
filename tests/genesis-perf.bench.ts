@@ -41,10 +41,24 @@
  *
  * READING THE OUTPUT
  * ------------------
- * Medians, not means. A parallel build on the same machine was observed to make
- * 30-sample means of identical code vary by 44% -- enough to invert the sign of
- * a 2 ms effect. Absolute numbers are only comparable within one run; across
- * runs, compare ratios between phases.
+ * The absolute ms/action this prints is NOT comparable across runs, and must
+ * not be quoted as GENESIS's latency. Six runs of one commit through this
+ * harness produced medians from 3.89 to 11.17 ms -- a 2.9x span with identical
+ * deterministic counts. What survives across runs is the *phase share*: recall
+ * held 36-38% of the action across that entire span.
+ *
+ * So this harness answers "which phase dominates", not "how fast is it".
+ *
+ * For "does this change save X", do not use this harness's absolutes. Use the
+ * validated paired protocol in `tests/support/perf-ab.ts`, which interleaves
+ * both arms per sample inside one process and reports its own noise floor;
+ * effects below ~0.16 ms are not resolvable here by any timing method tried.
+ * `tests/genesis-perf-ab-validation.bench.ts` re-checks that floor on demand,
+ * so the number is verifiable rather than inherited.
+ *
+ * Also note the first ~50 samples are unreliable in both directions (8.42,
+ * 3.16 and 8.32 ms in three runs whose plateau was ~5.3 ms each time), which is
+ * why the paired protocol discards a warm-up prefix.
  */
 process.env.AKIRA_DATABASE_PATH = ":memory:";
 process.env.NODE_ENV = "test";
