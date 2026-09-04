@@ -252,6 +252,60 @@ describe("lifecycle is safe to repeat", () => {
     expect(() => observability.shutdownObservability()).not.toThrow();
   });
 
+  it("stops observing on shutdown but leaves the telemetry sink attached", async () => {
+    // The lifecycle contract, pinned rather than merely described in a comment.
+    //
+    // Shutdown is deliberately not a mirror image of composition: it removes
+    // everything that makes observability *watch* the platform, and leaves the
+    // pipeline's sink in place. Detaching the sink would mean setSink(null),
+    // which restores the original defect -- records validated and then dropped
+    // with no way to read them back.
+    const { factory, TelemetrySeverity } = await import("../src/observability/index");
+
+    observability.initializeObservability();
+    observability.shutdownObservability();
+    telemetryStore.clear();
+
+    // 1. Watching has genuinely stopped: a real delivery is no longer observed.
+    const { subscriber } = makeSubscriber("post-shutdown");
+    globalEventBus.subscribe(subscriber);
+    emit();
+    expect(healthRegistry.get("post-shutdown")).toBeUndefined();
+
+    // 2. But the telemetry API still works for anyone still holding it.
+    await telemetryService.record(
+      factory.createLog("test", "test", TelemetrySeverity.INFO, "after shutdown"),
+    );
+    const logs = telemetryStore.query({ type: "log" });
+    expect(logs.length, "the sink must survive shutdown").toBeGreaterThan(0);
+    expect((logs[logs.length - 1] as any).message).toBe("after shutdown");
+  });
+
+  it("cannot grow the store without bound while detached", () => {
+    // Why leaving the sink attached is safe: the store is a bounded ring
+    // buffer, so a sink nobody is managing still cannot leak memory.
+    observability.initializeObservability();
+    observability.shutdownObservability();
+    telemetryStore.clear();
+
+    const capacity = telemetryStore.stats().capacity;
+    for (let i = 0; i < capacity + 250; i++) {
+      void telemetryStore.write({
+        id: "r" + i,
+        timestamp: new Date().toISOString(),
+        monotonicTimestamp: String(i),
+        source: "test",
+        moduleId: "test",
+        correlation: { correlationId: "c" },
+        severity: "INFO",
+        version: "1.0.0",
+        metadata: {},
+        type: "log",
+      } as any);
+    }
+    expect(telemetryStore.count()).toBe(capacity);
+  });
+
   it("leaks no health listener when initialized repeatedly", () => {
     // The subtle half of idempotency. Each initialize subscribes a health
     // listener and stores the one function that can remove it, so without a

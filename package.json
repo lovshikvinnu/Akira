@@ -13,7 +13,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest",
-    "validate:architecture": "npx tsx scripts/validate-architecture.ts"
+    "validate:architecture": "npx tsx scripts/validate-architecture.ts",
+    "verify:observability": "npx tsx scripts/verify-observability-reachability.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
