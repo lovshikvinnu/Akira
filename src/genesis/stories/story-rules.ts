@@ -2,6 +2,12 @@ import { Memory } from "../validation/types";
 import { MemoryRelationship } from "../memory/relationships/types";
 import { Story } from "./types";
 import { storyService } from "./story-service";
+import {
+  PROJECT_ARC_TITLE_PREFIX,
+  REFLECTIONS_ARC_TITLE,
+  isProjectArc,
+  isReflectionsArc,
+} from "./story-identity";
 
 export interface StoryRule {
   name: string;
@@ -29,7 +35,7 @@ export const storyRules: StoryRule[] = [
       if (memory.relatedProjectId) {
         const targetStory = existingStories.find(
           (story) =>
-            story.title.startsWith("Project Arc:") &&
+            isProjectArc(story) &&
             story.summary.includes(`ID: ${memory.relatedProjectId}`),
         );
 
@@ -39,7 +45,7 @@ export const storyRules: StoryRule[] = [
           return {
             shouldCluster: true,
             newStoryData: {
-              title: `Project Arc: ${memory.title.split(":")[0]}`,
+              title: `${PROJECT_ARC_TITLE_PREFIX} ${memory.title.split(":")[0]}`,
               summary: `Evolving narrative tracking milestones, tasks, and reflections for Project ID: ${memory.relatedProjectId}.`,
             },
           };
@@ -69,7 +75,7 @@ export const storyRules: StoryRule[] = [
     evaluateMemory(memory, existingStories) {
       if (memory.reason === "Reflection Worthy") {
         const reflectionStory = existingStories.find(
-          (s) => s.title === "Personal Growth Reflections",
+          isReflectionsArc,
         );
         if (reflectionStory) {
           return { shouldCluster: true, storyId: reflectionStory.id };
@@ -77,7 +83,7 @@ export const storyRules: StoryRule[] = [
           return {
             shouldCluster: true,
             newStoryData: {
-              title: "Personal Growth Reflections",
+              title: REFLECTIONS_ARC_TITLE,
               summary:
                 "A consolidated narrative clustering captured thoughts, ideas, and self-reflections.",
             },

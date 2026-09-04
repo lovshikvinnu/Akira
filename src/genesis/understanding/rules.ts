@@ -1,5 +1,6 @@
 import { Memory } from "../validation/types";
 import { Story } from "../stories/types";
+import { isProjectArc } from "../stories/story-identity";
 import {
   UnderstandingRule,
   UnderstandingFragment,
@@ -58,7 +59,7 @@ export const projectRule: UnderstandingRule = {
 
       if (summaryMatch) {
         projectId = summaryMatch[1];
-      } else if (story.title.startsWith("Project Arc:")) {
+      } else if (isProjectArc(story)) {
         const parts = story.title.split(":");
         if (parts.length > 1) {
           projectId = parts[1].trim();

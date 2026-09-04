@@ -4,6 +4,11 @@ import { Story } from "../stories/types";
 import { IdentityObservation } from "../understanding/identity-types";
 import { hypothesesService } from "../understanding/hypotheses";
 import { ContextItem } from "./types";
+import {
+  PROJECT_ARC_TITLE_PREFIX,
+  isProjectArc,
+  projectArcTitleRemainder,
+} from "../stories/story-identity";
 
 export const contextRules = {
   /**
@@ -72,9 +77,9 @@ export const contextRules = {
 
     // 1. Extract goals from active project narratives
     stories
-      .filter((s) => s.status === "Active" && s.title.startsWith("Project Arc:"))
+      .filter((s) => s.status === "Active" && isProjectArc(s))
       .forEach((s) => {
-        goals.push(`Complete Project Arc: ${s.title.replace("Project Arc:", "").trim()}`);
+        goals.push(`Complete ${PROJECT_ARC_TITLE_PREFIX} ${projectArcTitleRemainder(s)}`);
       });
 
     // 2. Extract goals from proposed/confirmed onboarding aspirations

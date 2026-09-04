@@ -1,6 +1,12 @@
 import { Story } from "../stories/types";
 import { IdentityCategory } from "./identity-types";
 import { hypothesesService } from "./hypotheses";
+import {
+  REFLECTIONS_ARC_TITLE,
+  isProjectArc,
+  isReflectionsArc,
+  projectArcTitleRemainder,
+} from "../stories/story-identity";
 
 export interface IdentityRule {
   name: string;
@@ -22,14 +28,14 @@ export const identityRules: IdentityRule[] = [
   {
     name: "Reflective Trait Evaluation",
     evaluateStory(story) {
-      if (story.title === "Personal Growth Reflections" && story.relatedMemoryIds.length >= 2) {
+      if (isReflectionsArc(story) && story.relatedMemoryIds.length >= 2) {
         return {
           detected: true,
           category: "Trait",
           observationName: "Reflective",
           value: "Active",
           confidence: Math.min(1.0, 0.5 + story.relatedMemoryIds.length * 0.1),
-          provenance: `Inferred reflective trait because user logged ${story.relatedMemoryIds.length} observations in the "Personal Growth Reflections" story.`,
+          provenance: `Inferred reflective trait because user logged ${story.relatedMemoryIds.length} observations in the "${REFLECTIONS_ARC_TITLE}" story.`,
         };
       }
       return { shouldCluster: false } as any;
@@ -38,7 +44,7 @@ export const identityRules: IdentityRule[] = [
   {
     name: "Deep Work Focus Style Evaluation",
     evaluateStory(story) {
-      if (story.title.startsWith("Project Arc:") && story.relatedMemoryIds.length >= 3) {
+      if (isProjectArc(story) && story.relatedMemoryIds.length >= 3) {
         return {
           detected: true,
           category: "WorkStyle",
@@ -54,8 +60,8 @@ export const identityRules: IdentityRule[] = [
   {
     name: "Project Completion Hypothesis Confirmation",
     evaluateStory(story) {
-      if (story.title.startsWith("Project Arc:") && story.status === "Completed") {
-        const projectName = story.title.replace("Project Arc:", "").trim();
+      if (isProjectArc(story) && story.status === "Completed") {
+        const projectName = projectArcTitleRemainder(story);
 
         const hypotheses = hypothesesService.getHypotheses();
         const matchingHyp = hypotheses.find(
