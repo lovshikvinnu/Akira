@@ -66,13 +66,22 @@ function SettingsPage() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Sync apiKeyInput and modelInput when selectedProvider changes or when providerState updates keys
+  // Sync apiKeyInput and modelInput when the provider changes, or when the
+  // manager's own key or model values change -- hydration landing after the
+  // first render is the case that matters. The model was missing from these
+  // dependencies, so a model arriving from storage never reached the field.
   useEffect(() => {
     setApiKeyInput(aiProviderManager.getApiKey(selectedProvider));
     setModelInput(aiProviderManager.getModel(selectedProvider));
     setTestResult(null);
     setShowKey(false);
-  }, [selectedProvider, providerState.geminiKey, providerState.openRouterKey]);
+  }, [
+    selectedProvider,
+    providerState.geminiKey,
+    providerState.openRouterKey,
+    providerState.geminiMetrics.model,
+    providerState.openRouterMetrics.model,
+  ]);
 
   const handleTabChange = (tab: "general" | "providers") => {
     setActiveTab(tab);
@@ -406,13 +415,29 @@ function SettingsPage() {
                 </div>
 
                 <form
-                  onSubmit={(e) => {
+                  onSubmit={async (e) => {
                     e.preventDefault();
-                    aiProviderManager.setApiKey(selectedProvider, apiKeyInput.trim());
-                    if (selectedProvider === "OpenRouter") {
-                      aiProviderManager.setModel("OpenRouter", modelInput.trim());
+                    // Await the writes and report their real outcome. These
+                    // setters used to be fire-and-forget while the toast claimed
+                    // success unconditionally, so a save that never reached the
+                    // database still looked like it had worked -- until a
+                    // refresh brought the old values back.
+                    const savedKey = await aiProviderManager.setApiKey(
+                      selectedProvider,
+                      apiKeyInput.trim(),
+                    );
+                    const savedModel =
+                      selectedProvider === "OpenRouter"
+                        ? await aiProviderManager.setModel("OpenRouter", modelInput.trim())
+                        : true;
+
+                    if (savedKey && savedModel) {
+                      toast.success(`${selectedProvider} settings saved`);
+                    } else {
+                      toast.error(
+                        `Could not save ${selectedProvider} settings. They are active for this session but will not survive a refresh.`,
+                      );
                     }
-                    toast.success(`${selectedProvider} settings saved`);
                   }}
                   className="space-y-5"
                 >

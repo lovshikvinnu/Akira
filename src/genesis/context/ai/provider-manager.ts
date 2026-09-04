@@ -12,6 +12,19 @@ export type ProviderMetrics = {
   lastResponseTime: string;
 };
 
+/**
+ * Copies `loaded` onto `target`, skipping anything the user has already edited.
+ */
+function applyUnedited(
+  target: Record<string, string>,
+  loaded: Record<string, string>,
+  edited: ReadonlySet<string>,
+): void {
+  for (const [key, value] of Object.entries(loaded)) {
+    if (!edited.has(key)) target[key] = value;
+  }
+}
+
 class AIProviderManager {
   private activeProvider = "Gemini";
   private keys: Record<string, string> = {};
@@ -22,6 +35,19 @@ class AIProviderManager {
     OpenRouter: "nvidia/nemotron-3-nano-30b-a3b:free",
   };
   private listeners = new Set<() => void>();
+  /**
+   * Settings the user has changed during this session.
+   *
+   * `loadConfig()` runs once, from the constructor, and is not awaited. Anything
+   * entered while it is still in flight would otherwise be overwritten when it
+   * lands, because the load merged stored values over the in-memory ones --
+   * replacing what was just typed with exactly the stale value being replaced.
+   * A loaded value is applied only where the user has not already spoken.
+   */
+  private editedKeys = new Set<string>();
+  private editedModels = new Set<string>();
+  private editedStatuses = new Set<string>();
+  private editedActiveProvider = false;
   private configLoaded = false;
   private configLoadedResolve?: () => void;
   public readonly configLoadedPromise: Promise<void>;
@@ -113,8 +139,10 @@ class AIProviderManager {
       console.error("Failed to import settingsService in provider load:", e);
     }
 
-    // Persist loaded configurations as authoritative, merging only for missing fields
-    if (activeProviderParsed) {
+    // Apply what was loaded, except where the user has already changed it in
+    // this session. Stored values are authoritative over defaults, never over a
+    // deliberate edit made while this load was in flight.
+    if (activeProviderParsed && !this.editedActiveProvider) {
       this.activeProvider = loadedActiveProvider;
       try {
         providerRegistry.setActiveProvider(loadedActiveProvider);
@@ -123,13 +151,13 @@ class AIProviderManager {
       }
     }
     if (keysParsed) {
-      this.keys = { ...this.keys, ...loadedKeys };
+      applyUnedited(this.keys, loadedKeys, this.editedKeys);
     }
     if (statusesParsed) {
-      this.statuses = { ...this.statuses, ...loadedStatuses };
+      applyUnedited(this.statuses, loadedStatuses, this.editedStatuses);
     }
     if (modelsParsed) {
-      this.models = { ...this.models, ...loadedModels };
+      applyUnedited(this.models, loadedModels, this.editedModels);
     }
 
     // Initialize metrics for Gemini
@@ -174,12 +202,19 @@ class AIProviderManager {
     this.emit();
   }
 
-  private async saveConfig() {
-    if (typeof window === "undefined") return;
-    if (!this.configLoaded) {
-      console.warn("Attempted to save provider config before loading completed. Aborting save.");
-      return;
-    }
+  private async saveConfig(): Promise<boolean> {
+    if (typeof window === "undefined") return false;
+
+    // Wait for the initial load rather than abandoning the write.
+    //
+    // This used to return early whenever `configLoaded` was false, and
+    // `configLoaded` is assigned in exactly one place, inside the single load
+    // the constructor starts. One failed load therefore made every later save a
+    // silent no-op for the lifetime of the page -- while the setters still
+    // updated memory and emitted, so the UI showed the new value and the save
+    // looked successful. The promise settles whether the load succeeded or
+    // failed, so this orders the write after hydration without depending on it.
+    await this.configLoadedPromise;
 
     try {
       const { settingsService } = await import("@/akira-os");
@@ -202,7 +237,7 @@ class AIProviderManager {
             console.warn(
               "Prevented overwriting non-empty stored API keys with empty configuration.",
             );
-            return;
+            return false;
           }
         } catch (_) {
           // Ignore errors parsing existing keys
@@ -222,15 +257,17 @@ class AIProviderManager {
         currentModelsRaw !== nextModelsStr;
 
       if (!hasChanged) {
-        return;
+        return true;
       }
 
       await settingsService.set("akira:ai:active_provider", nextActive);
       await settingsService.set("akira:ai:keys", nextKeysStr);
       await settingsService.set("akira:ai:statuses", nextStatusesStr);
       await settingsService.set("akira:ai:models", nextModelsStr);
+      return true;
     } catch (e) {
       console.error("Failed to save provider config:", e);
+      return false;
     }
   }
 
@@ -249,15 +286,17 @@ class AIProviderManager {
     return this.activeProvider;
   }
 
-  setActiveProviderName(name: string) {
+  setActiveProviderName(name: string): Promise<boolean> {
     this.activeProvider = name;
+    this.editedActiveProvider = true;
     try {
       providerRegistry.setActiveProvider(name);
     } catch (e) {
       console.warn(`Could not sync active provider "${name}" in registry:`, e);
     }
-    this.saveConfig();
+    const saved = this.saveConfig();
     this.emit();
+    return saved;
   }
 
   getApiKey(provider: string): string {
@@ -274,7 +313,7 @@ class AIProviderManager {
     return "";
   }
 
-  setApiKey(provider: string, key: string) {
+  setApiKey(provider: string, key: string): Promise<boolean> {
     if (key) {
       this.keys[provider] = key;
       this.statuses[provider] = "Connected";
@@ -282,15 +321,21 @@ class AIProviderManager {
       delete this.keys[provider];
       this.statuses[provider] = "Missing API Key";
     }
-    this.saveConfig();
+    this.editedKeys.add(provider);
+    this.editedStatuses.add(provider);
+    const saved = this.saveConfig();
     this.emit();
+    return saved;
   }
 
-  removeApiKey(provider: string) {
+  removeApiKey(provider: string): Promise<boolean> {
     delete this.keys[provider];
     this.statuses[provider] = "Missing API Key";
-    this.saveConfig();
+    this.editedKeys.add(provider);
+    this.editedStatuses.add(provider);
+    const saved = this.saveConfig();
     this.emit();
+    return saved;
   }
 
   isConfigLoaded(): boolean {
@@ -308,10 +353,12 @@ class AIProviderManager {
     return this.statuses[provider] || "Connected";
   }
 
-  setStatus(provider: string, status: ProviderStatus) {
+  setStatus(provider: string, status: ProviderStatus): Promise<boolean> {
     this.statuses[provider] = status;
-    this.saveConfig();
+    this.editedStatuses.add(provider);
+    const saved = this.saveConfig();
     this.emit();
+    return saved;
   }
 
   getModel(provider: string): string {
@@ -321,12 +368,14 @@ class AIProviderManager {
     );
   }
 
-  setModel(provider: string, model: string) {
+  setModel(provider: string, model: string): Promise<boolean> {
     this.models[provider] = model;
+    this.editedModels.add(provider);
     const currentMetrics = this.getMetrics(provider);
     currentMetrics.model = model;
-    this.saveConfig();
+    const saved = this.saveConfig();
     this.emit();
+    return saved;
   }
 
   getMetrics(provider: string): ProviderMetrics {
