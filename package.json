@@ -13,8 +13,10 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest",
+    "type-check": "tsc --noEmit",
     "validate:architecture": "npx tsx scripts/validate-architecture.ts",
-    "verify:observability": "npx tsx scripts/verify-observability-reachability.ts"
+    "verify:observability": "npx tsx scripts/verify-observability-reachability.ts",
+    "verify": "npm run lint && npm run type-check && vitest run && npm run verify:observability"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
