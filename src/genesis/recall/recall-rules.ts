@@ -65,6 +65,62 @@ export type MemoryCategory =
   | "General Observation";
 
 /**
+ * A memory's title and description, concatenated and lowercased, computed once
+ * per memory object rather than once per read.
+ *
+ * Three places need this exact string -- `classifyMemory`, the semantic
+ * relevance score and the active-project match -- and a rebuild asks each of
+ * them about every retained memory. Skipping the classification build for Goal
+ * Progress memories removed the dead half of that, but the semantic site still
+ * ran for every memory on every rebuild: 526 normalisations per rebuild at the
+ * retention ceiling with a populated chat, recomputing the same immutable text
+ * for the same objects each time.
+ *
+ * WHY A WeakMap AND NOT A KEYED CACHE
+ * -----------------------------------
+ * A `Map<memoryId, string>` would be a fourth derived structure needing
+ * synchronisation wherever memories are evicted -- the bug class this module's
+ * neighbours have already paid for in `importanceService.forgetMemories`,
+ * `relationshipService.forgetMemories` and the recall candidate cache. Keying
+ * on the object instead removes the problem rather than managing it: when
+ * retention drops a memory and the last reference goes, the entry is collected.
+ * There is nothing to invalidate, so there is nothing to forget to invalidate.
+ *
+ * WHAT MAKES IT CORRECT
+ * ---------------------
+ * Two properties, both verified rather than assumed:
+ *
+ *   Stable identity. `memories.push(memory)` in `memory-service.ts` is the only
+ *   insertion, and `applyRuntimeRetention` compacts the array by moving
+ *   references without replacing the objects, so a memory keeps one identity for
+ *   its whole life. Reconstruction after a reload builds new objects, which is
+ *   harmless -- they simply get new entries.
+ *
+ *   Immutable text. Nothing anywhere assigns to a Memory's `title`,
+ *   `description` or `reason`. (The `updated.title = ...` assignments in
+ *   `context/goals/rules.ts` and `context/knowledge/rules.ts` are on Goal and
+ *   Knowledge objects, not memories.) A cached value therefore cannot go stale.
+ *
+ * The same reasoning would be wrong for a `Story`, which is replaced on every
+ * update -- a story-keyed WeakMap would silently miss on every read.
+ */
+const normalisedTextByMemory = new WeakMap<Memory, string>();
+
+function normalisedMemoryText(memory: Memory): string {
+  let text = normalisedTextByMemory.get(memory);
+  if (text === undefined) {
+    text = `${memory.title} ${memory.description}`.toLowerCase();
+    normalisedTextByMemory.set(memory, text);
+  }
+  return text;
+}
+
+/** Test seam: the cached text for a memory, or undefined if not yet computed. */
+export function peekNormalisedMemoryText(memory: Memory): string | undefined {
+  return normalisedTextByMemory.get(memory);
+}
+
+/**
  * Classifies memory into one of the conceptual categories.
  */
 export function classifyMemory(memory: Memory): MemoryCategory {
@@ -88,7 +144,7 @@ export function classifyMemory(memory: Memory): MemoryCategory {
     return "Goal";
   }
 
-  const text = `${memory.title} ${memory.description}`.toLowerCase();
+  const text = normalisedMemoryText(memory);
 
   if (
     text.includes("dream") ||
@@ -298,7 +354,7 @@ function computeSemanticRelevance(
 ): number {
   if (queryStems.length === 0) return 0;
 
-  const memoryText = `${memory.title} ${memory.description}`.toLowerCase();
+  const memoryText = normalisedMemoryText(memory);
 
   let matches = 0;
   for (const stems of queryStems) {
@@ -382,7 +438,7 @@ export const recallRules: RecallRule[] = [
         } else {
           // The project name was lowercased once for the whole rebuild; the
           // memory text still has to be, because it differs per memory.
-          const memoryText = `${memory.title} ${memory.description}`.toLowerCase();
+          const memoryText = normalisedMemoryText(memory);
           if (memoryText.includes(activeProject.nameLower)) {
             contextMatchScore = 0.8;
           }

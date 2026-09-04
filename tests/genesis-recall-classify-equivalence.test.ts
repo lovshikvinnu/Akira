@@ -44,7 +44,8 @@ const { akira } = await import("../src/persistence/akira-store");
 const { memoryService } = await import("../src/genesis/memory/memory-service");
 const { recallBuilder } = await import("../src/genesis/recall/recall-builder");
 const { recallService } = await import("../src/genesis/recall/recall-service");
-const { classifyMemory } = await import("../src/genesis/recall/recall-rules");
+const { classifyMemory, peekNormalisedMemoryText } =
+  await import("../src/genesis/recall/recall-rules");
 const { storyService } = await import("../src/genesis/stories/story-service");
 const { importanceService } = await import("../src/genesis/importance/importance-service");
 const { recallRules } = await import("../src/genesis/recall/recall-rules");
@@ -293,6 +294,84 @@ describe("recall output derived from classification is stable", () => {
       for (const c of recallService.getRecallCandidates()) {
         expect(live.has(c.memoryId), `chat=${mode} dangling ${c.memoryId}`).toBe(true);
       }
+    }
+  });
+});
+
+/**
+ * The normalised-text cache.
+ *
+ * Three sites read `${title} ${description}`.toLowerCase()` and it is now
+ * computed once per memory object and held in a `WeakMap`. The cache is only
+ * sound while a memory's text is immutable and its object identity stable, so
+ * these assert the observable consequences of both rather than restating the
+ * argument: a cached value must always equal a fresh computation, and two
+ * memories must never share an entry.
+ */
+describe("normalised text is cached per memory without going stale", () => {
+  it("is populated lazily and then agrees with a fresh computation", () => {
+    setChat("overlap");
+    recallBuilder.rebuildRecallCandidates();
+
+    const memories = memoryService.getMemories();
+    expect(memories.length).toBeGreaterThan(10);
+
+    let cached = 0;
+    for (const m of memories) {
+      const peek = peekNormalisedMemoryText(m);
+      if (peek === undefined) continue;
+      cached++;
+      // The invariant that matters: what the cache holds is what recomputing
+      // would produce, character for character.
+      expect(peek, `${m.id} cached text diverged`).toBe(
+        `${m.title} ${m.description}`.toLowerCase(),
+      );
+    }
+    // The populated chat drives the semantic path, which reads the text for
+    // every memory, so the cache should be warm for essentially all of them.
+    expect(cached).toBeGreaterThan(memories.length / 2);
+  });
+
+  it("does not let two memories share an entry, even with identical text", () => {
+    // `touchProject` produces memories whose title and description are
+    // identical to each other, which is the case a value-keyed cache would
+    // conflate and an object-keyed one must not.
+    for (let i = 0; i < 3; i++) akira.touchProject(projectId);
+    recallBuilder.rebuildRecallCandidates();
+
+    const continued = memoryService.getMemories().filter((m) => m.reason === "Repeated Activity");
+    expect(continued.length).toBeGreaterThan(1);
+
+    const texts = continued.map((m) => `${m.title} ${m.description}`.toLowerCase());
+    // Precondition of the test: the texts really are duplicates.
+    expect(new Set(texts).size).toBeLessThan(texts.length);
+
+    for (const m of continued) {
+      expect(classifyMemory(m)).toBe(classifyMemoryReference(m));
+      const peek = peekNormalisedMemoryText(m);
+      if (peek !== undefined) {
+        expect(peek).toBe(`${m.title} ${m.description}`.toLowerCase());
+      }
+    }
+  });
+
+  it("classifies a fresh object with the same text identically to a cached one", () => {
+    // A reload rebuilds memories as new objects. They get new cache entries,
+    // and must classify the same as the originals did.
+    const original = memoryService.getMemories().find((m) => m.reason !== "Goal Progress");
+    expect(original).toBeDefined();
+
+    const clone = { ...(original as object) } as typeof original;
+    expect(peekNormalisedMemoryText(clone!)).toBeUndefined();
+    expect(classifyMemory(clone!)).toBe(classifyMemory(original!));
+    expect(peekNormalisedMemoryText(clone!)).toBe(
+      `${clone!.title} ${clone!.description}`.toLowerCase(),
+    );
+  });
+
+  it("still agrees with the oracle for every live memory after caching", () => {
+    for (const m of memoryService.getMemories()) {
+      expect(classifyMemory(m), `${m.reason} | ${m.title}`).toBe(classifyMemoryReference(m));
     }
   });
 });
