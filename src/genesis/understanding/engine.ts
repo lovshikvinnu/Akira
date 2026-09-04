@@ -2,6 +2,7 @@ import { memoryService } from "../memory/memory-service";
 import { storyService } from "../stories/story-service";
 import { buildUnderstandingGraph } from "./builder";
 import { Understanding } from "./types";
+import { isBatching, markDirty, registerFlusher, unregisterFlusher } from "../batch";
 
 export type UnderstandingListener = (understandings: Understanding[]) => void;
 
@@ -72,6 +73,25 @@ function rebuildGraph(): void {
   }
 }
 
+/**
+ * Rebuilds now, or once at the end of the current cognitive transaction.
+ *
+ * `buildUnderstandingGraph` is deterministic in memories and stories --
+ * `existingGraph` is consulted only to preserve object identity for entries
+ * that did not change -- so one rebuild against settled state produces exactly
+ * the graph the last of many rebuilds would have produced. That was already
+ * observable before batching: of 10,153 rebuilds across 140 events, only 143
+ * changed anything; the other 98.6% were computed and discarded by the equality
+ * check in `rebuildGraph`.
+ */
+function scheduleRebuild(): void {
+  if (isBatching()) {
+    markDirty("understanding");
+    return;
+  }
+  rebuildGraph();
+}
+
 function notifyListeners(): void {
   listeners.forEach((listener) => {
     try {
@@ -92,17 +112,19 @@ export const understandingEngine = {
 
     isInitialized = true;
 
+    registerFlusher("understanding", rebuildGraph);
+
     // 1. Perform initial build from whatever is currently in memory/stories
     rebuildGraph();
 
     // 2. Subscribe to validated memories updates
     memorySub = memoryService.subscribe(() => {
-      rebuildGraph();
+      scheduleRebuild();
     });
 
     // 3. Subscribe to stories updates (Created / Updated / Completed)
     storySub = storyService.subscribe(() => {
-      rebuildGraph();
+      scheduleRebuild();
     });
 
     // 4. Subscribe to clear history events
@@ -117,6 +139,8 @@ export const understandingEngine = {
    */
   dispose(): void {
     if (!isInitialized) return;
+
+    unregisterFlusher("understanding");
 
     if (memorySub) {
       memorySub();

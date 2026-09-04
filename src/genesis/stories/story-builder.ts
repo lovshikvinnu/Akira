@@ -83,7 +83,7 @@ export const storyBuilder = {
     for (const rule of storyRules) {
       const result = rule.evaluateRelationship(relationship, stories);
       if (result.shouldCluster && result.storyId) {
-        storyService.addRelationshipToStory(result.storyId, relationship.id);
+        storyService.touchStory(result.storyId);
         break; // Associate under the first matching rule
       }
     }

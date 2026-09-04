@@ -81,9 +81,49 @@ export const recallService = {
 
     nextCache.push(...activeCandidates);
 
+    // Membership keys for the diff below, derived once.
+    //
+    // That diff asked `activeCandidates.some((c) => c.memoryId === old.memoryId)`
+    // for every cached candidate. The predicate reads one field, the matched
+    // object is never used, and the result is consumed only as a boolean -- so
+    // it was a membership test written as a scan. At the retention ceiling both
+    // collections hold 500 entries and `some` short-circuits on the match,
+    // which still cost 125,250 string comparisons per rebuild, measured at
+    // 2.3 ms of a ~19 ms event.
+    //
+    // A Set is exactly equivalent here rather than merely faster: memory ids
+    // are unique within each collection, so no duplicate can be collapsed, and
+    // SameValueZero and `===` agree on strings. Iteration order over
+    // `recallCache` and the order entries are pushed into `nextCache` are
+    // untouched, so the resulting cache is identical entry for entry.
+    const activeMemoryIds = new Set(activeCandidates.map((c) => c.memoryId));
+
     // Stale candidates from previous cycle transition to Inactive
     for (const old of recallCache) {
-      const isNewActive = activeCandidates.some((c) => c.memoryId === old.memoryId);
+      const isNewActive = activeMemoryIds.has(old.memoryId);
+
+      // A candidate whose memory is gone is dropped outright rather than
+      // deactivated. The liveness guard used to sit only on the Inactive branch
+      // below, so an Active candidate whose memory had just been evicted was
+      // demoted to Inactive and only discarded on the *following* cycle. That
+      // was invisible while every importance update triggered its own rebuild,
+      // because the following cycle arrived microseconds later inside the same
+      // user action. With one rebuild per action the entry survives until the
+      // next one, which is exactly the dangling reference
+      // `tests/genesis-recall-candidate-bounds.test.ts` forbids. Applying the
+      // guard on both branches makes the invariant hold in one cycle instead of
+      // depending on there being another.
+      const memoryStillExists = !liveMemoryIds || liveMemoryIds.has(old.memoryId);
+
+      if (!memoryStillExists) {
+        auditTrail.push({
+          memoryId: old.memoryId,
+          reason: "Dropped: Memory no longer exists.",
+          timestamp,
+        });
+        continue;
+      }
+
       if (old.status === "Active" && !isNewActive) {
         const inactiveCandidate: RecallCandidate = {
           ...old,
@@ -109,9 +149,8 @@ export const recallService = {
         //
         // `liveMemoryIds` is optional so a caller that has no view of memory
         // keeps the previous behaviour instead of silently discarding history.
-        if (!liveMemoryIds || liveMemoryIds.has(old.memoryId)) {
-          nextCache.push(old);
-        }
+        // The check itself now happens once, above, for both branches.
+        nextCache.push(old);
       }
     }
 

@@ -4,6 +4,7 @@ import { identityService } from "../understanding/identity-service";
 import { contextService } from "./context-service";
 import { contextRules } from "./context-rules";
 import { ContextPackage } from "./types";
+import { isBatching, markDirty, registerFlusher, unregisterFlusher } from "../batch";
 
 let recallSub: (() => void) | null = null;
 let storySub: (() => void) | null = null;
@@ -19,21 +20,25 @@ export const contextBuilder = {
    * Subscribe to Recall, Story, and Identity updates to trigger rebuilding context.
    */
   initialize(): void {
+    registerFlusher("context", () => {
+      this.rebuildContextPackage();
+    });
+
     if (!recallSub) {
       recallSub = recallService.subscribe(() => {
-        this.rebuildContextPackage();
+        this.scheduleRebuild();
       });
     }
 
     if (!storySub) {
       storySub = storyService.subscribe(() => {
-        this.rebuildContextPackage();
+        this.scheduleRebuild();
       });
     }
 
     if (!identitySub) {
       identitySub = identityService.subscribe(() => {
-        this.rebuildContextPackage();
+        this.scheduleRebuild();
       });
     }
 
@@ -45,6 +50,7 @@ export const contextBuilder = {
    * Dispose subscriptions.
    */
   dispose(): void {
+    unregisterFlusher("context");
     if (recallSub) {
       recallSub();
       recallSub = null;
@@ -57,6 +63,24 @@ export const contextBuilder = {
       identitySub();
       identitySub = null;
     }
+  },
+
+  /**
+   * Rebuilds now, or once at the end of the current cognitive transaction.
+   *
+   * Three subscriptions feed this, and a single event used to trigger all of
+   * them repeatedly -- 263 rebuilds per completed task at 141 memories, because
+   * every story append also produced an identity update, which triggered a
+   * second rebuild of its own. The package is assembled wholly from current
+   * recall, story and identity state, so one rebuild at the end is the same
+   * package the last of those would have produced.
+   */
+  scheduleRebuild(): void {
+    if (isBatching()) {
+      markDirty("context");
+      return;
+    }
+    this.rebuildContextPackage();
   },
 
   /**

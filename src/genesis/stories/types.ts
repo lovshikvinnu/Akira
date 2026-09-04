@@ -6,7 +6,6 @@ export type Story = {
   summary: string;
   status: StoryStatus;
   relatedMemoryIds: string[];
-  relatedRelationshipIds: string[];
   ruleProvenance: string;
   createdAt: string;
   updatedAt: string;

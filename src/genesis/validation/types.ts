@@ -1,8 +1,11 @@
 import { CandidateReason } from "../candidate/candidate";
+import { MemoryEvent } from "../../shared/types/event-types";
 
 export type Memory = {
   id: string;
   sourceEventId: string; // Lineage (Provenance)
+  /** Originating `MemoryEvent.eventType`. See MemoryCandidate.eventType. */
+  eventType: MemoryEvent["eventType"];
   candidateId: string; // Lineage (Provenance)
   timestamp: string;
   reason: CandidateReason; // Explainability

@@ -66,8 +66,7 @@ export const importanceRules: ImportanceRule[] = [
   {
     name: "Story Influence Signal Rule",
     evaluate(memory) {
-      const stories = storyService.getStories();
-      const parentStory = stories.find((s) => s.relatedMemoryIds.includes(memory.id));
+      const parentStory = storyService.findStoryContainingMemory(memory.id);
       if (parentStory) {
         const strength = parentStory.status === "Active" ? 0.85 : 0.5;
         return {

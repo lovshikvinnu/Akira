@@ -81,7 +81,29 @@ export const identityService = {
         new Set([...oldObs.supportingMemoryIds, ...obs.supportingMemoryIds]),
       );
 
-      const nextConfidence = Math.min(1.0, oldObs.confidence + 0.1);
+      // Confidence is what the rule computed from the evidence it just saw --
+      // `0.5 + members x 0.1` for the reflective trait, `0.4 + members x 0.05`
+      // for the work-style one -- not a count of how often this method ran.
+      //
+      // The merge branch used to discard `obs.confidence` entirely and apply
+      // `min(1, old + 0.1)` instead. Both expressions arrived in the same
+      // commit, so this was never a deliberate model: the rules answered the
+      // question and the merge site ignored the answer. The effect was that a
+      // trait's confidence tracked the number of relationship detections in its
+      // project -- quadratic in project size -- and every trait saturated to 1.0
+      // inside its first user action, which left `filterIdentityObservations`
+      // sorting a field of ties to decide what reached the prompt.
+      //
+      // Taking the rule's value makes confidence a pure function of the settled
+      // story. That is what allows identity to be evaluated once per event
+      // instead of once per relationship without changing the result, and it is
+      // what makes the value identical on replay regardless of cadence.
+      //
+      // It is deliberately not a ratchet. If retention evicts memories from a
+      // story, the rule sees less evidence and confidence falls to match --
+      // confidence describes what is currently supported, not the high-water
+      // mark of what once was.
+      const nextConfidence = obs.confidence;
       const mergeReason = `Merged and reinforced with new evidence: ${obs.provenance}`;
 
       let eventType: "Updated" | "Confirmed" | "Refined" = "Updated";
@@ -92,16 +114,25 @@ export const identityService = {
         eventType = "Confirmed";
       }
 
+      // The history is a record of confidence *changes*. Re-observing a story
+      // whose evidence has not moved produces the same value, and appending a
+      // duplicate entry for it would push genuine transitions out of a bounded
+      // trail -- the trail would end up describing how often the trait was
+      // re-evaluated rather than how its confidence developed.
+      //
       // trimOldest mutates in place and returns what it removed, so the array
       // is built first and then bounded.
-      const nextConfidenceHistory = [
-        ...oldObs.confidenceHistory,
-        {
-          confidence: nextConfidence,
-          timestamp: new Date().toISOString(),
-          reason: mergeReason,
-        },
-      ];
+      const confidenceChanged = nextConfidence !== oldObs.confidence;
+      const nextConfidenceHistory = confidenceChanged
+        ? [
+            ...oldObs.confidenceHistory,
+            {
+              confidence: nextConfidence,
+              timestamp: new Date().toISOString(),
+              reason: mergeReason,
+            },
+          ]
+        : oldObs.confidenceHistory;
       trimOldest(nextConfidenceHistory, getRetentionPolicy().maxObservationHistory);
 
       const updatedObs: IdentityObservation = {

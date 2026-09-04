@@ -1,6 +1,7 @@
 import { Memory } from "../validation/types";
 import { MemoryRelationship } from "../memory/relationships/types";
 import { Story } from "./types";
+import { storyService } from "./story-service";
 
 export interface StoryRule {
   name: string;
@@ -47,10 +48,15 @@ export const storyRules: StoryRule[] = [
       return { shouldCluster: false };
     },
     evaluateRelationship(relationship, existingStories) {
+      // Iteration stays over the caller's list so the answer is still "the
+      // first of these stories holding either end". Only the membership test
+      // changed: at 500 memories this ran twice for each of ~499 detected
+      // relationships against a 200-member array, ~200,000 element comparisons
+      // for a single completed task.
       for (const story of existingStories) {
         if (
-          story.relatedMemoryIds.includes(relationship.sourceMemoryId) ||
-          story.relatedMemoryIds.includes(relationship.targetMemoryId)
+          storyService.storyContainsMemory(story.id, relationship.sourceMemoryId) ||
+          storyService.storyContainsMemory(story.id, relationship.targetMemoryId)
         ) {
           return { shouldCluster: true, storyId: story.id };
         }

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { getRetentionPolicy } from "../genesis/retention/policy";
+import { applyDurableRetention } from "../genesis/retention/policy";
 import { seed } from "./seed";
 import { registerStoreProvider } from "../shared/genesis-provider";
 import { registerWorkspaceProvider } from "../contracts/workspace-provider";
@@ -1086,7 +1086,13 @@ registerStoreProvider({
       // durable layer too: this array is what gets written to the database and
       // replayed on the next start, and an unbounded stream would mean an
       // unbounded blob and an ever-slower startup.
-      const memories = [event, ...s.memories].slice(0, getRetentionPolicy().maxMemoryEvents);
+      //
+      // Bounded per durability class rather than by a single recency cut. A
+      // flat `slice()` discarded a project milestone from months ago to make
+      // room for a task completed this morning, and because this array is the
+      // only cognitive state that survives a reload, that loss was permanent.
+      // See ../genesis/retention/policy.ts for which events are which.
+      const memories = applyDurableRetention([event, ...s.memories]);
 
       // Fire-and-forget, matching every other write in this store. A failed
       // persist costs the next reload some history; it must not break the

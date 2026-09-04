@@ -24,14 +24,21 @@ const { identityService } = await import("../src/genesis/understanding/identity-
 const { getRetentionPolicy, setRetentionPolicy, resetRetentionPolicy, DEFAULT_RETENTION_POLICY } =
   await import("../src/genesis/retention/policy");
 
-/** Reinforces one trait repeatedly, the way story updates do. */
+/**
+ * Reinforces one trait repeatedly, the way story updates do.
+ *
+ * Confidence rises with the evidence count, mirroring the real rules
+ * (`0.4 + members x 0.05`). That shape matters to these tests: the history is a
+ * record of confidence *changes*, so a harness that passed a constant would
+ * produce a single entry and prove nothing about the bound.
+ */
 function reinforce(times: number): void {
   for (let i = 0; i < times; i++) {
     identityService.addObservation({
       category: "Trait",
       name: "Focus",
       value: "deep work",
-      confidence: 0.5,
+      confidence: Math.min(1, 0.4 + i * 0.01),
       provenance: `story-${i}`,
       supportingStoryIds: [`story-${i}`],
       supportingMemoryIds: [`mem-${i}`],
@@ -77,6 +84,31 @@ describe("identity observation payload stays bounded", () => {
     // The most recent reinforcement must survive; the first must not.
     expect(reasons).toContain("story-19");
     expect(reasons).not.toContain("story-0 ");
+  });
+
+  it("records no history entry when confidence is unchanged", () => {
+    // Confidence is derived from the evidence a rule saw, so re-observing a
+    // story that has not moved yields the same value. Appending a duplicate for
+    // it would fill a bounded trail with repetition and push out the genuine
+    // transitions the trail exists to explain.
+    for (let i = 0; i < 25; i++) {
+      identityService.addObservation({
+        category: "Trait",
+        name: "Steady",
+        value: "unchanged",
+        confidence: 0.7,
+        provenance: `story-${i}`,
+        supportingStoryIds: [`story-${i}`],
+        supportingMemoryIds: [`mem-${i}`],
+      } as never);
+    }
+
+    const observation = identityService.getObservations().find((o) => o.name === "Steady")!;
+    expect(observation.confidence).toBe(0.7);
+    expect(observation.confidenceHistory).toHaveLength(1);
+    expect(observation.confidenceHistory[0].reason).toContain("Initial observation");
+    // Evidence still merges even when confidence does not move.
+    expect(observation.supportingMemoryIds).toHaveLength(25);
   });
 
   it("does not let provenance grow without bound", () => {

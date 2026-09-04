@@ -4,7 +4,8 @@ import { Memory } from "../validation/types";
 import { validator } from "../validation/validator";
 import { recallService } from "../recall/recall-service";
 import { getMemories } from "../../shared/genesis-provider";
-import { getRetentionPolicy, trimOldest } from "../retention/policy";
+import { applyRuntimeRetention } from "../retention/policy";
+import { runBatched } from "../batch";
 
 export type MemoryListener = (memory: Memory) => void;
 export type ClearListener = () => void;
@@ -59,6 +60,7 @@ export const memoryService = {
       const memory: Memory = {
         id: uid(),
         sourceEventId: candidate.sourceEventId,
+        eventType: candidate.eventType,
         candidateId: candidate.id,
         timestamp: candidate.timestamp || new Date().toISOString(),
         reason: candidate.reason,
@@ -76,11 +78,14 @@ export const memoryService = {
       // collection can exceed its cap is the moment something was added, and a
       // background sweep would be state nothing else in GENESIS needs.
       //
-      // Eviction is by age. Importance would be the richer signal, but it is
-      // derived *from* memories, so consulting it here would make the root
-      // store depend on something downstream of itself. Recency is predictable
-      // and cannot invert that direction.
-      const evicted = trimOldest(memories, getRetentionPolicy().maxMemories);
+      // Eviction is by age *within a durability class*, not across the whole
+      // set. Importance would be the richer signal, but it is derived *from*
+      // memories, so consulting it here would make the root store depend on
+      // something downstream of itself. The event type is not: it arrives with
+      // the event, it is what the durable stream already classifies by, and
+      // using it here is what makes protected history reachable rather than
+      // merely stored.
+      const evicted = applyRuntimeRetention(memories);
       if (evicted.length > 0) {
         notifyEvicted(evicted.map((m) => m.id));
       }
@@ -130,11 +135,22 @@ export const memoryService = {
         }
       });
 
-      // Evaluate historical events chronologically (oldest to newest) to rebuild state
+      // Evaluate historical events chronologically (oldest to newest) to rebuild state.
+      //
+      // The whole replay is one cognitive transaction. Reconstruction enters the
+      // pipeline at `candidateService.evaluateEvent` rather than through
+      // `eventService.record`, so it would otherwise be the one path with no
+      // transaction around it -- and it is the path that pays the cascade for
+      // every historical event at once. Derived state is rebuilt once, at the
+      // end, from the fully replayed stores; every intermediate rebuild during
+      // a replay is discarded by definition, because the stream is still
+      // arriving.
       const events = [...storeMemories].reverse();
-      for (const event of events) {
-        candidateService.evaluateEvent(event);
-      }
+      runBatched(() => {
+        for (const event of events) {
+          candidateService.evaluateEvent(event);
+        }
+      });
     }
   },
 

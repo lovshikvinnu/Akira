@@ -1,5 +1,6 @@
 import { Story } from "./types";
 import { getRetentionPolicy, trimOldest } from "../retention/policy";
+import { isBatching, markDirty, registerFlusher } from "../batch";
 
 export type StoryListener = (event: {
   type: "Created" | "Updated" | "Completed";
@@ -9,10 +10,74 @@ const listeners = new Set<StoryListener>();
 
 const storyCache: Story[] = [];
 
+/**
+ * Membership index: story id -> the memory ids that story currently holds.
+ *
+ * A projection of `relatedMemoryIds`, never a second source of truth. The array
+ * on the story stays canonical -- it is what rules read for `.length`, what the
+ * Brain Inspector renders, and what every test asserts against -- and this Map
+ * exists only so that "does this story contain this memory?" costs a Set probe
+ * instead of a scan of up to `maxMemoriesPerStory` entries.
+ *
+ * It earns its keep on the hot path. At 500 memories one completed task ran
+ * that question roughly 540,000 times across four call sites: twice per
+ * detected relationship while clustering, once per memory in the recall
+ * rebuild, again per memory inside the recall rules, and once per member during
+ * importance recalculation.
+ *
+ * SYNCHRONISATION
+ * ---------------
+ * Every write rebuilds the Set from the canonical array rather than patching it
+ * incrementally. That is deliberate: `addMemoryToStory` both appends and
+ * *removes* -- the `maxMemoriesPerStory` window slices off the oldest members --
+ * so an append-only index would answer true for members that had already aged
+ * out. Deriving from the array cannot drift from it.
+ *
+ * The maintenance points are the five places story state can change:
+ * `createStory` (including the `maxStories` eviction that has no other hook),
+ * `updateStory` (the choke point every membership patch flows through),
+ * `forgetMemories` (which bypasses `updateStory` and can delete a story
+ * outright), and `clearHistory`. Reconstruction needs no special handling: it
+ * clears and replays through those same paths.
+ */
+const memberIndex = new Map<string, Set<string>>();
+
+/**
+ * Stories touched by a relationship during the open transaction.
+ *
+ * One completed task detects a relationship against every other memory in its
+ * project, and each detection announced a story-wide change. Those events carry
+ * no distinct information -- a relationship append does not alter the story's
+ * membership, so every consumer re-derived the same answer from the same
+ * evidence. Collapsing them to one event per story is what makes the count per
+ * action constant instead of linear in project size.
+ */
+const touchedStoryIds = new Set<string>();
+let touchFlusherRegistered = false;
+
 const uid = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+/**
+ * Emits one "Updated" per story touched during the transaction.
+ *
+ * Declared outside the service literal so it can be registered from inside a
+ * method without depending on the literal being fully constructed. A story that
+ * retention removed mid-transaction is dropped rather than resurrected.
+ */
+function flushTouchedStories(): void {
+  if (touchedStoryIds.size === 0) return;
+
+  const ids = [...touchedStoryIds];
+  touchedStoryIds.clear();
+
+  for (const id of ids) {
+    if (!storyCache.some((s) => s.id === id)) continue;
+    storyService.updateStory(id, {});
+  }
+}
 
 export const storyService = {
   /**
@@ -37,32 +102,36 @@ export const storyService = {
    */
   clearHistory(): void {
     storyCache.length = 0;
+    memberIndex.clear();
   },
 
   /**
    * Create a new story.
    */
-  createStory(
-    input: Omit<
-      Story,
-      "id" | "createdAt" | "updatedAt" | "relatedMemoryIds" | "relatedRelationshipIds"
-    >,
-  ): Story {
+  createStory(input: Omit<Story, "id" | "createdAt" | "updatedAt" | "relatedMemoryIds">): Story {
     const story: Story = {
       id: uid(),
       title: input.title,
       summary: input.summary,
       status: input.status,
       relatedMemoryIds: [],
-      relatedRelationshipIds: [],
       ruleProvenance: input.ruleProvenance,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     storyCache.push(story);
+    memberIndex.set(story.id, new Set());
+
     // Stories are created in order, so the front is the least recently created.
-    trimOldest(storyCache, getRetentionPolicy().maxStories);
+    //
+    // The return value matters here and is the only signal that a story has
+    // gone: this eviction notifies nobody. Discarding it would leave the index
+    // holding entries for stories that no longer exist -- a slow leak, and one
+    // that would outlive the story ids it describes.
+    const evictedStories = trimOldest(storyCache, getRetentionPolicy().maxStories);
+    for (const evicted of evictedStories) memberIndex.delete(evicted.id);
+
     this.notify("Created", story);
     return story;
   },
@@ -81,6 +150,14 @@ export const storyService = {
       updatedAt: new Date().toISOString(),
     };
     storyCache[idx] = updated;
+
+    // Rebuilt unconditionally rather than only when `patch.relatedMemoryIds` is
+    // present. This is the one method every membership change routes through,
+    // and it is public with an open patch shape, so keying off the patch would
+    // make a future caller's correctness depend on remembering this index
+    // exists. Two calls per event at steady state makes the cost of being
+    // unconditional irrelevant.
+    memberIndex.set(id, new Set(updated.relatedMemoryIds));
 
     if (patch.status === "Completed" && oldStory.status !== "Completed") {
       this.notify("Completed", updated);
@@ -109,16 +186,85 @@ export const storyService = {
   },
 
   /**
-   * Add a relationship ID reference to a story's narrative.
+   * Marks a story as having gained a detected relationship between two of its
+   * memories.
+   *
+   * This used to append the relationship id to a `relatedRelationshipIds` array
+   * on the story. That array had no reader anywhere -- not in cognition, not in
+   * persistence (stories are runtime-only), not in the Brain Inspector, which
+   * sources relationship provenance from `relationshipService` instead. It was
+   * write-only state, and an expensive kind: one append per relationship meant
+   * an O(R) membership scan and an O(R) copy against an array that reached
+   * N(N-1)/2 entries -- 5,050 of them at 101 memories -- with no retention cap
+   * and no pruning when a memory was evicted. It was 84% of the remaining
+   * per-event cost after the notification cascade was fixed.
+   *
+   * Relationship provenance is owned by `relationshipService`, which already
+   * holds every relationship, already bounds the set at `maxRelationships`, and
+   * is already what reads of it go through.
+   *
+   * The notification stays. The story genuinely did gain a relationship between
+   * two of its memories, and that event is what `identityBuilder` accrues
+   * confidence from -- one reinforcement per detected relationship. Dropping it
+   * would have changed identity semantics, which is a separate decision from
+   * where provenance lives. Relationship ids are freshly generated per
+   * detection, so the guard this replaces never once suppressed a notification:
+   * the event stream is unchanged.
    */
-  addRelationshipToStory(storyId: string, relationshipId: string): void {
+  touchStory(storyId: string): void {
     const story = storyCache.find((s) => s.id === storyId);
     if (!story) return;
-    if (story.relatedRelationshipIds.includes(relationshipId)) return;
 
-    this.updateStory(storyId, {
-      relatedRelationshipIds: [...story.relatedRelationshipIds, relationshipId],
-    });
+    if (isBatching()) {
+      if (!touchFlusherRegistered) {
+        registerFlusher("stories", () => flushTouchedStories());
+        touchFlusherRegistered = true;
+      }
+      touchedStoryIds.add(storyId);
+      markDirty("stories");
+      return;
+    }
+
+    this.updateStory(storyId, {});
+  },
+
+  /**
+   * True when `storyId` currently holds `memoryId`.
+   *
+   * The predicate form exists for the clustering rule, which asks whether a
+   * given story holds either end of a relationship. Expressing that as two
+   * `findStoryContainingMemory` calls would return the first story holding the
+   * source rather than the first story holding either end -- the same answer
+   * whenever a memory belongs to one arc, which is what the rules produce
+   * today, but a different one the moment that stops being true. Preserving the
+   * caller's iteration keeps the change to a lookup cost.
+   */
+  storyContainsMemory(storyId: string, memoryId: string): boolean {
+    return memberIndex.get(storyId)?.has(memoryId) ?? false;
+  },
+
+  /**
+   * The first story holding `memoryId`, in cache order, or undefined.
+   *
+   * Cache order is the contract: this replaces
+   * `getStories().find((s) => s.relatedMemoryIds.includes(memoryId))` at three
+   * call sites and must resolve ties identically. Iterating `storyCache` and
+   * probing the index preserves that exactly, while turning an O(members) scan
+   * into an O(1) lookup. The outer loop stays O(stories), which is bounded at
+   * `maxStories` and is one or two in practice.
+   */
+  findStoryContainingMemory(memoryId: string): Story | undefined {
+    for (const story of storyCache) {
+      if (memberIndex.get(story.id)?.has(memoryId)) return story;
+    }
+    return undefined;
+  },
+
+  /** Test helper: the index as plain data, for consistency assertions. */
+  getMembershipIndexSnapshot(): Record<string, string[]> {
+    const out: Record<string, string[]> = {};
+    for (const [storyId, members] of memberIndex) out[storyId] = [...members];
+    return out;
   },
 
   /**
@@ -142,9 +288,11 @@ export const storyService = {
 
       if (remaining.length === 0) {
         storyCache.splice(i, 1);
+        memberIndex.delete(story.id);
         continue;
       }
       story.relatedMemoryIds = remaining;
+      memberIndex.set(story.id, new Set(remaining));
       story.updatedAt = new Date().toISOString();
     }
   },

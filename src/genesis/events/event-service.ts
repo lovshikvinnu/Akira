@@ -1,5 +1,6 @@
 import { MemoryEvent } from "../../shared/types/event-types";
 import { saveMemory } from "../../shared/genesis-provider";
+import { runBatched } from "../batch";
 
 const uid = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -72,28 +73,39 @@ export const eventService = {
       metadata: metadata || {},
     };
 
-    // 1. Persist the event first if a handler exists (e.g. via local handler or shared saveMemory provider)
-    if (localPersistHandler) {
-      try {
-        localPersistHandler(event);
-      } catch (err) {
-        console.error("Error executing event persistence handler:", err);
+    // This call is GENESIS's cognitive transaction. Everything below runs
+    // inside it: persistence, then the whole candidate -> memory -> story
+    // cascade the subscribers set off. Derived consumers coalesce their
+    // rebuilds until it closes, so they settle once against final state rather
+    // than once per relationship. See ../batch.ts.
+    //
+    // Synchronous throughout, so cognition is complete when this returns.
+    // Nesting is safe: a subscriber that records its own event joins this
+    // transaction instead of settling inside it.
+    runBatched(() => {
+      // 1. Persist the event first if a handler exists (e.g. via local handler or shared saveMemory provider)
+      if (localPersistHandler) {
+        try {
+          localPersistHandler(event);
+        } catch (err) {
+          console.error("Error executing event persistence handler:", err);
+        }
+      } else {
+        try {
+          saveMemory(event);
+        } catch (err) {
+          console.error("Error saving memory event to database provider:", err);
+        }
       }
-    } else {
-      try {
-        saveMemory(event);
-      } catch (err) {
-        console.error("Error saving memory event to database provider:", err);
-      }
-    }
 
-    // 2. Publish the event to subscribers (e.g., candidate engine, runtime caches)
-    callbacks.forEach((cb) => {
-      try {
-        cb(event);
-      } catch (err) {
-        console.error("Error executing event subscription callback:", err);
-      }
+      // 2. Publish the event to subscribers (e.g., candidate engine, runtime caches)
+      callbacks.forEach((cb) => {
+        try {
+          cb(event);
+        } catch (err) {
+          console.error("Error executing event subscription callback:", err);
+        }
+      });
     });
 
     return event;

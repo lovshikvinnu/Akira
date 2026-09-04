@@ -4,10 +4,20 @@ import { Memory } from "../validation/types";
 import { importanceService } from "./importance-service";
 import { importanceRules } from "./importance-rules";
 import { ImportanceSignal } from "./types";
+import { isBatching, markDirty, registerFlusher, unregisterFlusher } from "../batch";
 
 let memorySub: (() => void) | null = null;
 let storySub: (() => void) | null = null;
 let clearSub: (() => void) | null = null;
+
+/**
+ * Stories whose members still need recalculating in the open transaction.
+ *
+ * Keyed by story id rather than by story object: a story is replaced by a new
+ * object on every update, so identity would coalesce nothing. The id is what
+ * stays stable across the appends within one event.
+ */
+const dirtyStoryIds = new Set<string>();
 
 export const importanceBuilder = {
   /**
@@ -20,13 +30,27 @@ export const importanceBuilder = {
       });
     }
 
+    registerFlusher("importance", () => {
+      this.flushDirtyStories();
+    });
+
     if (!storySub) {
       storySub = storyService.subscribe((event) => {
-        const memories = memoryService.getMemories();
-        const related = memories.filter((m) => event.story.relatedMemoryIds.includes(m.id));
-        related.forEach((m) =>
-          this.evaluateMemoryImportance(m, `Story Updated: ${event.story.title}`),
-        );
+        // One completed task appends N relationships to its story, and each
+        // append emitted a story-wide "Updated". Recalculating every member on
+        // each of them produced N^2 importance updates per event -- 9,226 for a
+        // single checkbox at 102 memories -- all but the last describing a
+        // story that was still being written.
+        //
+        // The signals themselves are a pure function of the memory and the
+        // current stories, so recalculating once after the story settles yields
+        // the same values the final pass would have produced.
+        if (isBatching()) {
+          dirtyStoryIds.add(event.story.id);
+          markDirty("importance");
+          return;
+        }
+        this.recalculateStoryMembers(event.story);
       });
     }
 
@@ -41,6 +65,8 @@ export const importanceBuilder = {
    * Dispose subscriptions.
    */
   dispose(): void {
+    unregisterFlusher("importance");
+    dirtyStoryIds.clear();
     if (memorySub) {
       memorySub();
       memorySub = null;
@@ -52,6 +78,39 @@ export const importanceBuilder = {
     if (clearSub) {
       clearSub();
       clearSub = null;
+    }
+  },
+
+  /**
+   * Recalculates importance for every memory the story currently holds.
+   *
+   * Unchanged in substance from what the story subscription always did; it is
+   * a named method so the flush and the unbatched path share one definition.
+   */
+  recalculateStoryMembers(story: { id: string; title: string; relatedMemoryIds: string[] }): void {
+    const memories = memoryService.getMemories();
+    const memberIds = new Set(story.relatedMemoryIds);
+    const related = memories.filter((m) => memberIds.has(m.id));
+    related.forEach((m) => this.evaluateMemoryImportance(m, `Story Updated: ${story.title}`));
+  },
+
+  /**
+   * Settles every story touched during the transaction, once each.
+   *
+   * A story that retention removed mid-transaction is skipped: recalculating
+   * the importance of an arc that no longer exists would write profiles nothing
+   * can reach.
+   */
+  flushDirtyStories(): void {
+    if (dirtyStoryIds.size === 0) return;
+
+    const ids = [...dirtyStoryIds];
+    dirtyStoryIds.clear();
+
+    const stories = storyService.getStories();
+    for (const id of ids) {
+      const story = stories.find((s) => s.id === id);
+      if (story) this.recalculateStoryMembers(story);
     }
   },
 
