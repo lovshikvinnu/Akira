@@ -133,6 +133,30 @@ function measure(label: string) {
   if (candidates.length > 0) {
     log(`sample recallReasons: ${JSON.stringify(candidates[0].recallReasons)}`);
   }
+
+  // Why User Intent reads zero. The rule needs `relatedNoteId` on the memory
+  // and a title without "untitled"; both halves are checked separately so a
+  // zero is attributed rather than guessed at.
+  const all = memoryService.getMemories();
+  const withNote = all.filter((m) => m.relatedNoteId);
+  const noteEligible = withNote.filter((m) => !(m.title || "").toLowerCase().includes("untitled"));
+  const candidateIds = new Set(candidates.map((c) => c.memoryId));
+  const eligibleAndCandidate = noteEligible.filter((m) => candidateIds.has(m.id));
+  let eligibleWithSignal = 0;
+  for (const m of noteEligible) {
+    const imp = importanceService.getImportance(m.id);
+    if (imp?.signals.some((sig) => sig.type === "User Intent")) eligibleWithSignal += 1;
+  }
+
+  log(
+    `User Intent precondition: ${withNote.length} memories carry relatedNoteId, ` +
+      `${noteEligible.length} also pass the title test, ` +
+      `${eligibleWithSignal} actually hold the signal, ` +
+      `${eligibleAndCandidate.length} of those are recall candidates`,
+  );
+  if (withNote.length > 0) {
+    log(`  sample note-bearing memory title: ${JSON.stringify(withNote[0].title)}`);
+  }
 }
 
 describe("context inclusion reason", () => {
@@ -153,6 +177,19 @@ describe("context inclusion reason", () => {
       akira.addNote({ title: `thought ${i}`, content: `something the user wrote ${i}` });
     }
     measure("B  tasks interleaved with user-authored notes");
+  });
+
+  it("shape D: notes attached to a project, vs the free-standing ones in B", () => {
+    freshWorkspace();
+    akira.addProject({ name: "Labels D" });
+    const pid = akira.getState().lastProjectId as string;
+    for (let i = 0; i < 10; i++) {
+      completeTask(pid, `ld-${i}`);
+      // The difference from B: these notes belong to a project, so they can
+      // join its story arc and be recalled through the Active Story rule.
+      akira.addNote({ title: `project thought ${i}`, content: `written by the user ${i}`, projectId: pid });
+    }
+    measure("D  notes attached to a project");
   });
 
   it("shape C: milestones", () => {
