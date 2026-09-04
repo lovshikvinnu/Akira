@@ -159,6 +159,32 @@ function measure(label: string) {
   }
 }
 
+/**
+ * The minimal comparison: two notes differing only in project attachment.
+ *
+ * The earlier commit attributed a free-standing note's absence from recall to
+ * "no project, so no story arc". That attribution is checked here directly --
+ * reason, category, story membership and each rule's verdict -- because the arc
+ * may in fact exist and be suppressed rather than be missing.
+ */
+function reportNoteMechanism() {
+  const notes = memoryService.getMemories().filter((m) => m.relatedNoteId);
+  log("");
+  log("=== note recall mechanism ===");
+  for (const m of notes.slice(0, 2)) {
+    const story = storyService.findStoryContainingMemory(m.id);
+    const candidate = recallService
+      .getRecallCandidates()
+      .find((c) => c.memoryId === m.id);
+    log(
+      `  note ${JSON.stringify(m.title)} project=${m.relatedProjectId ? "set" : "null"}` +
+        ` reason=${JSON.stringify(m.reason)}` +
+        ` story=${story ? JSON.stringify(story.title) : "NONE"}` +
+        ` candidate=${candidate ? candidate.status : "no"}`,
+    );
+  }
+}
+
 describe("context inclusion reason", () => {
   it("shape A: tasks only", () => {
     freshWorkspace();
@@ -177,6 +203,7 @@ describe("context inclusion reason", () => {
       akira.addNote({ title: `thought ${i}`, content: `something the user wrote ${i}` });
     }
     measure("B  tasks interleaved with user-authored notes");
+    reportNoteMechanism();
   });
 
   it("shape D: notes attached to a project, vs the free-standing ones in B", () => {
@@ -190,6 +217,7 @@ describe("context inclusion reason", () => {
       akira.addNote({ title: `project thought ${i}`, content: `written by the user ${i}`, projectId: pid });
     }
     measure("D  notes attached to a project");
+    reportNoteMechanism();
   });
 
   it("shape C: milestones", () => {
