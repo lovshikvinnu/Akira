@@ -82,12 +82,36 @@ export function buildUnderstandingGraph(
     }
   }
 
-  // Helper to check if two string arrays are equal
+  /**
+   * Multiset equality, counted rather than sorted.
+   *
+   * This answers one question -- "did this understanding's supporting ids
+   * change" -- and it is asked twice per existing understanding on every
+   * rebuild, which happens once per user action. The previous implementation
+   * copied both arrays and sorted both copies to answer it. At the retention
+   * ceiling the two understandings hold 501 and 500 supporting memory ids, so
+   * that was four array copies and four sorts of ~500 elements per action, and
+   * it measured 0.42-0.45 ms of a 2.33-3.36 ms understanding phase.
+   *
+   * Counting is the same predicate, not a cheaper approximation of it. Sorting
+   * both sides and comparing element-wise is true exactly when the two arrays
+   * are permutations of each other; decrementing a tally of `a` once per
+   * element of `b`, with the lengths already known equal, is true under exactly
+   * the same condition. Duplicates are preserved rather than collapsed, which
+   * is why this is a count and not a `Set` -- a `Set` would call [x, x, y] and
+   * [x, y, y] equal, and the sorted comparison does not. Nothing here relies on
+   * the ids happening to be unique today.
+   */
   const arraysEqual = (a: string[], b: string[]) => {
     if (a.length !== b.length) return false;
-    const sortedA = [...a].sort();
-    const sortedB = [...b].sort();
-    return sortedA.every((val, index) => val === sortedB[index]);
+    const remaining = new Map<string, number>();
+    for (const value of a) remaining.set(value, (remaining.get(value) ?? 0) + 1);
+    for (const value of b) {
+      const count = remaining.get(value);
+      if (count === undefined || count === 0) return false;
+      remaining.set(value, count - 1);
+    }
+    return true;
   };
 
   const newGraph: Understanding[] = [];
