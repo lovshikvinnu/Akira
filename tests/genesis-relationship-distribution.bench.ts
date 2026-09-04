@@ -145,6 +145,46 @@ function simulateWalk(memory: Memory, allMemories: Memory[], budget: number) {
   return { firstMatchAt, slotsSpentWhenReached, spentByType, stoppedAt, stepped };
 }
 
+/**
+ * How often Milestone Causality gets past its cheap first test.
+ *
+ * The reservation's cost is one extra `rule.evaluate` per post-budget peer. For
+ * a Goal Progress memory that is a single property read. It only becomes real
+ * work when both sides are Milestones in the same project, because only then
+ * does it reach the two `explanation.toLowerCase().includes(...)` calls.
+ * Counting the pairs that get that far bounds the worst case directly.
+ */
+function reportStringPathPressure() {
+  const memories = memoryService.getMemories();
+  let pairs = 0;
+  let firstTestPassed = 0;
+  let reachedStringPath = 0;
+
+  for (let n = 0; n < memories.length; n++) {
+    const memory = memories[n];
+    for (let i = n - 1; i >= 0; i--) {
+      const existing = memories[i];
+      pairs += 1;
+      if (memory.reason !== "Milestone") continue;
+      firstTestPassed += 1;
+      if (
+        existing.reason === "Milestone" &&
+        memory.relatedProjectId &&
+        memory.relatedProjectId === existing.relatedProjectId
+      ) {
+        reachedStringPath += 1;
+      }
+    }
+  }
+
+  const pct = (n: number) => ((n / Math.max(1, pairs)) * 100).toFixed(2);
+  log(
+    `  Milestone Causality pressure: ${pairs} pairs, ` +
+      `${firstTestPassed} past the first test (${pct(firstTestPassed)}%), ` +
+      `${reachedStringPath} reaching the string comparison (${pct(reachedStringPath)}%)`,
+  );
+}
+
 function report(label: string) {
   const memories = memoryService.getMemories();
   const budget = getRetentionPolicy().maxRelationshipsPerMemory;
@@ -318,6 +358,30 @@ describe("relationship type distribution", () => {
     for (const pid of pids) akira.updateProject(pid, { progress: 100 });
 
     report("D  3 projects, tasks + touches + notes, all completed");
+  });
+
+  it("shape F: milestone-dense history, the one shape the cost probe left open", () => {
+    resetRetentionPolicy();
+    freshWorkspace();
+
+    // Milestone Causality exits on its first test -- `reason === "Milestone"`
+    // -- for any non-milestone memory, which is why a reservation costs nothing
+    // measurable on a task history. The open question is a history where that
+    // test passes on BOTH sides often enough to reach the two
+    // `explanation.toLowerCase().includes(...)` calls, which is real work.
+    //
+    // `project_updated` is a Milestone, so repeated progress updates are the
+    // densest milestone history the store can actually produce.
+    const pids = [0, 1, 2].map((n) => newProject(`Shape F ${n}`));
+    for (let round = 1; round <= 10; round++) {
+      for (const pid of pids) {
+        akira.updateProject(pid, { progress: round * 10 });
+        completeTask(pid, `f-${pid.slice(-4)}-${round}`);
+      }
+    }
+
+    report("F  3 projects, 10 progress updates each, milestone-dense");
+    reportStringPathPressure();
   });
 
   it("shape E: a project completed long after its own creation scrolled away", () => {
