@@ -14,7 +14,7 @@ export class RuntimeVisibility {
     "runtime",
     "runtime",
     "runtime",
-    {} as any,
+    Object.freeze({}),
   );
 
   /** Tracer service for creating spans. */

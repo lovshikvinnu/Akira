@@ -5,3 +5,7 @@ export { telemetryContext as context } from "./services/context";
 export { telemetryClock as clock } from "./utils/clock";
 export { telemetryIdGenerator as idGenerator } from "./utils/id-generator";
 export { metricRegistry as metrics } from "./metrics/registry";
+export { telemetryStore as store } from "./store/telemetry-store";
+export { healthRegistry as health } from "./health/health-registry";
+export { performanceMonitor as performance } from "./performance/performance-monitor";
+export { resourceSampler as resources } from "./resources/resource-sampler";

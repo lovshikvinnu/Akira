@@ -8,6 +8,17 @@ import {
   DiagnosticRegistrationError,
   DiagnosticsValidationError,
 } from "../errors/telemetry-errors";
+import { getObservabilityRetention } from "../store/retention";
+
+/** One entry in the in-memory diagnostic trail returned by `list()`. */
+export interface ReportedDiagnostic {
+  readonly code: string;
+  readonly severity: TelemetrySeverity;
+  readonly component: string;
+  readonly message: string;
+  readonly suggestedAction?: string;
+  readonly metadata: TelemetryMetadata;
+}
 
 /**
  * DiagnosticsService – immutable diagnostic reporting.
@@ -15,7 +26,13 @@ import {
  * The service also tracks reported diagnostics in‑memory for the `list()` API.
  */
 export class DiagnosticsService extends AbstractTelemetryService {
-  private readonly reported: any[] = [];
+  /**
+   * Bounded: this is a process-lifetime trail, and a component reporting a
+   * recurring fault would otherwise grow it forever. Oldest entries are dropped
+   * first, so the most recent diagnostics -- the ones being investigated -- are
+   * the ones retained.
+   */
+  private readonly reported: ReportedDiagnostic[] = [];
 
   constructor() {
     super(new DiagnosticsValidator());
@@ -65,11 +82,19 @@ export class DiagnosticsService extends AbstractTelemetryService {
       suggestedAction,
       metadata: frozenMeta,
     });
+    const overflow = this.reported.length - getObservabilityRetention().maxDiagnostics;
+    if (overflow > 0) this.reported.splice(0, overflow);
+
     await this.record(record);
   }
 
-  /** List all diagnostics reported during this process lifetime. */
-  list(): ReadonlyArray<any> {
+  /** The most recent diagnostics reported during this process lifetime, oldest first. */
+  list(): ReadonlyArray<ReportedDiagnostic> {
     return this.reported;
+  }
+
+  /** Drops the in-memory trail. Registered codes are unaffected. */
+  clear(): void {
+    this.reported.length = 0;
   }
 }

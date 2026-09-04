@@ -1,5 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
 
+// Composes observability on the *server's* module instances.
+//
+// Client and server are separate runtimes with separate module registries, so
+// the `globalEventBus` reached here is a different object from the browser's
+// and needs its own observer. Without this the deliveries that matter most --
+// the SQLite persistence write and the timeline write, both of which happen
+// only on the server -- would be the ones nobody was watching.
+//
+// A side-effect import rather than a call: see the note in auto-compose.ts.
+// Composition is idempotent, so composing here and in AKIRA OS is harmless.
+import "../../observability/auto-compose";
+
 /**
  * Server function RPC to persist and process client-published events.
  */
