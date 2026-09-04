@@ -53,6 +53,7 @@ const { relationshipService } = await import(
 );
 const { recallService } = await import("../src/genesis/recall/recall-service");
 const { understandingEngine } = await import("../src/genesis/understanding/engine");
+const { projectRule } = await import("../src/genesis/understanding/rules");
 
 function freshWorkspace(): void {
   const state = akira.getState() as AkiraState;
@@ -168,6 +169,54 @@ describe("text-keyed decisions", () => {
         `${derived.filter((d) => names.some((n) => n.toLowerCase() === d.toLowerCase())).length}` +
         ` of ${derived.length}`,
     );
+  });
+
+  it("F6: can one subsystem's identifier be read as another's", () => {
+    freshWorkspace();
+    const { ids } = buildThreeDistinctProjects();
+
+    // `understanding/rules.ts:57-58` tries the specific pattern first and then
+    // falls back to a bare /ID:\s*(...)/i over EVERY story's summary -- not
+    // only project arcs. Five sibling rules in the same file already expect
+    // "Goal ID:", "Knowledge ID:", "Habit ID:", "Relationship ID:" and
+    // "Preference Key:" in that same field, so the fallback is one summary
+    // sentence away from claiming another subsystem's identifier.
+    const foreign = storyService.createStory({
+      title: "Some Other Arc",
+      summary: "Narrative tracking progress for Goal ID: goal-abc-123.",
+      status: "Active",
+      ruleProvenance: "probe",
+    });
+
+    // The rule is asked directly rather than through the engine: a workload
+    // that produces nothing cannot distinguish "cannot happen" from "did not
+    // happen this time", which is the mistake that hid three earlier defects.
+    const keys = projectRule
+      .evaluate(memoryService.getMemories(), storyService.getStories())
+      .map((f) => f.canonicalKey);
+
+    log("");
+    log("=== F6  cross-subsystem identifier contamination ===");
+    log(`real project ids:      ${ids.length}`);
+    log(`Project canonicalKeys: ${JSON.stringify(keys)}`);
+    const bogus = keys.filter((k) => !ids.some((id) => k === `project:${id}`));
+    log(`keys not naming a real project: ${JSON.stringify(bogus)}`);
+    log(
+      `a Goal ID was claimed as a Project: ` +
+        `${bogus.some((k) => k.includes("goal-abc-123")) ? "YES" : "no"}`,
+    );
+
+    // And what the store can produce today, as opposed to what it could.
+    const summaries = storyService.getStories().map((st) => st.summary);
+    const withBareId = summaries.filter(
+      (sm) => /ID:\s*[a-zA-Z0-9-]+/i.test(sm) && !/Project ID:/i.test(sm),
+    );
+    log(
+      `stories with a bare "ID:" but no "Project ID:" in a real workload: ` +
+        `${withBareId.length - 1} (excluding the one this probe injected)`,
+    );
+
+    storyService.updateStory(foreign.id, { relatedMemoryIds: [] });
   });
 
   it("F5: survives reconstruction, and repeated reconstruction", () => {
