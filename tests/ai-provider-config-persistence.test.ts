@@ -153,6 +153,67 @@ describe("AI provider config survives a save", () => {
     expect(manager.getStatus("OpenRouter")).not.toBe("Missing API Key");
   });
 
+  it("persists the removal of the only stored key", async () => {
+    store.values.set("akira:ai:keys", JSON.stringify({ OpenRouter: "sk-or-key" }));
+
+    const manager = await freshManager();
+    await manager.configLoadedPromise;
+
+    const removed = await manager.removeApiKey("OpenRouter");
+    expect(removed).toBe(true);
+
+    // A refresh must not bring the key back.
+    const second = await freshManager();
+    await second.configLoadedPromise;
+    expect(second.getApiKey("OpenRouter")).toBe("");
+    expect(second.getStatus("OpenRouter")).toBe("Missing API Key");
+  });
+
+  it("persists the removal of one key while another remains", async () => {
+    store.values.set(
+      "akira:ai:keys",
+      JSON.stringify({ OpenRouter: "sk-or-key", Gemini: "gem-key" }),
+    );
+
+    const manager = await freshManager();
+    await manager.configLoadedPromise;
+    await manager.removeApiKey("OpenRouter");
+
+    const second = await freshManager();
+    await second.configLoadedPromise;
+    expect(second.getApiKey("OpenRouter")).toBe("");
+    expect(second.getApiKey("Gemini")).toBe("gem-key");
+  });
+
+  it("persists a provider switch across a reload", async () => {
+    store.values.set("akira:ai:keys", JSON.stringify({ OpenRouter: "sk-or-key" }));
+
+    const manager = await freshManager();
+    await manager.configLoadedPromise;
+    expect(await manager.setActiveProviderName("OpenRouter")).toBe(true);
+
+    const second = await freshManager();
+    await second.configLoadedPromise;
+    expect(second.getActiveProviderName()).toBe("OpenRouter");
+  });
+
+  it("still refuses to blank stored keys the user never touched", async () => {
+    store.values.set("akira:ai:keys", JSON.stringify({ OpenRouter: "sk-or-key" }));
+
+    const manager = await freshManager();
+    await manager.configLoadedPromise;
+
+    // Nothing edited the keys; an empty in-memory key set here would mean the
+    // load failed, not that the user cleared anything. The stored keys must
+    // survive. Force a save through an unrelated setting.
+    (manager as unknown as { keys: Record<string, string> }).keys = {};
+    await manager.setStatus("Gemini", "Network Error");
+
+    const second = await freshManager();
+    await second.configLoadedPromise;
+    expect(second.getApiKey("OpenRouter")).toBe("sk-or-key");
+  });
+
   it("round-trips a saved model into the next page load", async () => {
     const first = await freshManager();
     await first.configLoadedPromise;

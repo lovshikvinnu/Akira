@@ -100,11 +100,17 @@ function SettingsPage() {
     }
   };
 
-  const handleRemoveKey = () => {
-    aiProviderManager.removeApiKey(selectedProvider);
+  const handleRemoveKey = async () => {
+    const removed = await aiProviderManager.removeApiKey(selectedProvider);
     setApiKeyInput("");
     setTestResult(null);
-    toast.success(`${selectedProvider} API key removed`);
+    if (removed) {
+      toast.success(`${selectedProvider} API key removed`);
+    } else {
+      toast.error(
+        `Could not save the removal of the ${selectedProvider} API key. It will return on refresh.`,
+      );
+    }
   };
 
   const handleTestConnection = async () => {
@@ -510,9 +516,16 @@ function SettingsPage() {
                           : providerState.geminiKey) && (
                           <button
                             type="button"
-                            onClick={() => {
-                              aiProviderManager.setActiveProviderName(selectedProvider);
-                              toast.success(`${selectedProvider} activated`);
+                            onClick={async () => {
+                              const activated =
+                                await aiProviderManager.setActiveProviderName(selectedProvider);
+                              if (activated) {
+                                toast.success(`${selectedProvider} activated`);
+                              } else {
+                                toast.error(
+                                  `${selectedProvider} is active for this session, but the change could not be saved.`,
+                                );
+                              }
                             }}
                             className="inline-flex h-10 items-center justify-center rounded-xl border border-violet/20 bg-violet/10 px-4 text-xs font-semibold text-violet-400 transition-all hover:bg-violet/20"
                           >

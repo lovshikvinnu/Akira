@@ -224,8 +224,16 @@ class AIProviderManager {
       const currentStatusesRaw = await settingsService.get("akira:ai:statuses");
       const currentModelsRaw = await settingsService.get("akira:ai:models");
 
-      // Validation check: Do not overwrite non-empty stored API keys with empty configuration
-      if (currentKeysRaw) {
+      // Do not blank stored API keys with an empty configuration -- unless the
+      // user is the one who emptied it.
+      //
+      // An empty key set normally means the load failed, and overwriting real
+      // keys with it would destroy them. But removing the last remaining key is
+      // also an empty key set, and this guard used to refuse that write too, so
+      // "Remove Key" appeared to work and the key returned on the next refresh.
+      // `editedKeys` is what separates the two: it is only populated by a
+      // deliberate setApiKey or removeApiKey call.
+      if (currentKeysRaw && this.editedKeys.size === 0) {
         try {
           const parsedExistingKeys = JSON.parse(currentKeysRaw);
           if (
