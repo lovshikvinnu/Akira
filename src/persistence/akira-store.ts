@@ -124,11 +124,12 @@ const pendingPersistence = new Set<Promise<void>>();
  * Starts a write-through without blocking the caller, and without leaving the
  * promise unowned.
  *
- * Timing is unchanged: `run()` is invoked immediately, exactly as the bare
- * `import(...).then(...)` was, and nothing awaits it. The difference is that
- * the whole chain -- module load and the service call it returns -- is tracked
- * and its rejection is handled, so a genuine write failure is reported rather
- * than escaping the process.
+ * The caller is not blocked, and the whole chain -- module load and the service
+ * call it returns -- is tracked with its rejection handled, so a genuine write
+ * failure is reported rather than escaping the process.
+ *
+ * `run()` is no longer invoked immediately. It waits for the previous write, so
+ * writes land in the order the store mutated; see the comment on `persist`.
  */
 /**
  * Runs a write-through in a server runtime.
@@ -232,8 +233,42 @@ function observeWrite(operation: string, error?: unknown, attempted = true): voi
   }
 }
 
+/**
+ * The tail of the write chain. See `persist`.
+ *
+ * Always resolves -- every task appended to it handles both outcomes -- so one
+ * failed write cannot poison the chain and strand every write after it.
+ */
+let writeChain: Promise<void> = Promise.resolve();
+
 function persist(operation: string, run: () => Promise<unknown>): void {
-  const task = runInServerRuntime(run).then(
+  // Writes run in the order the user caused them, one at a time.
+  //
+  // They used to start immediately and race. `addProject` and `addTaskDetails`
+  // each start their own write-through and neither waits, so a task could reach
+  // the database before the project it belongs to. `tasks.project_id`
+  // references `projects.id`, so when it lost the race SQLite rejected it:
+  //
+  //     store.tasks=1  db.tasks=0  db.projects=1
+  //     [akira-store] Persistence write "tasks.add" failed:
+  //       SqliteError: FOREIGN KEY constraint failed
+  //
+  // The user creates a project, adds a task to it, sees the task in the UI, and
+  // the task is not on disk. It reproduced on 1 of 20 rounds here, always the
+  // first -- the first call pays for the dynamic `import()` inside
+  // `runInServerRuntime` and that latency widens the window -- but the ordering
+  // was never guaranteed at all, so the rate is a property of this machine
+  // rather than of the code.
+  //
+  // Chaining is enough because these are local SQLite writes and the correct
+  // order is exactly the order the store mutated. It costs concurrency that was
+  // never wanted: two writes overlapping is what caused this.
+  //
+  // The caller still does not wait. What changed is that `run()` is deferred
+  // until the previous write settles rather than invoked immediately -- the one
+  // timing property this function used to promise, and it is the one that was
+  // wrong.
+  const task = writeChain.then(() => runInServerRuntime(run)).then(
     () => {
       observeWrite(operation);
     },
@@ -259,6 +294,10 @@ function persist(operation: string, run: () => Promise<unknown>): void {
       observeWrite(operation, err);
     },
   );
+
+  // The chain advances whether the write succeeded or failed, because `task`
+  // has both handlers and therefore always resolves.
+  writeChain = task;
 
   pendingPersistence.add(task);
   void task.finally(() => {

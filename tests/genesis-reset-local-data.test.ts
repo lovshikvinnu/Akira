@@ -93,21 +93,15 @@ beforeEach(async () => {
   // `store.tasks=2` while the database held one -- so a case could start with
   // state it never created.
   //
-  // NEITHER OF THESE FIXES THE REMAINING FLAKE, and saying so is the point of
-  // this comment. Both are real and both were measured, and the failure rate
-  // did not move: about three isolated runs in eight still fail the
-  // precondition in "removes projects, missions, notes and chat".
-  // Instrumenting it shows the fixture is not the cause:
+  // The flake this file used to carry is fixed, and not here.
   //
-  //     store.tasks=1  db.tasks=0  store.projects=1  db.projects=1
-  //
-  // The task is in the store and absent from the database, while the project
-  // written moments earlier in the same block is present -- so
-  // `settlePendingPersistence()` returned before that one write had landed.
-  // That is a question about `persist`, not about this file, which is why no
-  // further fixture change was attempted here.
-  const state = akira.getState();
-  akira.initializeState({ ...state, projects: [], tasks: [], notes: [], chat: [], memories: [] });
+  // It failed about three isolated runs in eight, always on the precondition
+  // that a task exists. Four fixture hypotheses were tried against it and none
+  // moved the rate, because the defect was in production code: `persist` started
+  // every write immediately, so the task write raced the project write it
+  // depends on and SQLite rejected it on the foreign key. Writes are chained
+  // now -- see `genesis-persistence-ordering`. Both cleanups below are still
+  // correct on their own terms and stay.
   await settlePendingPersistence();
   db.prepare("DELETE FROM tasks").run();
   db.prepare("DELETE FROM notes").run();
