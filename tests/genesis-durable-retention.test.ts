@@ -188,9 +188,11 @@ describe("Core history survives Episodic volume", () => {
     expect(core.length).toBeLessThanOrEqual(3);
 
     // Newest kept, oldest gone -- recency still governs *within* a class.
+    // Asserted on the note body: a memory's description carries what the user
+    // wrote, not a wrapper around the title.
     const descriptions = core.map((e) => e.description).join(" | ");
-    expect(descriptions).toContain("note-7");
-    expect(descriptions).not.toContain("note-0");
+    expect(descriptions).toContain("content 7");
+    expect(descriptions).not.toContain("content 0");
   });
 
   it("bounds the whole stream by the sum of the class caps", () => {

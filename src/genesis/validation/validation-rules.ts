@@ -48,11 +48,28 @@ export const validationRules: ValidationRule[] = [
     evaluate(candidate) {
       if (candidate.reason === "Reflection Worthy") {
         const description = (candidate.description || "").trim();
-        // Hold if note content or description is empty (needs more depth)
-        if (
-          !description ||
-          (description.toLowerCase().includes("raw thought") && !candidate.metadata?.title)
-        ) {
+
+        // Whether the user gave this note any substance, asked structurally.
+        //
+        // This used to test `description.includes("raw thought")`, which worked
+        // only because the description was a generated wrapper -- the string was
+        // the translator's, so matching it was matching our own output. Now that
+        // the description carries the user's own words, that test would read
+        // whatever they wrote: a note saying "just a raw thought" would be held
+        // for containing the phrase. The fields themselves answer the question.
+        const body =
+          typeof candidate.metadata?.content === "string" ? candidate.metadata.content : "";
+        const hasSubstance = body.trim().length > 0 || Boolean(candidate.metadata?.title);
+
+        // The description test survives only as the fallback for a candidate
+        // carrying no such fields: an event recorded before `content` existed
+        // and replayed from the durable stream, or one recorded directly
+        // through `eventService.record`, which several callers do. For those the
+        // wrapper is still ours, so matching it is still matching our own
+        // output and the outcome is unchanged.
+        const looksEmpty = hasSubstance ? false : description.toLowerCase().includes("raw thought");
+
+        if (!description || looksEmpty) {
           return {
             outcome: "Hold",
             explanation: `Held captured reflection due to insufficient content/context.`,

@@ -210,9 +210,10 @@ describe("active cognition stays bounded", () => {
     const core = coreMemories();
     expect(core.length).toBeLessThanOrEqual(3);
 
+    // The description carries the note body, so recency is asserted on that.
     const descriptions = core.map((m) => m.description).join(" | ");
-    expect(descriptions).toContain("note-8");
-    expect(descriptions).not.toContain("note-0");
+    expect(descriptions).toContain("body 8");
+    expect(descriptions).not.toContain("body 0");
 
     expectNoDanglingReferences();
   });

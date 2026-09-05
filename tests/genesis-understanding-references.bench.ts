@@ -204,9 +204,12 @@ describe("understanding graph references", () => {
       log(`  memory description: ${JSON.stringify(m.description)}`);
     }
 
-    // The memory count above already proves the hold: two notes, one memory.
+    // Computed rather than asserted: this line was a hardcoded conclusion and
+    // went stale the moment the pipeline was repaired.
+    const noteMemories = memories.filter((m) => m.relatedNoteId).length;
     log(
-      `  brain dump contributes nothing; a titled note contributes its title only`,
+      `  ${noteMemories} of 2 notes produced a memory; bodies reaching cognition: ` +
+        `${["zqfrobnicate", "bazquux"].filter((n) => haystack.includes(n)).length} of 2`,
     );
   });
 

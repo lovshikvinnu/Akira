@@ -563,7 +563,11 @@ export const akira = {
       publish({
         type: Events.NOTE_CREATED,
         source: "notes-store",
-        payload: { id: n.id, title, tags, projectId },
+        // `content` is what the user actually wrote, and it is the only part
+        // of a note GENESIS can reason over. Without it the translator has
+        // nothing but the title to build a description from, which is why a
+        // quick capture produced no memory at all.
+        payload: { id: n.id, title, content, tags, projectId },
         version: 1,
       });
 
@@ -591,7 +595,7 @@ export const akira = {
         publish({
           type: Events.NOTE_EDITED,
           source: "notes-store",
-          payload: { id: n.id, title: n.title, projectId: n.projectId },
+          payload: { id: n.id, title: n.title, content: n.content, projectId: n.projectId },
           version: 1,
         });
       }

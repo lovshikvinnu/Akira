@@ -50,7 +50,43 @@ interface MissionCompletedPayload {
 interface NotePayload {
   id: string;
   title?: string;
+  /**
+   * The note body, as the user typed it.
+   *
+   * Optional because events recorded before this field existed are replayed
+   * from the durable stream without it, and because a producer that has only a
+   * title is still translatable. Both fall back to the previous wrapper text.
+   */
+  content?: string;
   projectId: string | null;
+}
+
+/**
+ * A note's description: the user's own words, unwrapped.
+ *
+ * `description` is the only free text a Memory carries into cognition. Every
+ * rule that reads a note reads this field -- the recall classifier, the
+ * semantic relevance score, and `personalDeclarationRule`, whose patterns are
+ * all first-person prefixes (`my goal is `, `i want to become `). A wrapper in
+ * front of the text defeats all three, and it did: measured, no note written
+ * through any capture surface ever produced a declaration, because the body was
+ * not on the event and the description read `Captured thought: "<title>"`.
+ *
+ * So the body is returned verbatim when there is one. The title is not
+ * prepended, deliberately: prefixing anything puts a token in front of the
+ * declaration patterns again, and the title is already carried separately as
+ * `metadata.title`, which the candidate rules and the validator read.
+ *
+ * The wrapper survives only as the fallback for a payload with no body -- an
+ * event recorded before `content` existed, replayed from the durable stream.
+ * Nothing is invented: a payload with neither body nor title still yields the
+ * bare "raw thought" text, and the validator holds it.
+ */
+function noteDescription(payload: NotePayload, verb: "Captured" | "Updated"): string {
+  const content = (payload.content ?? "").trim();
+  if (content) return content;
+  if (payload.title) return `${verb} thought: "${payload.title}"`;
+  return verb === "Captured" ? "Captured raw thought" : "Updated raw thought";
 }
 
 /**
@@ -105,7 +141,7 @@ const TRANSLATORS: Record<string, (payload: never) => TranslatedEvent> = {
   [Events.NOTE_CREATED]: (payload: NotePayload): TranslatedEvent => ({
     eventType: "note_created",
     title: "Note Created",
-    description: payload.title ? `Captured thought: "${payload.title}"` : "Captured raw thought",
+    description: noteDescription(payload, "Captured"),
     relatedProjectId: payload.projectId,
     relatedNoteId: payload.id,
   }),
@@ -113,7 +149,7 @@ const TRANSLATORS: Record<string, (payload: never) => TranslatedEvent> = {
   [Events.NOTE_EDITED]: (payload: NotePayload): TranslatedEvent => ({
     eventType: "note_edited",
     title: "Note Edited",
-    description: payload.title ? `Updated thought: "${payload.title}"` : "Updated raw thought",
+    description: noteDescription(payload, "Updated"),
     relatedProjectId: payload.projectId,
     relatedNoteId: payload.id,
   }),
