@@ -21,6 +21,7 @@ import { candidateService } from "@/genesis";
 import { memoryService } from "@/genesis";
 import { storyService } from "@/genesis";
 import { identityService } from "@/genesis";
+import { selectSessionOutcomes } from "@/akira-os/sessions/session-outcomes";
 
 export const Route = createFileRoute("/sessions")({
   head: () => ({
@@ -67,35 +68,17 @@ function SessionsHistoryPage() {
   const activeOutcomes = useMemo(() => {
     if (!selectedSession) return null;
 
-    const start = new Date(selectedSession.startedAt).getTime();
-    const end = new Date(selectedSession.endedAt).getTime();
-
-    const events = memoriesLog.filter((e) => {
-      const t = new Date(e.timestamp).getTime();
-      return t >= start && t <= end;
+    // Attribution lives in `selectSessionOutcomes`, which filters stories and
+    // identity observations on `createdAt` rather than `updatedAt`. Reinforcing
+    // an old story used to move it out of the session it happened in and into
+    // today's; see that module for why.
+    return selectSessionOutcomes(selectedSession, {
+      events: memoriesLog,
+      candidates: candidateService.getCandidates(),
+      promoted: memoryService.getMemories(),
+      stories: storyService.getStories(),
+      identity: identityService.getObservations(),
     });
-
-    const candidates = candidateService.getCandidates().filter((c) => {
-      const t = new Date(c.timestamp).getTime();
-      return t >= start && t <= end;
-    });
-
-    const promoted = memoryService.getMemories().filter((m) => {
-      const t = new Date(m.timestamp).getTime();
-      return t >= start && t <= end;
-    });
-
-    const stories = storyService.getStories().filter((s) => {
-      const t = new Date(s.updatedAt).getTime();
-      return t >= start && t <= end;
-    });
-
-    const identity = identityService.getObservations().filter((o) => {
-      const t = new Date(o.updatedAt).getTime();
-      return t >= start && t <= end;
-    });
-
-    return { events, candidates, promoted, stories, identity };
   }, [selectedSession, memoriesLog]);
 
   return (
