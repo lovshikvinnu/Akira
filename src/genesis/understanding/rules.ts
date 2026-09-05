@@ -54,16 +54,41 @@ export const projectRule: UnderstandingRule = {
     for (const story of stories) {
       let projectId: string | null = null;
 
-      const summaryMatch =
-        story.summary.match(/Project ID:\s*([a-zA-Z0-9-]+)/i) ||
-        story.summary.match(/ID:\s*([a-zA-Z0-9-]+)/i);
+      // The id the story carries, before anything it says.
+      //
+      // `story-rules` has the project id in hand when it builds the arc and
+      // writes it into the summary sentence; this read it back out with a
+      // regex. Same value, round-tripped through prose inside GENESIS.
+      //
+      // The two fallbacks below are kept and reordered behind the field, not
+      // because a legacy story format exists -- stories are never persisted, so
+      // every story alive was produced by the current rules -- but because
+      // `registerStoryRule` is public and a rule registered through it can
+      // create an arc carrying neither the field nor the sentence.
+      //
+      // The last of them is why the order matters. `story.title.split(":")[1]`
+      // on a `Project Arc: …` title yields the remainder, and `story-rules`
+      // builds that remainder from `memory.title.split(":")[0]` -- which for
+      // every memory the translator produces is a fixed label like
+      // "Project Created". So that branch does not recover a project id, it
+      // invents one out of a display string, and every memory reaching it would
+      // be filed under a project named after an event type. It was already
+      // unreachable while the summary matched; it is now behind two guards
+      // rather than one, and documented rather than merely unvisited.
+      if (story.relatedProjectId) {
+        projectId = story.relatedProjectId;
+      } else {
+        const summaryMatch =
+          story.summary.match(/Project ID:\s*([a-zA-Z0-9-]+)/i) ||
+          story.summary.match(/ID:\s*([a-zA-Z0-9-]+)/i);
 
-      if (summaryMatch) {
-        projectId = summaryMatch[1];
-      } else if (isProjectArc(story)) {
-        const parts = story.title.split(":");
-        if (parts.length > 1) {
-          projectId = parts[1].trim();
+        if (summaryMatch) {
+          projectId = summaryMatch[1];
+        } else if (isProjectArc(story)) {
+          const parts = story.title.split(":");
+          if (parts.length > 1) {
+            projectId = parts[1].trim();
+          }
         }
       }
 

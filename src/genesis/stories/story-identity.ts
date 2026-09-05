@@ -38,10 +38,18 @@
  * predicates below prefer it to the title whenever it is present.
  *
  * It is deliberately not exhaustive of every story a rule might invent. A
- * story with no `kind` is not "neither arc" -- it is a story created before
- * this field existed, or restored from a snapshot that predates it, and for
- * those the title is still the best answer available. That is why the
- * predicates fall back rather than returning false.
+ * story with no `kind` is not "neither arc": `registerStoryRule` is public and
+ * `newStoryData.kind` is optional, so an externally registered rule can create
+ * one without a kind, and for those the title is still the best answer
+ * available. That is why the predicates fall back rather than returning false.
+ *
+ * An earlier version of this comment also claimed the fallback covered stories
+ * "restored from a snapshot that predates the field". That was wrong and it
+ * survived review. Stories are never persisted -- `storyCache` in
+ * `story-service` is a plain in-process array, rebuilt from the event stream on
+ * every reconstruction -- so no story is ever restored from anything, and there
+ * is no legacy story format to be compatible with. Every story that has ever
+ * existed was produced by the current `story-rules`.
  */
 export type StoryKind = "Reflections" | "Project";
 

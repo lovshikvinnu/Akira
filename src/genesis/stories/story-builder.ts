@@ -66,6 +66,7 @@ export const storyBuilder = {
             title: result.newStoryData.title,
             summary: result.newStoryData.summary,
             kind: result.newStoryData.kind,
+            relatedProjectId: result.newStoryData.relatedProjectId ?? null,
             status: "Active",
             ruleProvenance: rule.name,
           });

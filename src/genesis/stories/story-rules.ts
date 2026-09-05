@@ -18,7 +18,12 @@ export interface StoryRule {
   ): {
     shouldCluster: boolean;
     storyId?: string;
-    newStoryData?: { title: string; summary: string; kind?: StoryKind };
+    newStoryData?: {
+      title: string;
+      summary: string;
+      kind?: StoryKind;
+      relatedProjectId?: string | null;
+    };
   };
   evaluateRelationship(
     relationship: MemoryRelationship,
@@ -34,11 +39,24 @@ export const storyRules: StoryRule[] = [
     name: "Project Clustering Rule",
     evaluateMemory(memory, existingStories) {
       if (memory.relatedProjectId) {
-        const targetStory = existingStories.find(
-          (story) =>
-            isProjectArc(story) &&
-            story.summary.includes(`ID: ${memory.relatedProjectId}`),
-        );
+        // Matched on the id the story carries, not on the sentence it was
+        // written into.
+        //
+        // This was a substring test against a longer sentence, standing in for
+        // an equality between two ids that were both in hand. It is the hotter
+        // of the two round-trips through prose: this runs for every memory
+        // belonging to a project, where the understanding-graph one runs once
+        // per story per rebuild.
+        //
+        // The summary test is kept as a fallback for a story carrying no
+        // `relatedProjectId`, which today means one built by a rule registered
+        // through `registerStoryRule`. It is second, so a story that carries
+        // the id is never decided by its prose.
+        const targetStory = existingStories.find((story) => {
+          if (!isProjectArc(story)) return false;
+          if (story.relatedProjectId) return story.relatedProjectId === memory.relatedProjectId;
+          return story.summary.includes(`ID: ${memory.relatedProjectId}`);
+        });
 
         if (targetStory) {
           return { shouldCluster: true, storyId: targetStory.id };
@@ -49,6 +67,9 @@ export const storyRules: StoryRule[] = [
               title: `${PROJECT_ARC_TITLE_PREFIX} ${memory.title.split(":")[0]}`,
               summary: `Evolving narrative tracking milestones, tasks, and reflections for Project ID: ${memory.relatedProjectId}.`,
               kind: "Project",
+              // The same id the summary names. The sentence stays because it is
+              // shown to people; this is what code reads.
+              relatedProjectId: memory.relatedProjectId,
             },
           };
         }
@@ -76,9 +97,7 @@ export const storyRules: StoryRule[] = [
     name: "Reflection Worthy Cluster Rule",
     evaluateMemory(memory, existingStories) {
       if (memory.reason === "Reflection Worthy") {
-        const reflectionStory = existingStories.find(
-          isReflectionsArc,
-        );
+        const reflectionStory = existingStories.find(isReflectionsArc);
         if (reflectionStory) {
           return { shouldCluster: true, storyId: reflectionStory.id };
         } else {

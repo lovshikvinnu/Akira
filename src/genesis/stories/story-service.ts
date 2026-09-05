@@ -144,6 +144,7 @@ export const storyService = {
       title: input.title,
       summary: input.summary,
       kind: input.kind,
+      relatedProjectId: input.relatedProjectId ?? null,
       status: input.status,
       relatedMemoryIds: [],
       ruleProvenance: input.ruleProvenance,
