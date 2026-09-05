@@ -3,11 +3,24 @@
  *
  * `settings.updateMemories` replaces the whole blob, so what it writes is
  * whatever `s.memories` holds at the time. On a cold start that array is empty
- * until hydration resolves, and `__root.tsx` records an event before it does:
- * effect 1 awaits `getInitialState()`, effect 2 calls
- * `companionStateService.bootstrap()` synchronously, and bootstrap records a
- * `note_created`. The write then puts `[bootstrapEvent]` over the user's
+ * until hydration resolves, and `__root.tsx` used to record an event before it
+ * did: effect 1 awaits `getInitialState()`, effect 2 calls
+ * `companionStateService.bootstrap()` synchronously, and bootstrap recorded a
+ * `note_created`. The write then put `[bootstrapEvent]` over the user's
  * history.
+ *
+ * WHAT THIS GUARDS NOW
+ *
+ * As of 7cb6994 the handoff is `companion_bootstrapped`, classified Transient,
+ * and `eventService.record` calls `saveMemory` only for durable events -- so
+ * that particular trigger is gone. Checked rather than assumed: no service
+ * `initialize()` in effect 2 records a durable event any more, and
+ * `__root.tsx:287` renders `{hydrated ? <Outlet /> : null}`, so no user action
+ * can reach the window either. The window is empty in production today.
+ *
+ * These cases are therefore an invariant, not a live reproduction: any durable
+ * event recorded before hydration still truncates the stream, and the cost of
+ * proving that stays lower than the cost of rediscovering it.
  *
  * Reproduced against the real repository before the fix: seven events seeded on
  * disk, hydration withheld, one bootstrap event recorded, disk 7 -> 1 holding
@@ -73,7 +86,17 @@ function seedDisk(n: number): MemoryEvent[] {
   return events;
 }
 
-/** Exactly what `context/state/service.ts` records during bootstrap. */
+/**
+ * A durable event of the kind bootstrap used to record -- deliberately a local
+ * copy rather than a call to `companionStateService.bootstrap()`.
+ *
+ * Do not "tidy" this into the real call. Bootstrap now publishes
+ * `companion_bootstrapped`, which is Transient, and a Transient event never
+ * reaches `saveMemory` -- so there would be no durable write for the barrier to
+ * refuse and every case below would pass whether or not the guard existed. The
+ * hardcoded `note_created` is what keeps these tests about the barrier instead
+ * of about durability classification.
+ */
 function recordBootstrapEvent(): void {
   eventService.record(
     "note_created",
