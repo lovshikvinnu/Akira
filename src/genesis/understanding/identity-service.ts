@@ -1,4 +1,4 @@
-import { IdentityObservation } from "./identity-types";
+import { IdentityObservation, ObservationBasis } from "./identity-types";
 import { getRetentionPolicy, trimOldest } from "../retention/policy";
 
 export type IdentityListener = (event: {
@@ -57,7 +57,10 @@ export const identityService = {
    * Merges and reinforces existing observations if Category and Name match.
    */
   addObservation(
-    observation: Omit<IdentityObservation, "id" | "createdAt" | "updatedAt" | "confidenceHistory">,
+    observation: Omit<
+      IdentityObservation,
+      "id" | "createdAt" | "updatedAt" | "confidenceHistory" | "basis"
+    > & { basis?: ObservationBasis },
   ): IdentityObservation {
     const uid =
       typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -66,6 +69,9 @@ export const identityService = {
 
     const obs: Omit<IdentityObservation, "id" | "createdAt" | "updatedAt" | "confidenceHistory"> = {
       ...observation,
+      // Inferred unless a producer says otherwise. Only `PersonalDeclarationRule`
+      // is reporting something the user said; every other rule is concluding.
+      basis: observation.basis ?? "Inferred",
     };
 
     const idx = observationCache.findIndex(
@@ -138,6 +144,10 @@ export const identityService = {
       const updatedObs: IdentityObservation = {
         ...oldObs,
         value: obs.value,
+        // A declaration can only strengthen the basis. If the user has ever
+        // stated this outright, a later inference about the same trait does not
+        // demote it back to something AKIRA worked out on its own.
+        basis: obs.basis === "Declared" ? "Declared" : oldObs.basis,
         confidence: nextConfidence,
         supportingStoryIds: mergedStoryIds,
         supportingMemoryIds: mergedMemoryIds,

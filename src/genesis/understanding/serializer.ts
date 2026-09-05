@@ -57,6 +57,33 @@ function formatConfidence(confidence: UnderstandingConfidence): string {
   return confidence;
 }
 
+/** The coarse level of a confidence that may be a label or a number. */
+function confidenceLevel(confidence: UnderstandingConfidence): "High" | "Medium" | "Low" {
+  if (typeof confidence !== "number") return confidence;
+  if (confidence >= 0.85) return "High";
+  if (confidence >= 0.6) return "Medium";
+  return "Low";
+}
+
+/**
+ * What can be said about a declared goal at a given evidence level.
+ *
+ * Every one of these describes statements, because statements are the only
+ * evidence a `goal:` understanding has. None of them claims demonstrated
+ * behaviour or sustained progress -- that would need the project and task
+ * evidence this fragment never sees.
+ */
+function goalSentence(level: "High" | "Medium" | "Low", concept: string): string {
+  switch (level) {
+    case "High":
+      return `The user has stated a goal of ${concept} repeatedly over time.`;
+    case "Medium":
+      return `The user has stated a goal of ${concept} on more than one occasion.`;
+    default:
+      return `The user has stated a goal of ${concept}.`;
+  }
+}
+
 /**
  * Serializes a single Understanding object into a deterministic natural-language summary block.
  */
@@ -72,7 +99,16 @@ export function serializeUnderstanding(u: Understanding): string {
   let sentence = "";
   switch (u.category) {
     case "Goal":
-      sentence = `The user has consistently demonstrated a long-term commitment toward ${sentenceConcept}.`;
+      // What this understanding actually knows is how many times the user has
+      // *said* something, because only `PersonalDeclarationRule` emits a
+      // `goal:` fragment. It has never seen work done towards it.
+      //
+      // The sentence was `has consistently demonstrated a long-term commitment`
+      // unconditionally, so a note typed once and never revisited was reported
+      // to the model as sustained, demonstrated behaviour. Even at "High" --
+      // four separate declarations -- the honest ceiling is that they keep
+      // saying it, not that they have shown it.
+      sentence = goalSentence(confidenceLevel(u.confidence), sentenceConcept);
       break;
     case "Project":
       sentence = `The user is actively building ${sentenceConcept}.`;

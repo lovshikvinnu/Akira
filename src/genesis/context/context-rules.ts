@@ -4,8 +4,10 @@ import { Story } from "../stories/types";
 import { IdentityObservation } from "../understanding/identity-types";
 import { hypothesesService } from "../understanding/hypotheses";
 import { identityService } from "../identity";
+import { identityConfidenceService } from "../identity";
 import { IdentityGoal } from "../identity/types";
 import { ContextItem } from "./types";
+import { MULTI_FACTOR_RECALL_PREFIX } from "../recall/recall-rules";
 import {
   PROJECT_ARC_TITLE_PREFIX,
   isProjectArc,
@@ -30,6 +32,52 @@ import {
  * produce actually appear. The precedence is theirs, unchanged: explicit user
  * intent outranks a milestone, and anything else is recent recall.
  */
+/**
+ * What the prompt is told about where an observation came from, and how well
+ * supported it is -- as two statements rather than one number.
+ *
+ * The line used to read `- become a pilot: Active (Confidence: 1)`.
+ * `PersonalDeclarationRule` writes every declaration-derived observation at
+ * exactly 1.0, so for anything the user ever said out loud the model was handed
+ * maximum confidence with no indication of what that confidence was *about*.
+ * Measured on a single note written once, a year ago, with no work attached:
+ *
+ *     identity graph (unread)   score 0.175  level "Weak"
+ *     prompt (read)             "(Confidence: 1)"
+ *
+ * Both are correct about different things. AKIRA is certain the sentence was
+ * typed; the evidence that it describes a live commitment is weak. Collapsing
+ * those into one number is what let the prompt overclaim.
+ *
+ * So the reason string carries both:
+ *
+ *   Declared   the user said it. Certain, and said so plainly, because that is
+ *              the part not in doubt. The evidence level is appended from the
+ *              identity graph, which is the only thing in GENESIS that computes
+ *              belief strength -- no second scorer is introduced here.
+ *   Inferred   GENESIS concluded it. There is no separate source certainty to
+ *              report, so `confidence` is what it has always been for these.
+ *
+ * The graph is read rather than recomputed: `addEvidence` refreshes the cached
+ * score whenever evidence changes, and recomputing here would call `Date.now()`
+ * once per observation per prompt, making the text a function of wall-clock.
+ * A node with no cached score yet contributes nothing rather than a guess.
+ */
+export function identityInclusionReason(observation: IdentityObservation): string {
+  if (observation.basis !== "Declared") {
+    return `Inferred from activity (confidence ${observation.confidence.toFixed(2)})`;
+  }
+
+  const node = identityService
+    .getIdentityNodes()
+    .find((n) => (n.value ?? "").toLowerCase() === observation.name.toLowerCase());
+  const level = node ? identityConfidenceService.getConfidence(node.id)?.level : undefined;
+
+  return level
+    ? `Stated explicitly by the user; supporting evidence so far: ${level}`
+    : "Stated explicitly by the user";
+}
+
 /** A project arc the user has open. Work is happening. */
 export const ACTIVE_PROJECT_REASON = "Active project";
 
@@ -214,7 +262,7 @@ export const contextRules = {
       .slice(0, policy)
       .map(({ o }) => ({
         data: o,
-        inclusionReason: "Identity Evidence",
+        inclusionReason: identityInclusionReason(o),
       }));
   },
 
@@ -354,7 +402,33 @@ export const contextRules = {
     // first. The two lists are drawn from one pool and should not disagree
     // about which of it matters.
     return rankedActive(candidates, getRetentionPolicy().context.maxRecentActivity).map((c) => {
-      return `Recall active memory node (${c.memoryId}) because: ${c.recallReasons.join(" | ")}`;
+      // Only the reasons a reader would recognise as reasons.
+      //
+      // `recallReasons` mixes two kinds of string. One explains the memory in
+      // terms the model can use -- `Associated with active narrative: "..."`.
+      // The other is the ranking breakdown, and it was reaching the model
+      // verbatim in a real system prompt:
+      //
+      //   Multi-factor recall [Context: QUERY | Score: 0.87 | Category: Goal
+      //   | Stability: 1.0 | SemanticMatch: Yes | Recency: 1.0 | ...]
+      //
+      // Those are weights this code computed to decide what to recall. The
+      // model cannot check them, cannot act on them, and reads them as if they
+      // were facts about the user. Filtering is a blacklist rather than a
+      // whitelist on purpose: a recall rule added later is far more likely to
+      // write a sentence than a metrics dump, so the default should be to show
+      // it.
+      //
+      // The candidate keeps every reason. This filters the copy built for the
+      // prompt; `brain.tsx` still renders `recallReasons` in full.
+      const readable = c.recallReasons.filter((r) => !r.startsWith(MULTI_FACTOR_RECALL_PREFIX));
+
+      // The id stays: `prompt-builder` uses it to swap in the memory's text,
+      // and drops the entry when it cannot. It is a join key here, never
+      // something the model sees.
+      return readable.length > 0
+        ? `Recall active memory node (${c.memoryId}) because: ${readable.join(" | ")}`
+        : `Recall active memory node (${c.memoryId})`;
     });
   },
 };

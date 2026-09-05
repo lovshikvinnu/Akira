@@ -33,7 +33,14 @@ describe("GENESIS - Personal Declaration Understanding", () => {
       const goalU = understandings.find((u) => u.category === "Goal");
       expect(goalU).toBeDefined();
       expect(goalU?.canonicalKey).toBe("goal:become-a-pilot");
-      expect(goalU?.confidence).toBe("High");
+      // One statement is weak evidence, however certain we are that it was
+      // made. This pinned "High" while `PersonalDeclarationRule` hardcoded it,
+      // which is what let `serializeUnderstanding` report a note typed once as
+      // "consistently demonstrated a long-term commitment". Confidence here is
+      // belief strength and now comes from how often the user has said it;
+      // that they said it at all is carried by `IdentityObservation.basis`,
+      // asserted below.
+      expect(goalU?.confidence).toBe("Low");
       expect(goalU?.status).toBe("Active");
 
       // Verify Identity Observations (Emergent Cache)
@@ -41,6 +48,9 @@ describe("GENESIS - Personal Declaration Understanding", () => {
       const goalObs = observations.find((o) => o.category === "Aspiration");
       expect(goalObs).toBeDefined();
       expect(goalObs?.name).toBe("become a pilot"); // exact user wording preserved
+      // Source certainty: the user said this, and that is not in doubt.
+      expect(goalObs?.basis).toBe("Declared");
+      expect(goalObs?.confidence).toBe(1.0);
 
       // Verify Core Identity Graph
       const identity = identityFoundationService.getIdentity();

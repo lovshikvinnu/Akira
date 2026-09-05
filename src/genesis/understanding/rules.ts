@@ -46,6 +46,12 @@ function determineStatus(stories: Story[], relatedStoryIds: string[]): Understan
   return "Active";
 }
 
+/** The understanding key for a declaration, in one place so the counting pass
+ * and the fragment cannot disagree about what "the same declaration" means. */
+function declarationKey(category: string, content: string): string {
+  return `${category.toLowerCase()}:${content.toLowerCase().replace(/\s+/g, "-")}`;
+}
+
 // Helper to determine a basic deterministic confidence placeholder
 function calculateConfidence(memoryCount: number, storyCount: number): UnderstandingConfidence {
   const totalReferences = memoryCount + storyCount;
@@ -535,6 +541,33 @@ export const personalDeclarationRule: UnderstandingRule = {
   evaluate(memories, stories) {
     const fragments: UnderstandingFragment[] = [];
 
+    /**
+     * How many times the user has said each thing, counted before any fragment
+     * is emitted.
+     *
+     * The fragment used to be pushed with `confidence: "High"` regardless, and
+     * `buildUnderstandingGraph` merges fragments sharing a key by taking the
+     * *maximum* confidence -- so one declaration and forty produced the same
+     * "High", and `serializeUnderstanding` turned that into "has consistently
+     * demonstrated a long-term commitment" for a sentence typed once.
+     *
+     * Because the merge takes a max rather than recomputing from the union,
+     * emitting `calculateConfidence(1, 0)` per fragment would peg every key at
+     * "Low" no matter how often it was restated. The count has to be known
+     * before the fragments are built, which is what this pass is for -- it is
+     * the same shape the six sibling rules already use, where a `refs` map is
+     * accumulated and confidence computed from its size.
+     */
+    const declarationCounts = new Map<string, number>();
+    for (const memory of memories) {
+      const declared =
+        parseDeclaration(memory.description || "") ||
+        (memory.title ? parseDeclaration(memory.title) : null);
+      if (!declared) continue;
+      const key = declarationKey(declared.category, declared.content);
+      declarationCounts.set(key, (declarationCounts.get(key) ?? 0) + 1);
+    }
+
     for (const memory of memories) {
       // Two parse sites, not three.
       //
@@ -559,10 +592,13 @@ export const personalDeclarationRule: UnderstandingRule = {
       }
 
       if (match) {
+        const canonicalKey = declarationKey(match.category, match.content);
         fragments.push({
-          canonicalKey: `${match.category.toLowerCase()}:${match.content.toLowerCase().replace(/\s+/g, "-")}`,
+          canonicalKey,
           category: match.category,
-          confidence: "High",
+          // What the evidence supports, on the same scale the sibling rules use.
+          // One statement is "Low"; restating it over time raises it.
+          confidence: calculateConfidence(declarationCounts.get(canonicalKey) ?? 1, 0),
           status: "Active",
           supportingMemoryIds: [memory.id],
           supportingStoryIds: [],
@@ -594,6 +630,10 @@ export const personalDeclarationRule: UnderstandingRule = {
             supportingStoryIds: [],
             supportingMemoryIds: [memory.id],
             provenance: `Extracted via PersonalDeclarationRule from: "${text}"`,
+            // The user said this. `confidence: 1.0` above is certainty about
+            // that fact and nothing more; how well supported the belief is
+            // lives in the identity graph and is read at the prompt boundary.
+            basis: "Declared",
           });
           emergentWritten = true;
         } catch (err) {
@@ -686,8 +726,7 @@ export const personalDeclarationRule: UnderstandingRule = {
                 .getEvidenceByNode(aspect.confidenceReference)
                 .some(
                   (e) =>
-                    e.sourceType === "Memory" &&
-                    e.metadata?.sourceEventId === memory.sourceEventId,
+                    e.sourceType === "Memory" && e.metadata?.sourceEventId === memory.sourceEventId,
                 );
               if (already) return;
 
