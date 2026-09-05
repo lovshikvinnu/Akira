@@ -520,6 +520,10 @@ export const personalDeclarationRule: UnderstandingRule = {
                 "Memory",
                 memory.id,
                 text,
+                // The memory's own instant, not this one. Reconstruction replays
+                // the whole stream, so without this every reload would restamp a
+                // years-old declaration as today's.
+                { createdAt: memory.timestamp },
               );
             };
 

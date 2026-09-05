@@ -78,7 +78,21 @@ export class IdentityEvidenceService {
       weight: typeof metadata?.weight === "number" ? metadata.weight : 1.0,
       status: typeof metadata?.status === "string" ? metadata.status : "Active",
       originEngine: typeof metadata?.originEngine === "string" ? metadata.originEngine : "Manual",
-      createdAt: new Date().toISOString(),
+      // When the evidence happened, which is not always when this ran.
+      //
+      // Identity is never persisted -- `InMemoryIdentityRepository` is the only
+      // implementation -- so on every reload the graph is re-derived from the
+      // durable memory stream rather than restored. Stamping the clock here made
+      // each re-derivation the evidence's birthday: a declaration the user made
+      // ninety days ago came back apparently zero days old, and did so again on
+      // every subsequent reconstruction.
+      //
+      // Read from `metadata` like the three fields above it, so a caller that
+      // knows the origin instant can supply it and every existing caller keeps
+      // stamping now. This carries no opinion about decay -- it only stops the
+      // age being wrong before anything reads it.
+      createdAt:
+        typeof metadata?.createdAt === "string" ? metadata.createdAt : new Date().toISOString(),
     };
 
     this.repository.saveEvidence(evidence);
