@@ -134,7 +134,7 @@ describe("reality adapter — translation", () => {
     expect(note.relatedProjectId).toBe("p1");
     expect(note.description).toBe('Captured thought: "Idea"');
 
-    expect(recorded.events[5].description).toBe("Finished all 3 missions for today!");
+    expect(recorded.events[5].description).toBe("Finished all 3 tasks for today!");
   });
 
   it("falls back to the untitled note wording when a note has no title", () => {
