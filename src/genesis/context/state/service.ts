@@ -4,7 +4,7 @@ import { stateEvents } from "./events";
 import { addEvidence, applyUserCorrection } from "./rules";
 import type { PresenceContext } from "../../../akira-os/presence/types";
 import { getWorkspaceProvider } from "../../../contracts/workspace-provider";
-import { globalEventBus } from "../../../instrumentation/event-bus";
+import { subscribeToPresence } from "../../../contracts/presence-channel";
 import type { AkiraEvent } from "../../../instrumentation/event-types";
 import { Events } from "../../../contracts/events";
 import { eventService } from "../../events/event-service";
@@ -29,15 +29,9 @@ class CompanionStateService {
     // presence context has already arrived, and presenceService.initialize()
     // publishes one before __root.tsx calls bootstrap(). The platform bus has no
     // topic channel, so the filter lives here.
-    const subscriber = {
-      id: "companion-state-presence",
-      onEvent: (event: AkiraEvent) => {
-        if (event.type !== Events.PRESENCE_UPDATED) return;
-        this.latestPresenceContext = (event.payload as { context: PresenceContext }).context;
-      },
-    };
-    globalEventBus.subscribe(subscriber);
-    this.presenceUnsubscribe = () => globalEventBus.unsubscribe(subscriber);
+    this.presenceUnsubscribe = subscribeToPresence("companion-state-presence", (context) => {
+      this.latestPresenceContext = context;
+    });
   }
 
   /**

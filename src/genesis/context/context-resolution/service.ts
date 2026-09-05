@@ -2,7 +2,7 @@ import { ResolvedContext } from "./types";
 import { buildResolvedContext } from "./builder";
 import { contextResolutionEvents } from "./events";
 import type { PresenceContext } from "../../../akira-os/presence/types";
-import { globalEventBus } from "../../../instrumentation/event-bus";
+import { subscribeToPresence } from "../../../contracts/presence-channel";
 import type { AkiraEvent } from "../../../instrumentation/event-types";
 import { Events } from "../../../contracts/events";
 import { companionStateService } from "../state/service";
@@ -27,12 +27,8 @@ class ContextResolutionService {
     // Caches the context from construction onwards so a presence update that
     // lands before initialize() is not lost. Distinct from the subscriber
     // registered in initialize(), which also triggers a rebuild.
-    globalEventBus.subscribe({
-      id: "context-resolution-presence-cache",
-      onEvent: (event: AkiraEvent) => {
-        if (event.type !== Events.PRESENCE_UPDATED) return;
-        this.latestPresenceContext = (event.payload as { context: PresenceContext }).context;
-      },
+    subscribeToPresence("context-resolution-presence-cache", (context) => {
+      this.latestPresenceContext = context;
     });
   }
 
@@ -49,16 +45,12 @@ class ContextResolutionService {
     this.rebuildResolvedContext();
 
     // Subscribe to all upstream events to re-run coordination rules dynamically
-    const presenceSubscriber = {
-      id: "context-resolution-presence",
-      onEvent: (event: AkiraEvent) => {
-        if (event.type !== Events.PRESENCE_UPDATED) return;
-        this.latestPresenceContext = (event.payload as { context: PresenceContext }).context;
+    this.unsubscribers.push(
+      subscribeToPresence("context-resolution-presence", (context) => {
+        this.latestPresenceContext = context;
         this.rebuildResolvedContext();
-      },
-    };
-    globalEventBus.subscribe(presenceSubscriber);
-    this.unsubscribers.push(() => globalEventBus.unsubscribe(presenceSubscriber));
+      }),
+    );
     this.unsubscribers.push(stateEvents.subscribe(() => this.rebuildResolvedContext()));
     this.unsubscribers.push(goalEvents.subscribe(() => this.rebuildResolvedContext()));
     this.unsubscribers.push(knowledgeEvents.subscribe(() => this.rebuildResolvedContext()));
