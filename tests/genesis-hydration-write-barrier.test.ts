@@ -44,6 +44,10 @@ const { akira, settlePendingPersistence } = await import("../src/persistence/aki
 const { memoryService } = await import("../src/genesis/memory/memory-service");
 const { eventService } = await import("../src/genesis/events/event-service");
 const { settingsRepository } = await import("../src/persistence/repositories");
+const { healthRegistry } = await import("../src/observability/health/health-registry");
+
+/** The health component behind the memory-stream write. */
+const MEMORIES = "akira-store.persist.settings.updateMemories";
 
 /** The durable record, read back from SQLite rather than from the store. */
 function disk(): MemoryEvent[] {
@@ -99,6 +103,24 @@ describe("the window before hydration", () => {
     // Before the barrier this was 1, holding only the bootstrap event.
     expect(disk().length).toBe(seeded.length);
     expect(disk().filter((e) => e.relatedNoteId?.startsWith("note-")).length).toBe(7);
+  });
+
+  it("still says something about the write it declined to make", async () => {
+    // The guard must not buy durability with silence. `observeWrite` lives
+    // inside `persist()`, so skipping the call without registering would leave
+    // this undefined -- making "we chose not to write" indistinguishable from
+    // "nothing was ever attempted", which is the distinction the health
+    // registry exists to draw.
+    expect(akira.isHydrated()).toBe(false);
+
+    recordBootstrapEvent();
+    await settlePendingPersistence();
+
+    const health = healthRegistry.get(MEMORIES);
+    expect(health).toBeDefined();
+
+    // Registered but with no outcome. Not `healthy`: nothing was written.
+    expect(health?.status).toBe("unknown");
   });
 
   it("leaves the history intact for the next cold start", async () => {

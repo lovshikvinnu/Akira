@@ -196,7 +196,7 @@ const HEALTH_COMPONENT_PREFIX = "akira-store.persist.";
  */
 const unobservableOperations = new Set<string>();
 
-function observeWrite(operation: string, error?: unknown): void {
+function observeWrite(operation: string, error?: unknown, attempted = true): void {
   try {
     const component = `${HEALTH_COMPONENT_PREFIX}${operation}`;
 
@@ -219,6 +219,10 @@ function observeWrite(operation: string, error?: unknown): void {
           `the health registry is full, so its failures will only reach the console.`,
       );
     }
+
+    // A skipped write has no outcome to record: the component exists and
+    // stays `unknown`. See the durable-write guard in `saveMemory`.
+    if (!attempted) return;
 
     if (error === undefined) healthRegistry.recordSuccess(component);
     else healthRegistry.recordFailure(component, error);
@@ -1207,10 +1211,24 @@ registerStoreProvider({
       // the store hydrated first leaves 7 -> 8, so the cause is the empty
       // array rather than anything about bootstrap.
       //
-      // It does not self-heal. A later write rewrites the blob from the store,
-      // which by then holds the damaged stream: measured 1 -> 2 with 0 of the
-      // 7 original events recovered. The loss is permanent from the instant
-      // this write lands.
+      // Whether it self-heals is a race, and nothing orders that race.
+      // `getInitialState()` and `persistUpdateMemories` are both
+      // `createServerFn` -- a GET and a POST -- so they are two independent
+      // round-trips. Measured under explicit ordering control:
+      //
+      //   read wins    hydration loads 7, bad write lands, next write 1 -> 8
+      //                  ... all 7 recovered
+      //   write wins   bad write lands, hydration loads 1, next write 1 -> 2
+      //                  ... 0 of 7 recovered, permanently
+      //
+      // An earlier version of this comment claimed categorically that it does
+      // not self-heal. That was one arm reported as the rule.
+      //
+      // The bias runs the wrong way. `getInitialState()` reads and parses the
+      // whole persisted state -- including the very `genesis_memories` blob it
+      // is racing -- while this write POSTs a single-element array. The read
+      // gets slower as the history grows; the write does not. So the write is
+      // likeliest to win for the user with the most to lose.
       //
       // A guard here rather than a reordering of those effects. The ordering is
       // load-bearing for cognition and `__root.tsx` documents why: bootstrap
@@ -1219,10 +1237,12 @@ registerStoreProvider({
       // covers the read. This covers the write, which is the half that reaches
       // disk.
       //
-      // Skipping the persist loses the bootstrap event from the durable stream,
-      // which is what already happens to it in memory: hydration replaces
-      // `s.memories` wholesale a moment later, so the event was never going to
-      // survive the cold start either way.
+      // The event is dropped, not deferred, and that is a deliberate choice
+      // rather than an oversight: `initializeState` replaces `s.memories`
+      // wholesale a moment later, so the bootstrap event was never going to
+      // survive the cold start in memory either. Deferring it would mean
+      // holding a queue across hydration to re-persist an event that hydration
+      // is about to discard anyway.
       if (hydrated) {
         // Fire-and-forget, matching every other write in this store. A failed
         // persist costs the next reload some history; it must not break the
@@ -1232,6 +1252,21 @@ registerStoreProvider({
             settingsService.updateMemories(memories),
           ),
         );
+      } else {
+        // Register the component without an outcome, so that declining to
+        // write stays distinguishable from never having tried. `observeWrite`
+        // lives inside `persist()`, so a bare `return` here would leave
+        // `healthRegistry.get(...)` undefined and collapse "we chose not to
+        // write" into "nothing ever happened" -- the distinction 0443991 and
+        // 302ba75 exist to draw.
+        //
+        // Registered-with-no-outcome is `unknown`, which the registry already
+        // treats as explicitly not healthy. Not `degraded`: skipping is the
+        // correct behaviour here, and reporting every cold start as degraded
+        // would teach a reader to ignore the signal. It also gives the
+        // pathological case a shape -- if hydration never resolves, this
+        // component sits at `unknown` forever instead of vanishing.
+        observeWrite("settings.updateMemories", undefined, false);
       }
 
       return { ...s, memories };
