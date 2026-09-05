@@ -141,7 +141,7 @@ export const identityRules: IdentityRule[] = [
     },
   },
   {
-    name: "Project Completion Hypothesis Confirmation",
+    name: "Project Completion Progress",
     evaluateStory(story) {
       if (isProjectArc(story) && story.status === "Completed") {
         // Resolved from the arc's project id. The arc's own title is the fixed

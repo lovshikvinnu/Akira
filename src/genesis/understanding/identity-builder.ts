@@ -111,18 +111,38 @@ export const identityBuilder = {
           (h) => h.name === result.hypothesisTrigger?.targetHypothesisName,
         );
         if (hyp) {
-          const nextStatus = result.hypothesisTrigger.confirm ? "Confirmed" : "Rejected";
+          // "Refined", not "Confirmed". The only rule that reaches this with
+          // `confirm: true` is "Project Completion Progress", which fires when a
+          // completed project arc's name appears inside an aspiration's name.
+          // That is a name match, and "Confirmed" in this vocabulary means the
+          // user settled the question -- which they have not. A supporting
+          // observation moves the hypothesis along without closing it.
+          const nextStatus = result.hypothesisTrigger.confirm ? "Refined" : "Rejected";
           hypothesesService.updateHypothesisStatus(hyp.id, nextStatus, story.id);
 
-          if (nextStatus === "Confirmed") {
+          if (nextStatus === "Refined") {
             identityService.addObservation({
               category: hyp.category,
               name: hyp.name,
-              value: "Achieved",
-              confidence: 1.0,
+              // Was `value: "Achieved"` at `confidence: 1.0`. Finishing a
+              // project whose name overlaps an aspiration is evidence that the
+              // user worked towards it, and no evidence at all that they
+              // reached it -- a project called "Pilot" would have recorded, at
+              // maximum confidence and permanently, that the user had become a
+              // pilot. `prompt-builder` disambiguates that exact word between
+              // "aircraft pilot", "pilot project" and "pilot testing", so the
+              // collision is one this codebase already knows it has.
+              value: "Progress observed",
+              // The default this file already uses for an inferred observation
+              // (`result.confidence ?? 0.5`), rather than a new number chosen
+              // to look considered.
+              confidence: 0.5,
               supportingStoryIds: [story.id],
               supportingMemoryIds: story.relatedMemoryIds,
-              provenance: `Promoted from confirmed onboarding hypothesis: "${hyp.description}"`,
+              provenance:
+                `Project narrative "${story.title}" completed, and its name matches the ` +
+                `stated aspiration "${hyp.name}". Recorded as progress towards it, not as ` +
+                `having achieved it.`,
             });
           }
         }

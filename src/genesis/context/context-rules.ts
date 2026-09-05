@@ -3,6 +3,8 @@ import { getRetentionPolicy } from "../retention/policy";
 import { Story } from "../stories/types";
 import { IdentityObservation } from "../understanding/identity-types";
 import { hypothesesService } from "../understanding/hypotheses";
+import { identityService } from "../identity";
+import { IdentityGoal } from "../identity/types";
 import { ContextItem } from "./types";
 import {
   PROJECT_ARC_TITLE_PREFIX,
@@ -28,6 +30,42 @@ import {
  * produce actually appear. The precedence is theirs, unchanged: explicit user
  * intent outranks a milestone, and anything else is recent recall.
  */
+/** A project arc the user has open. Work is happening. */
+export const ACTIVE_PROJECT_REASON = "Active project";
+
+/**
+ * Something the user said they wanted.
+ *
+ * Deliberately not "goal". The user mentioning an aspiration is not evidence
+ * that they are pursuing it, and nothing downstream should read this label as
+ * progress or as an achievement.
+ */
+export const STATED_ASPIRATION_REASON = "Stated aspiration";
+
+/**
+ * The aspirations the user has actually declared, newest first.
+ *
+ * `PersonalDeclarationRule` creates one `IdentityGoal` per parsed declaration.
+ * They are all stored with `status: "Active"` and `priority: "High"` by
+ * `IdentityGoalService.createGoal`, which is why neither field is filtered on
+ * here: every record would pass, and a filter that admits everything reads as
+ * a safeguard without being one. The distinction this function exists to
+ * preserve is carried by the label, not by a status nothing sets.
+ */
+function statedAspirations(): IdentityGoal[] {
+  const identity = identityService.getIdentity();
+  if (!identity) return [];
+  // Reversed before sorting, not after. `lastUpdated` is an ISO string at
+  // millisecond precision and declarations parsed from one batch of notes
+  // routinely share a timestamp, which makes the comparator return 0 and
+  // leaves the order to whatever the input was. `sort` is stable, so
+  // reversing first means a tie falls back to newest-inserted rather than to
+  // an arbitrary survivor of the `maxGoals` cap.
+  return [...identityService.getGoals(identity.id)]
+    .reverse()
+    .sort((a, b) => b.lastUpdated.localeCompare(a.lastUpdated));
+}
+
 function inclusionReasonFor(candidate: RecallCandidate): string {
   for (const signal of candidate.importanceSignals) {
     if (signal.type === "User Intent") return "User Intent";
@@ -181,38 +219,80 @@ export const contextRules = {
   },
 
   /**
-   * Extract current aspirations and project objectives.
+   * What the user is working on, and what they have said they want.
+   *
+   * These are two different claims and the prompt now makes them separately.
+   * `inclusionReason` is printed to the model as `- <goal> (Reason: <reason>)`,
+   * so it is the channel that carries the distinction:
+   *
+   *   "Active project"      the user has an open project arc. Work is
+   *                         happening; the arc exists because memories
+   *                         clustered under a project id.
+   *   "Stated aspiration"   the user said they wanted this. Nothing here
+   *                         claims they are pursuing it, have made progress on
+   *                         it, or have achieved it.
+   *
+   * Both were previously labelled "User Intent", which is why the second half
+   * could not have been added without changing the first: with one label the
+   * model cannot tell a project someone is actively working through from a
+   * sentence they said once.
+   *
+   * WHY ASPIRATIONS ARE READ FROM IDENTITY AND NOT FROM HYPOTHESES
+   * -------------------------------------------------------------
+   * This used to read `Proposed`/`Confirmed` Aspiration hypotheses. That branch
+   * never produced a goal in the life of the app: `proposeHypothesis` has no
+   * callers, so `hypothesisCache` is empty for the whole process. Meanwhile the
+   * thing it was reaching for -- the record that the user declared an
+   * aspiration -- is created on every declaration by `PersonalDeclarationRule`
+   * as an `IdentityGoal`, and was read by nothing at all. `getIdentitySummary`,
+   * `getCurrentProfile` and `getActiveGoals` have no callers outside the
+   * identity module, so "I want to become a pilot" was parsed, evidenced,
+   * confidence-scored, and then never spoken of again.
+   *
+   * `IdentityGoal` is also the richer of the two records -- it carries a graph
+   * node, evidence records and a confidence score, where `IdentityHypothesis`
+   * carries a name and a status -- so routing both into this one channel would
+   * be the duplicate projection rather than a second opinion. One source.
+   *
+   * ORDERING AND THE BUDGET
+   * -----------------------
+   * Projects first, then aspirations, then the cap. Active work outranks a
+   * stated wish when the two compete for `maxGoals`. Aspirations are ordered
+   * most-recently-updated first, because truncating the head of an
+   * insertion-ordered list drops the newest thing the user said -- the same
+   * oldest-first mistake `filterActiveRecallCandidates` above documents having
+   * made once already.
    */
   extractGoals(stories: Story[]): ContextItem<string>[] {
-    const goals: string[] = [];
+    const items: ContextItem<string>[] = [];
 
-    // 1. Extract goals from active project narratives
+    // 1. What the user is working on.
     stories
       .filter((s) => s.status === "Active" && isProjectArc(s))
       .forEach((s) => {
         // The project's name, not the arc's title. Every arc is titled
         // "Project Arc: Project Created", so building the goal from the title
-        // gave every project the same string and the Set below collapsed them
-        // into one -- two projects, one goal, naming neither.
-        goals.push(`Complete ${PROJECT_ARC_TITLE_PREFIX} ${projectArcProjectName(s)}`);
+        // gave every project the same string and the dedupe below collapsed
+        // them into one -- two projects, one goal, naming neither.
+        items.push({
+          data: `Complete ${PROJECT_ARC_TITLE_PREFIX} ${projectArcProjectName(s)}`,
+          inclusionReason: ACTIVE_PROJECT_REASON,
+        });
       });
 
-    // 2. Extract goals from proposed/confirmed onboarding aspirations
-    const hypotheses = hypothesesService.getHypotheses();
-    hypotheses
-      .filter(
-        (h) => h.category === "Aspiration" && (h.status === "Proposed" || h.status === "Confirmed"),
-      )
-      .forEach((h) => {
-        goals.push(`${h.name} (${h.description})`);
-      });
+    // 2. What the user said they want.
+    for (const aspiration of statedAspirations()) {
+      items.push({ data: aspiration.title, inclusionReason: STATED_ASPIRATION_REASON });
+    }
 
-    return Array.from(new Set(goals))
-      .map((g) => ({
-        data: g,
-        inclusionReason: "User Intent",
-      }))
-      .slice(0, getRetentionPolicy().context.maxGoals);
+    const seen = new Set<string>();
+    const deduped: ContextItem<string>[] = [];
+    for (const item of items) {
+      if (seen.has(item.data)) continue;
+      seen.add(item.data);
+      deduped.push(item);
+    }
+    return deduped.slice(0, getRetentionPolicy().context.maxGoals);
   },
 
   /**
