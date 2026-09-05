@@ -5,6 +5,7 @@ import { registerStoreProvider } from "../shared/genesis-provider";
 import { registerWorkspaceProvider } from "../contracts/workspace-provider";
 import { Events } from "../contracts/events";
 import { publish } from "../instrumentation";
+import { healthRegistry } from "../observability/health/health-registry";
 
 import type {
   Project,
@@ -154,11 +155,74 @@ async function runInServerRuntime<T>(run: () => Promise<T>): Promise<T> {
   return runWithStartContext({} as never, run);
 }
 
+/**
+ * Health component id for one write-through operation.
+ *
+ * Per operation rather than one component for the whole store, because the two
+ * kinds of write here fail differently and only one of them recovers. Measured
+ * by injecting a failure at the repository:
+ *
+ *   settings.updateMemories   replaces the whole blob, so the next successful
+ *                             write carries everything the failed one carried.
+ *                             Durable count went 11, failed, still 11, then 13
+ *                             on the next write. Self-healing.
+ *   notes.add                 writes one row. The lost note was absent from the
+ *                             database immediately after the failure and still
+ *                             absent after a later successful write, while
+ *                             present in in-memory state. Permanent.
+ *
+ * A single component would average those together and erase the only
+ * distinction that matters. There are 29 distinct operations, all string
+ * literals with no dynamic construction, against a `maxHealthComponents` of 64,
+ * so this cannot exhaust the registry's cap or evict another component.
+ */
+const HEALTH_COMPONENT_PREFIX = "akira-store.persist.";
+
+/**
+ * Records the outcome of a write-through without being able to affect it.
+ *
+ * Guarded because this is the durability path: an observability call must never
+ * be the reason a write's error handling does not run. `healthRegistry` already
+ * guards its own listeners, so this is defence against the registry itself, and
+ * it is cheap.
+ */
+function observeWrite(operation: string, error?: unknown): void {
+  try {
+    const component = `${HEALTH_COMPONENT_PREFIX}${operation}`;
+    healthRegistry.register(component);
+    if (error === undefined) healthRegistry.recordSuccess(component);
+    else healthRegistry.recordFailure(component, error);
+  } catch {
+    // Deliberately empty. Losing the health signal is bad; losing the write's
+    // console report because health threw would be worse.
+  }
+}
+
 function persist(operation: string, run: () => Promise<unknown>): void {
   const task = runInServerRuntime(run).then(
-    () => undefined,
+    () => {
+      observeWrite(operation);
+    },
     (err: unknown) => {
+      // Console first, health second, so the change is additive: the existing
+      // report happens exactly as before regardless of what health does.
+      //
+      // Before this, a failed durable write was reported here and nowhere else.
+      // The caller had already mutated in-memory state and returned, so it
+      // believed the write had landed -- measured at 12 events in memory
+      // against 11 on disk -- and `settlePendingPersistence()` resolved rather
+      // than rejecting, so no lifecycle boundary could notice either. The
+      // health registry is where a failed write is now held: it keeps the error
+      // as evidence, counts consecutive failures, and turns degraded into
+      // critical on its own threshold.
+      //
+      // The event-bus path is already observed this way. `EventBusObserver`
+      // derives health from delivery outcomes and handles async subscribers
+      // correctly, but `persist` is not a bus delivery -- it is started inside
+      // `set()` and returns immediately -- so this write-through was the one
+      // durable path with no observer.
       console.error(`[akira-store] Persistence write "${operation}" failed:`, err);
+      observeWrite(operation, err);
     },
   );
 
