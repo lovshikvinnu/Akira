@@ -77,11 +77,42 @@ async function createUserData(): Promise<void> {
 }
 
 beforeEach(async () => {
+  // Settle before clearing, not after: `persist` is fire-and-forget, so a write
+  // still in flight from the previous case would otherwise land after these
+  // DELETEs.
+  await settlePendingPersistence();
+
   db.prepare("DELETE FROM tasks").run();
   db.prepare("DELETE FROM notes").run();
   db.prepare("DELETE FROM projects").run();
   db.prepare("DELETE FROM settings").run();
   db.prepare("DELETE FROM vault_files").run();
+
+  // The in-memory store too, not only the database. Clearing one and not the
+  // other left the previous case's rows in the store -- measured at
+  // `store.tasks=2` while the database held one -- so a case could start with
+  // state it never created.
+  //
+  // NEITHER OF THESE FIXES THE REMAINING FLAKE, and saying so is the point of
+  // this comment. Both are real and both were measured, and the failure rate
+  // did not move: about three isolated runs in eight still fail the
+  // precondition in "removes projects, missions, notes and chat".
+  // Instrumenting it shows the fixture is not the cause:
+  //
+  //     store.tasks=1  db.tasks=0  store.projects=1  db.projects=1
+  //
+  // The task is in the store and absent from the database, while the project
+  // written moments earlier in the same block is present -- so
+  // `settlePendingPersistence()` returned before that one write had landed.
+  // That is a question about `persist`, not about this file, which is why no
+  // further fixture change was attempted here.
+  const state = akira.getState();
+  akira.initializeState({ ...state, projects: [], tasks: [], notes: [], chat: [], memories: [] });
+  await settlePendingPersistence();
+  db.prepare("DELETE FROM tasks").run();
+  db.prepare("DELETE FROM notes").run();
+  db.prepare("DELETE FROM projects").run();
+  db.prepare("DELETE FROM settings").run();
 });
 
 describe("reset deletes what the dialog promises", () => {
