@@ -49,6 +49,7 @@ const { contextRelevanceSelector } =
   await import("../src/genesis/context/context-relevance-selector");
 const { intentResolver } = await import("../src/genesis/understanding/intent-resolver");
 const { promptBuilder } = await import("../src/genesis/context/ai/prompt-builder");
+const { getUnderstandingContext } = await import("../src/genesis/understanding/context-provider");
 
 const PROJECT = "Kitchen Renovation";
 // Two live filters stand between an understanding and the prompt, and this
@@ -155,5 +156,44 @@ describe("once its arc has been archived", () => {
     );
     expect(instruction).toContain("Status: Archived");
     expect(instruction).not.toContain("actively building");
+  });
+});
+
+describe("a note the user deleted", () => {
+  it("stops being described as something they are learning", () => {
+    // The deleted-entity half that reaches the understanding layer today.
+    // `NOTE_DELETED` is translated into the memory stream, so the story behind
+    // the knowledge understanding is archived and `determineStatus` follows --
+    // which only reaches the model because the serializer now reads status.
+    // Before that it read "The user is actively learning ...", about a note
+    // that no longer existed.
+    akira.addNote({ title: "RISC-V pipeline hazards", content: "cache and hazard notes" });
+
+    const before = understandingEngine
+      .getUnderstandings()
+      .find((u) => u.canonicalKey.startsWith("knowledge:"));
+    // The guard: the note has to have produced a knowledge understanding, and
+    // an active one, or the assertions below hold against nothing. An untitled
+    // note produces none at all, which is how this was first written by mistake.
+    expect(before, "no knowledge understanding was produced").toBeDefined();
+    expect(before!.status).toBe("Active");
+
+    const note = akira.getState().notes.find((n) => n.title === "RISC-V pipeline hazards");
+    expect(note).toBeDefined();
+    akira.deleteNote(note!.id);
+
+    const after = understandingEngine
+      .getUnderstandings()
+      .find((u) => u.canonicalKey.startsWith("knowledge:"));
+    expect(after).toBeDefined();
+    expect(after!.status).not.toBe("Active");
+
+    const block = getUnderstandingContext();
+    expect(block).not.toContain("actively learning");
+    expect(block).toContain("no longer active");
+
+    // And the subject is still named rather than erased: a deleted note is
+    // still something that happened.
+    expect(block).toContain("Risc V Pipeline Hazards");
   });
 });
