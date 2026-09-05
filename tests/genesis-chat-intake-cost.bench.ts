@@ -45,6 +45,7 @@ const { understandingEngine } = await import("../src/genesis/understanding/engin
 const { identityService } = await import("../src/genesis/identity");
 const { getRetentionPolicy, setRetentionPolicy, resetRetentionPolicy } =
   await import("../src/genesis/retention/policy");
+const { contextRules } = await import("../src/genesis/context/context-rules");
 const { candidateService } = genesis;
 
 let relEvals = 0;
@@ -362,4 +363,84 @@ describe("the dependency that option C has to replace", () => {
         `  so conversation is the declaration feature's designed input surface.`,
     );
   });
+});
+
+describe("what actually decides chat's share of the prompt", () => {
+  /**
+   * Two sessions measured this and disagreed, 11-of-12 against 1-of-12, and
+   * both figures were real. The variable neither harness controlled was
+   * whether the chat messages repeated their vocabulary.
+   *
+   * `buildRecallEvaluationContext` takes the LAST user message from
+   * `getChat()` and scores semantic relevance against it. That message is also
+   * a chat memory. So chat competes on a signal it partly defines, and the
+   * memory of the question being answered always matches it perfectly.
+   *
+   * The consequence is structural rather than statistical: at least one prompt
+   * slot is always spent showing the model the message it is currently
+   * answering, which it already has verbatim in the conversation. More than
+   * one whenever the user's phrasing repeats.
+   */
+  function scored(uniform: boolean): void {
+    freshWorkspace();
+    akira.addProject({ name: uniform ? "U" : "V" });
+    const pid = akira.getState().lastProjectId as string;
+    for (let i = 0; i < 30; i++) completeTask(pid);
+    akira.addNote({ content: "I want to become a pilot and build an aviation company." });
+
+    const questions = [
+      "how do I wire the FPGA clock",
+      "what did I do last tuesday",
+      "remind me about the pilot licence",
+      "is the parser finished",
+      "should I refactor the store",
+    ];
+    for (let i = 0; i < 20; i++) {
+      const text = uniform ? `question ${i}` : questions[i % questions.length];
+      // The real order: chat.tsx updates the store first, then records.
+      // Omitting `addChatMessage` leaves the context at BOOTSTRAP, a state that
+      // exists only before the user's first message -- and makes chat look
+      // entirely absent from recall.
+      akira.addChatMessage("user", text);
+      eventService.record(
+        "note_created",
+        "Workspace Interaction",
+        `User query submitted to AKIRA: "${text}"`,
+        pid,
+      );
+    }
+
+    recallBuilder.rebuildRecallCandidates();
+    const mems = new Map(memoryService.getMemories().map((m) => [m.id, m]));
+    const kindOf = (id: string) => {
+      const m = mems.get(id);
+      if (!m) return "?";
+      if (isChat(m.description)) return "CHAT";
+      return m.relatedNoteId ? "note" : m.eventType;
+    };
+
+    const byKind = new Map<string, number[]>();
+    for (const c of recallService.getRecallCandidates().filter((x) => x.status === "Active")) {
+      const k = kindOf(c.memoryId);
+      if (!byKind.has(k)) byKind.set(k, []);
+      byKind.get(k)!.push(c.recallScore);
+    }
+    const selected = contextRules.filterActiveRecallCandidates(recallService.getRecallCandidates());
+
+    console.log(`
+${uniform ? "UNIFORM" : "VARIED "} PHRASING  context=${recallBuilder.resolveCurrentContext()}`);
+    for (const [k, v] of [...byKind].sort((a, b) => Math.max(...b[1]) - Math.max(...a[1]))) {
+      console.log(
+        `    ${k.padEnd(20)} n=${String(v.length).padStart(2)}  ` +
+          `${Math.min(...v).toFixed(2)}..${Math.max(...v).toFixed(2)}`,
+      );
+    }
+    console.log(
+      `    -> ${selected.filter((s) => kindOf(s.data.memoryId) === "CHAT").length}` +
+        ` of ${selected.length} prompt slots are chat`,
+    );
+  }
+
+  it("varied phrasing: only the current question matches", () => scored(false));
+  it("uniform phrasing: every message matches", () => scored(true));
 });
