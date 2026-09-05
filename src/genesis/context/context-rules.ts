@@ -4,6 +4,7 @@ import { Story } from "../stories/types";
 import { IdentityObservation } from "../understanding/identity-types";
 import { hypothesesService } from "../understanding/hypotheses";
 import { getWorkspaceProvider } from "../../contracts/workspace-provider";
+import { memoryService } from "../memory/memory-service";
 import { identityService } from "../identity";
 import { identityConfidenceService } from "../identity";
 import { IdentityGoal } from "../identity/types";
@@ -111,6 +112,35 @@ export function identityInclusionReason(observation: IdentityObservation): strin
 function describesDeletedProject(story: Story): boolean {
   if (!isProjectArc(story) || !story.relatedProjectId) return false;
   const projectId = story.relatedProjectId;
+
+  // The stream first, because it is right earlier.
+  //
+  // The workspace check below races the store. `deleteProject` publishes before
+  // its `set()` commits, and the context package is rebuilt on that publish --
+  // so the rebuild sees a workspace that still contains the project and emits a
+  // goal for it. Measured immediately after deleting one of two projects:
+  //
+  //     workspace projects     Garden Beds
+  //     extractGoals fresh     ["Complete Project Arc: Garden Beds"]
+  //     package (the prompt)   ["Complete Project Arc: Kitchen Renovation",
+  //                             "Complete Project Arc: Garden Beds"]
+  //
+  // It self-healed on the next event, so the window is short -- but a prompt
+  // built inside it lists a project the user has just deleted, and the earlier
+  // tests missed it entirely by calling `extractGoals` directly instead of
+  // reading the package the prompt is built from.
+  //
+  // The `project_deleted` memory exists by the time the rebuild runs, because
+  // the event that triggered the rebuild is the one that produced it. Same
+  // source the understanding fragments read, for the same reason.
+  const deleted = memoryService
+    .getMemories()
+    .some((m) => m.eventType === "project_deleted" && m.relatedProjectId === projectId);
+  if (deleted) return true;
+
+  // Kept as the fallback for an arc whose project left the workspace without a
+  // deletion event -- an older stream recorded before deletions were
+  // translated, for one. Two readings of one question, not two mechanisms.
   return !getWorkspaceProvider()
     .getState()
     .projects.some((p) => p.id === projectId);

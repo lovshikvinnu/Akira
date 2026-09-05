@@ -52,6 +52,7 @@ const { relationshipService } =
 const { contextRules } = await import("../src/genesis/context/context-rules");
 const { isProjectArc } = await import("../src/genesis/stories/story-identity");
 const { understandingEngine } = await import("../src/genesis/understanding/engine");
+const { contextService } = await import("../src/genesis/context/context-service");
 
 function freshWorkspace(): void {
   const state = akira.getState() as AkiraState;
@@ -180,6 +181,48 @@ describe("a deleted project stops being claimed as current work", () => {
     // Compared against the count taken before the id was removed. Comparing
     // `activeStories().length` to itself would hold for any implementation.
     expect(activeStories().length, "an arc with no project id was treated as deleted").toBe(before);
+  });
+});
+
+describe("the package the prompt is built from, not just the rule", () => {
+  /**
+   * The gap the cases above missed. They call `extractGoals` directly with
+   * fresh stories; the prompt reads `contextService.getActiveContext()`, a
+   * package rebuilt on events and cached between them.
+   *
+   * `deleteProject` publishes before its `set()` commits, so the rebuild that
+   * publish triggers saw a workspace still containing the project. Measured
+   * immediately after deleting one of two:
+   *
+   *     extractGoals fresh     ["Complete Project Arc: Garden Beds"]
+   *     package (the prompt)   ["Complete Project Arc: Kitchen Renovation",
+   *                             "Complete Project Arc: Garden Beds"]
+   *
+   * Two projects, not one, because a lone deleted project can pass by accident:
+   * `classifyWorkspaceIntent` matches prompts against current project names, so
+   * with nothing surviving the block may not render at all and absence
+   * assertions hold for the wrong reason.
+   */
+  it("drops a deleted project from the cached package immediately", () => {
+    const doomed = project("Kitchen Renovation");
+    project("Garden Beds");
+
+    const before = contextService.getActiveContext()?.currentGoals.map((g) => g.data) ?? [];
+    expect(before, "the fixture never produced the goal being tested").toContain(
+      "Complete Project Arc: Kitchen Renovation",
+    );
+
+    akira.deleteProject(doomed);
+
+    // No intervening event. The package must be right now, not after the next
+    // thing that happens to trigger a rebuild.
+    const after = contextService.getActiveContext()?.currentGoals.map((g) => g.data) ?? [];
+    expect(after, "the prompt still offers a deleted project as a goal").not.toContain(
+      "Complete Project Arc: Kitchen Renovation",
+    );
+    expect(after, "the surviving project was dropped too").toContain(
+      "Complete Project Arc: Garden Beds",
+    );
   });
 });
 
