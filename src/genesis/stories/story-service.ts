@@ -19,6 +19,18 @@ export type StoryListener = (event: {
 }) => void;
 const listeners = new Set<StoryListener>();
 
+/**
+ * Told when a whole story is evicted, with the members it held.
+ *
+ * Separate from `StoryListener` on purpose. An eviction is not an update, and
+ * the story listeners are read by UI that appends `event.story` to a visible
+ * list -- announcing a removal through that channel would put a deleted story
+ * on screen. This carries only what a derived store needs to clean up after
+ * itself: the members, whose own memories are still alive.
+ */
+export type StoryEvictionListener = (evicted: { story: Story; memberIds: string[] }) => void;
+const evictionListeners = new Set<StoryEvictionListener>();
+
 const storyCache: Story[] = [];
 
 /**
@@ -94,6 +106,13 @@ export const storyService = {
   /**
    * Subscribe to new or updated stories in the system.
    */
+  subscribeEviction(listener: StoryEvictionListener): () => void {
+    evictionListeners.add(listener);
+    return () => {
+      evictionListeners.delete(listener);
+    };
+  },
+
   subscribe(listener: StoryListener): () => void {
     listeners.add(listener);
     return () => {
@@ -138,11 +157,26 @@ export const storyService = {
     // Stories are created in order, so the front is the least recently created.
     //
     // The return value matters here and is the only signal that a story has
-    // gone: this eviction notifies nobody. Discarding it would leave the index
-    // holding entries for stories that no longer exist -- a slow leak, and one
-    // that would outlive the story ids it describes.
+    // gone. Discarding it would leave the index holding entries for stories
+    // that no longer exist -- a slow leak -- and would strand every signal a
+    // derived store computed from membership in the evicted arc.
     const evictedStories = trimOldest(storyCache, getRetentionPolicy().maxStories);
-    for (const evicted of evictedStories) memberIndex.delete(evicted.id);
+    for (const evicted of evictedStories) {
+      memberIndex.delete(evicted.id);
+      // The members outlive the story. Anything that derived state from their
+      // membership has to be told, or it keeps evidence of an arc that is no
+      // longer in the cache -- measured at 12 orphaned Story Influence signals
+      // of 42 memories with `maxStories` at 3, reproduced identically across
+      // reconstruction. This path never touches `updateStory`, so the departed
+      // ids it computes cannot reach here.
+      evictionListeners.forEach((listener) => {
+        try {
+          listener({ story: evicted, memberIds: evicted.relatedMemoryIds });
+        } catch (err) {
+          console.error("Error executing story eviction listener callback:", err);
+        }
+      });
+    }
 
     this.notify("Created", story);
     return story;

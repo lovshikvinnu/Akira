@@ -200,6 +200,65 @@ describe("B: a signal does not outlive the membership it came from", () => {
     expect(orphaned).toEqual([]);
   });
 
+  it("drops Story Influence when a whole story is evicted by maxStories", () => {
+    // The second membership-loss path, and it does not run through
+    // `updateStory`: `createStory` trims `storyCache` with `trimOldest` and
+    // splices the story out. Every member stays alive, so nothing else cleans
+    // up after them. Found by Chat 4 after I claimed the sliding window was the
+    // only path -- it drops a whole arc's membership at once, up to
+    // `maxMemoriesPerStory`, where the window drops one at a time.
+    setRetentionPolicy({ maxStories: 3 });
+
+    for (let p = 0; p < 6; p++) {
+      akira.addProject({ name: `Arc ${p}` });
+      const pid = akira.getState().lastProjectId as string;
+      for (let i = 0; i < 4; i++) {
+        const title = `ev-${p}-${i}`;
+        akira.addTaskDetails({ title, projectId: pid });
+        const task = akira.getState().tasks.find((t) => t.title === title);
+        if (task) akira.toggleTask(task.id);
+      }
+    }
+
+    expect(storyService.getStories().length).toBeLessThanOrEqual(3);
+
+    const orphans = memoryService
+      .getMemories()
+      .filter((m) => !storyService.findStoryContainingMemory(m.id) && hasStoryInfluence(m.id));
+    // Before the fix this was 12 of 42, and identical after replay.
+    expect(orphans).toEqual([]);
+  });
+
+  it("stays clean across replay after a whole story is evicted", () => {
+    setRetentionPolicy({ maxStories: 3 });
+
+    for (let p = 0; p < 6; p++) {
+      akira.addProject({ name: `Replay arc ${p}` });
+      const pid = akira.getState().lastProjectId as string;
+      for (let i = 0; i < 4; i++) {
+        const title = `re-${p}-${i}`;
+        akira.addTaskDetails({ title, projectId: pid });
+        const task = akira.getState().tasks.find((t) => t.title === title);
+        if (task) akira.toggleTask(task.id);
+      }
+    }
+
+    // Counted over the CURRENT memory set each time, never over ids captured
+    // beforehand: reconstruction rebuilds memories with new ids, so a captured
+    // list would read absence as health.
+    const orphans = () =>
+      memoryService
+        .getMemories()
+        .filter((m) => !storyService.findStoryContainingMemory(m.id) && hasStoryInfluence(m.id))
+        .length;
+
+    expect(orphans()).toBe(0);
+    memoryService.reconstructRuntimeMemory();
+    expect(orphans()).toBe(0);
+    memoryService.reconstructRuntimeMemory();
+    expect(orphans()).toBe(0);
+  });
+
   it("keeps the signal for members that are still members", () => {
     setRetentionPolicy({ maxMemoriesPerStory: 4 });
     for (let i = 0; i < 10; i++) akira.addNote(`Reflection ${i}.`);

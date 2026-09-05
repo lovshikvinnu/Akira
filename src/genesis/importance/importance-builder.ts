@@ -8,6 +8,7 @@ import { isBatching, markDirty, registerFlusher, unregisterFlusher } from "../ba
 
 let memorySub: (() => void) | null = null;
 let storySub: (() => void) | null = null;
+let storyEvictionSub: (() => void) | null = null;
 let clearSub: (() => void) | null = null;
 
 /**
@@ -67,6 +68,20 @@ export const importanceBuilder = {
       });
     }
 
+    if (!storyEvictionSub) {
+      // A whole arc leaving takes its members' membership with it, and that
+      // path does not run through `updateStory`, so it computes no departed
+      // ids of its own.
+      storyEvictionSub = storyService.subscribeEviction(({ memberIds }) => {
+        for (const memoryId of memberIds) departedMemoryIds.add(memoryId);
+        if (isBatching()) {
+          markDirty("importance");
+          return;
+        }
+        this.recalculateDeparted();
+      });
+    }
+
     if (!clearSub) {
       clearSub = memoryService.subscribeClear(() => {
         importanceService.clearHistory();
@@ -87,6 +102,10 @@ export const importanceBuilder = {
     if (storySub) {
       storySub();
       storySub = null;
+    }
+    if (storyEvictionSub) {
+      storyEvictionSub();
+      storyEvictionSub = null;
     }
     if (clearSub) {
       clearSub();
