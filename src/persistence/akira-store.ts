@@ -1167,6 +1167,28 @@ export const akira = {
   },
 
   reset() {
+    // Clear the database too, not just this array.
+    //
+    // This was `state = seed(); emit();`, which emptied the store and left
+    // every row on disk. `getInitialState()` read them all back on the next
+    // boot, so "Reset all local data" undid itself at the next reload --
+    // measured at one project, one task, one note, one chat message and
+    // fourteen memory events, all still present after the reset.
+    //
+    // Scope and rationale are in `./reset.ts`: the four things the dialog names
+    // plus the cognitive stream derived from them, and deliberately not the
+    // vault, the profile or anything else the dialog does not mention.
+    //
+    // Fire-and-forget through `persist` like every other write here, so the
+    // deletion is owned by `pendingPersistence` and a failure is recorded
+    // against `akira-store.persist.reset` in the health registry instead of
+    // vanishing. Not gated on `hydrated`: a reset is an explicit instruction to
+    // discard, so writing it against an unhydrated store destroys nothing the
+    // user has not just asked to destroy.
+    persist("reset", () =>
+      import("./reset").then(({ persistResetLocalData }) => persistResetLocalData()),
+    );
+
     state = seed();
     emit();
   },
