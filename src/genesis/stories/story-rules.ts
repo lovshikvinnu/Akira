@@ -5,6 +5,7 @@ import { storyService } from "./story-service";
 import {
   PROJECT_ARC_TITLE_PREFIX,
   REFLECTIONS_ARC_TITLE,
+  StoryKind,
   isProjectArc,
   isReflectionsArc,
 } from "./story-identity";
@@ -17,7 +18,7 @@ export interface StoryRule {
   ): {
     shouldCluster: boolean;
     storyId?: string;
-    newStoryData?: { title: string; summary: string };
+    newStoryData?: { title: string; summary: string; kind?: StoryKind };
   };
   evaluateRelationship(
     relationship: MemoryRelationship,
@@ -47,6 +48,7 @@ export const storyRules: StoryRule[] = [
             newStoryData: {
               title: `${PROJECT_ARC_TITLE_PREFIX} ${memory.title.split(":")[0]}`,
               summary: `Evolving narrative tracking milestones, tasks, and reflections for Project ID: ${memory.relatedProjectId}.`,
+              kind: "Project",
             },
           };
         }
@@ -86,6 +88,7 @@ export const storyRules: StoryRule[] = [
               title: REFLECTIONS_ARC_TITLE,
               summary:
                 "A consolidated narrative clustering captured thoughts, ideas, and self-reflections.",
+              kind: "Reflections",
             },
           };
         }

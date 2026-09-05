@@ -21,12 +21,22 @@
  *      constant, live and after reconstruction. A drift between any two of them
  *      fails here rather than showing up as a missing identity trait.
  *
- *   2. Demonstrate the coupling deliberately, by renaming an arc at runtime and
- *      asserting that cognition changes. That is the silent behaviour written
- *      down as an executable fact, so anyone proposing a rename sees the cost.
+ *   2. Demonstrate that a rename is *cosmetic*, by renaming an arc at runtime
+ *      and asserting that cognition does not change.
  *
- * If the coupling is ever replaced by a structured discriminator on `Story`,
- * test 2 is the one that should be inverted: a rename must then change nothing.
+ * Job 2 used to assert the opposite. The docblock that shipped with it said:
+ * "If the coupling is ever replaced by a structured discriminator on `Story`,
+ * test 2 is the one that should be inverted: a rename must then change
+ * nothing." `Story.kind` is that discriminator, and these are those inverted
+ * tests. The three assertions below flipped, and nothing else in this file
+ * moved -- which is the point: every agreement pinned by job 1 held across the
+ * change, so the arcs are still produced and consumed identically. Only the
+ * question "what makes this the reflections arc" has a different answer.
+ *
+ * The title has not stopped mattering entirely. It is still the fallback for a
+ * story with no `kind` -- one restored from a snapshot written before the field
+ * existed -- and that fallback is pinned here too, because a fallback nobody
+ * exercises is a fallback nobody notices breaking.
  */
 process.env.AKIRA_DATABASE_PATH = ":memory:";
 process.env.NODE_ENV = "test";
@@ -158,14 +168,14 @@ describe("the producer and every consumer agree on the arc titles", () => {
   });
 });
 
-describe("the coupling itself, stated as behaviour", () => {
+describe("a rename is cosmetic again", () => {
   beforeEach(() => {
     resetRetentionPolicy();
     freshWorkspace();
   });
   afterEach(() => resetRetentionPolicy());
 
-  it("stops inferring the Reflective trait when the arc is renamed", () => {
+  it("keeps inferring the Reflective trait when the arc is renamed", () => {
     buildBothArcs();
     identityBuilder.flushDirtyStories();
     expect(observation("Reflective")).toBeDefined();
@@ -183,13 +193,27 @@ describe("the coupling itself, stated as behaviour", () => {
     expect(renamed.relatedMemoryIds).toEqual(arc.relatedMemoryIds);
     expect(renamed.status).toBe(arc.status);
 
-    // And the trait is no longer inferred. Nothing about the user changed;
-    // the title did. This is the silent failure the sweep was looking for,
-    // written down as an executable fact rather than left as prose.
-    expect(rule.evaluateStory(renamed).detected).not.toBe(true);
+    // And the trait is still inferred. Nothing about the user changed and the
+    // title did, so nothing about the conclusion should change either. Before
+    // `Story.kind` this assertion was `.not.toBe(true)`.
+    expect(rule.evaluateStory(renamed).detected).toBe(true);
   });
 
-  it("stops treating a story as a project arc when its prefix changes", () => {
+  it("falls back to the title for a story carrying no kind", () => {
+    // A story restored from a snapshot written before `kind` existed. The
+    // fallback is the only thing standing between such a story and being
+    // treated as neither arc, so it is exercised rather than assumed.
+    expect(isReflectionsArc({ title: REFLECTIONS_ARC_TITLE })).toBe(true);
+    expect(isReflectionsArc({ title: "Reflections" })).toBe(false);
+    expect(isProjectArc({ title: `${PROJECT_ARC_TITLE_PREFIX} Coupling` })).toBe(true);
+    expect(isProjectArc({ title: "Work on Coupling" })).toBe(false);
+
+    // And the kind wins wherever both are present, in both directions.
+    expect(isReflectionsArc({ title: "Reflections", kind: "Reflections" })).toBe(true);
+    expect(isReflectionsArc({ title: REFLECTIONS_ARC_TITLE, kind: "Project" })).toBe(false);
+  });
+
+  it("keeps treating a story as a project arc when its prefix changes", () => {
     buildBothArcs();
     const arc = projectArc()!;
 
@@ -197,16 +221,17 @@ describe("the coupling itself, stated as behaviour", () => {
     storyService.updateStory(arc.id, { title: "Work on Coupling Project" });
 
     const renamed = storyService.getStories().find((s) => s.id === arc.id)!;
-    expect(isProjectArc(renamed)).toBe(false);
+    expect(renamed.kind).toBe("Project");
+    expect(isProjectArc(renamed)).toBe(true);
 
-    // The summary still holds the project id, so the identifier survives a
-    // rename even though every title-keyed consumer does not. That asymmetry is
-    // the argument for moving the coupling onto a structured field.
+    // The summary still holds the project id. It used to be the only part of
+    // the story that survived a rename; now the kind does too, and the
+    // asymmetry that argued for a structured field is gone.
     expect(renamed.summary).toContain("Project ID:");
   });
 });
 
-describe("recall still keys on the same constant", () => {
+describe("recall keys on the structured kind", () => {
   beforeEach(() => {
     resetRetentionPolicy();
     freshWorkspace();
@@ -240,7 +265,7 @@ describe("recall still keys on the same constant", () => {
     );
   });
 
-  it("suppresses by title, so a renamed reflections arc is recalled at BOOTSTRAP", () => {
+  it("suppresses by kind, so a renamed reflections arc is still suppressed", () => {
     buildBothArcs();
 
     const arcRule = recallRules.find((r) => r.name === "Active Story Recall Rule")!;
@@ -251,10 +276,12 @@ describe("recall still keys on the same constant", () => {
 
     storyService.updateStory(arc.id, { title: "Reflections" });
 
-    // Same story, same members, same status -- recalled now, because the
-    // suppression is keyed on words. The coupling, stated for recall too.
+    // Same story, same members, same status -- and the same decision, because
+    // the suppression is keyed on what the story is rather than on how it
+    // reads. Before `Story.kind` this assertion was `toBe(true)`: a cosmetic
+    // rename silently changed what the bootstrap prompt contained.
     expect(arcRule.evaluate(member, null, storyService.getStories(), "BOOTSTRAP").shouldRecall).toBe(
-      true,
+      false,
     );
   });
 });

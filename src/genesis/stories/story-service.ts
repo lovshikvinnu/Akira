@@ -113,6 +113,7 @@ export const storyService = {
       id: uid(),
       title: input.title,
       summary: input.summary,
+      kind: input.kind,
       status: input.status,
       relatedMemoryIds: [],
       ruleProvenance: input.ruleProvenance,

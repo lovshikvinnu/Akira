@@ -2,7 +2,7 @@ import { Memory } from "../validation/types";
 import { MemoryImportance } from "../importance/types";
 import { Story } from "../stories/types";
 import { storyService } from "../stories/story-service";
-import { REFLECTIONS_ARC_TITLE } from "../stories/story-identity";
+import { isReflectionsArc } from "../stories/story-identity";
 import { getChat, getCompanionState } from "../../shared/genesis-provider";
 import { RecallContext } from "./types";
 
@@ -393,7 +393,7 @@ export const recallRules: RecallRule[] = [
       if (
         parentStory &&
         parentStory.status === "Active" &&
-        !(context === "BOOTSTRAP" && parentStory.title === REFLECTIONS_ARC_TITLE)
+        !(context === "BOOTSTRAP" && isReflectionsArc(parentStory))
       ) {
         return {
           shouldRecall: true,
@@ -425,6 +425,7 @@ export const recallRules: RecallRule[] = [
       else if (category === "Habit" || category === "Relationship") stabilityScore = 0.6;
       else if (category === "Reflection") stabilityScore = 0.4;
       else if (category === "Preference") stabilityScore = 0.2;
+
 
       // 3. Calculate Semantic Relevance Score
       const relevance = computeSemanticRelevance(memory, evaluationContext.queryStems);

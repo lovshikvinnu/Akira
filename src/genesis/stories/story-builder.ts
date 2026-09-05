@@ -65,6 +65,7 @@ export const storyBuilder = {
           const newStory = storyService.createStory({
             title: result.newStoryData.title,
             summary: result.newStoryData.summary,
+            kind: result.newStoryData.kind,
             status: "Active",
             ruleProvenance: rule.name,
           });

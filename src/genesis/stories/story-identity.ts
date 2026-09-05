@@ -30,7 +30,22 @@
  * this module is the list of call sites that have to move.
  */
 
-/** The single consolidated arc for reflections, matched by exact title. */
+/**
+ * What a story *is*, as a value rather than as a sentence.
+ *
+ * The title was the identifier because there was nothing else to be one. This
+ * is that something else: `story-rules` stamps it at creation, and the two
+ * predicates below prefer it to the title whenever it is present.
+ *
+ * It is deliberately not exhaustive of every story a rule might invent. A
+ * story with no `kind` is not "neither arc" -- it is a story created before
+ * this field existed, or restored from a snapshot that predates it, and for
+ * those the title is still the best answer available. That is why the
+ * predicates fall back rather than returning false.
+ */
+export type StoryKind = "Reflections" | "Project";
+
+/** The single consolidated arc for reflections. */
 export const REFLECTIONS_ARC_TITLE = "Personal Growth Reflections";
 
 /**
@@ -44,13 +59,23 @@ export const REFLECTIONS_ARC_TITLE = "Personal Growth Reflections";
  */
 export const PROJECT_ARC_TITLE_PREFIX = "Project Arc:";
 
-/** True when a story is the consolidated reflections arc. */
-export function isReflectionsArc(story: { title: string }): boolean {
+/**
+ * True when a story is the consolidated reflections arc.
+ *
+ * Reads the structured kind when the story carries one and falls back to the
+ * title otherwise, so a story built by today's rules is identified by what it
+ * is, and one restored from an older snapshot is still identified at all.
+ * Renaming the arc to read better in the Brain inspector now changes a label;
+ * before, it changed what GENESIS recalls at bootstrap.
+ */
+export function isReflectionsArc(story: { title: string; kind?: StoryKind }): boolean {
+  if (story.kind) return story.kind === "Reflections";
   return story.title === REFLECTIONS_ARC_TITLE;
 }
 
-/** True when a story is a per-project narrative arc. */
-export function isProjectArc(story: { title: string }): boolean {
+/** True when a story is a per-project narrative arc. See {@link isReflectionsArc}. */
+export function isProjectArc(story: { title: string; kind?: StoryKind }): boolean {
+  if (story.kind) return story.kind === "Project";
   return story.title.startsWith(PROJECT_ARC_TITLE_PREFIX);
 }
 
