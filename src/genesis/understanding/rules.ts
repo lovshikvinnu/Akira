@@ -193,6 +193,26 @@ export const goalRule: UnderstandingRule = {
   },
 };
 
+/**
+ * A note's title reduced to the canonical key for its subject.
+ *
+ * Lowercased and hyphen-joined because that is the shape
+ * `serializeUnderstanding` already expects: it splits the key on `[-_]+` and
+ * title-cases the parts, so "RISC-V pipeline hazards" reaches the model as
+ * "Risc V Pipeline Hazards". Normalising here is also what makes two notes
+ * titled "Cache associativity" and "Cache Associativity" one subject rather
+ * than two.
+ *
+ * Returns "" for a title with nothing alphanumeric in it, which the caller
+ * treats as unresolvable rather than emitting an empty concept.
+ */
+function subjectKey(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 export const knowledgeRule: UnderstandingRule = {
   name: "Knowledge Understanding Rule",
   evaluate(memories, stories) {
@@ -207,10 +227,42 @@ export const knowledgeRule: UnderstandingRule = {
 
     for (const memory of memories) {
       const metadata = memory.metadata || {};
+
+      // The subject comes off the memory, not out of the store.
+      //
+      // The key used to be `memory.relatedNoteId` itself.
+      // `serializeUnderstanding` renders the half after the colon into "The
+      // user is actively learning {concept}", so the model was being told,
+      // verbatim:
+      //
+      //   The user is actively learning Ae4016cb C1d8 45e0 B1a9 Bb551f84350d.
+      //
+      // -- the title-caser splitting a UUID on its dashes into pseudo-words.
+      // The sentence template has always required a subject; the producer was
+      // the half that disagreed.
+      //
+      // `metadata.title` is the note's own title, already carried on the event
+      // and already read here by `candidate-rules.ts`. Resolving it instead
+      // from `getWorkspaceProvider().getState().notes` was tried and is wrong:
+      // this rule runs while the event that created the note is still being
+      // recorded, so the store has not committed it yet and the newest note is
+      // missing from its own understanding until some later event rebuilds.
+      // Measured -- three notes, three memories, two fragments. Reading the
+      // memory has no such window, and it survives replay, where the store is
+      // rebuilt from these events rather than the other way round.
+      const noteSubject = memory.relatedNoteId
+        ? (metadata.title as string | undefined)?.trim()
+        : undefined;
+
       const knowledgeId =
-        memory.relatedNoteId ||
+        (noteSubject && subjectKey(noteSubject)) ||
         (metadata.knowledgeId as string) ||
         (metadata.category === "Knowledge" ? "general_knowledge" : null);
+
+      // A note never given a title contributes nothing here on purpose.
+      // Falling back to the id would put the UUID sentence above back into the
+      // prompt, and a fragment that names nothing is worse than one fewer: it
+      // spends context asserting something false.
       if (knowledgeId) {
         addRef(knowledgeId, "memories", memory.id);
       }
