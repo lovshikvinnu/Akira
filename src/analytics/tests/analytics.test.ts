@@ -811,21 +811,17 @@ test("Sprint 1.2 - Large Datasets Performance boundary checking", () => {
   const elapsed = Date.now() - startTime;
 
   console.log(`Aggregated 2,000 events in ${elapsed}ms`);
-  // Bounded by buckets, never by events. 2,000 events land in one day bucket
-  // here, so the bound is 2: one `findBetween` for the period, plus one
-  // full-store scan from `discoverAllProjectsFromEventStore`, which
-  // `aggregateEvents` runs per bucket.
-  //
-  // ponytail: that per-bucket full scan is the real cost this test was
-  // fuzzily measuring -- aggregating a month does 1 + 31 scans. Hoisting the
-  // discovery to once per `aggregatePeriod` call is the fix; left alone here
-  // because this change is scoped to the flake. Asserted as an upper bound so
-  // that fix makes this pass more easily rather than failing it.
+  // Two scans, never more: one `findBetween` for the period, one full-store
+  // scan for project discovery. Neither grows with events, and -- since the
+  // discovery was hoisted out of the per-bucket loop -- neither grows with
+  // buckets. "Aggregation must be constant in queries" is the invariant the
+  // deleted `elapsed < 150` was a noisy proxy for.
   const bucketCount = report.size;
-  assert(
-    findBetweenCalls <= 1 + bucketCount,
-    `Aggregation must scan per period and per bucket, never per event: ` +
-      `${findBetweenCalls} scans for ${bucketCount} bucket(s) over 2,000 events`,
+  assertEquals(
+    findBetweenCalls,
+    2,
+    `Aggregation must issue one period query and one discovery scan: ` +
+      `got ${findBetweenCalls} for ${bucketCount} bucket(s) over 2,000 events`,
   );
 
   const dayData = report.get("2026-07-19");
@@ -1282,3 +1278,79 @@ test("Sprint 3.1 - Scalability Performance Benchmarking", () => {
 });
 
 // ----------------------------------------------------
+
+test("Sprint 1.2 - Aggregation query count is independent of bucket count", () => {
+  // The scan count must not scale with the period.
+  //
+  // `discoverAllProjectsFromEventStore` performs a full event-store scan and
+  // was called once per bucket from `aggregateEvents`, so aggregating a month
+  // cost 32 scans against a day's 2 -- measured at 1/3/7/31 buckets as exactly
+  // `1 + buckets`. It is now discovered once per `aggregatePeriod`.
+  //
+  // Asserted across four period sizes rather than one, because a single size
+  // cannot distinguish "constant" from "linear in buckets": at one bucket both
+  // give 2.
+  const db = getDatabaseConnection();
+  const eventRepo = new SqliteEventRepository(db);
+  const analyticsRepo = new SqliteAnalyticsRepository(db);
+
+  const base = new Date("2026-09-01T00:00:00.000Z").getTime();
+  const insertStmt = db.prepare(`
+    INSERT INTO events (id, type, source, timestamp, version, payload_json)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+
+  const scansByDays = new Map<number, number>();
+  const bucketsByDays = new Map<number, number>();
+
+  for (const days of [1, 3, 7, 31]) {
+    db.prepare("DELETE FROM events").run();
+    db.transaction(() => {
+      for (let d = 0; d < days; d++) {
+        for (let i = 0; i < 10; i++) {
+          insertStmt.run(
+            `bc-${d}-${i}`,
+            i % 2 === 0 ? "task.created" : "task.completed",
+            "bucket-count-test",
+            base + d * 86400000 + i * 60000,
+            1,
+            JSON.stringify({ id: `bc-task-${d}-${i}`, projectId: `bc-p-${i % 3}` }),
+          );
+        }
+      }
+    })();
+
+    const engine = new AnalyticsEngine(eventRepo, analyticsRepo);
+    let scans = 0;
+    const realFindBetween = eventRepo.findBetween.bind(eventRepo);
+    eventRepo.findBetween = (...args: Parameters<typeof realFindBetween>) => {
+      scans += 1;
+      return realFindBetween(...args);
+    };
+
+    const report = engine.aggregatePeriod(
+      "day",
+      "2026-09-01T00:00:00.000Z",
+      new Date(base + days * 86400000).toISOString(),
+      0,
+    );
+    eventRepo.findBetween = realFindBetween;
+
+    scansByDays.set(days, scans);
+    bucketsByDays.set(days, report.size);
+    assertEquals(report.size, days, `${days} day(s) of events produce ${days} bucket(s)`);
+  }
+
+  // The precondition. Without spreading across genuinely different bucket
+  // counts this test could not tell constant from linear.
+  assertEquals(bucketsByDays.get(31), 31, "the 31-day case really did produce 31 buckets");
+
+  for (const days of [1, 3, 7, 31]) {
+    assertEquals(
+      scansByDays.get(days),
+      2,
+      `Aggregating ${days} day(s) over ${bucketsByDays.get(days)} bucket(s) must issue ` +
+        `2 scans, not ${scansByDays.get(days)}`,
+    );
+  }
+});

@@ -308,11 +308,16 @@ export class AnalyticsEngine {
   /**
    * Run all registered calculators over a set of events.
    */
-  aggregateEvents(events: AkiraEvent[]): Record<string, any> {
+  aggregateEvents(events: AkiraEvent[], knownProjectIds?: string[]): Record<string, any> {
     // 1. Prepare dynamic projects known list if projects calculator is present
+    //
+    // `knownProjectIds` lets a caller aggregating several buckets discover once
+    // and reuse. Optional, so calling this on its own still discovers for
+    // itself and behaves exactly as before.
     const projectsCalc = this.calculators.get("projects-calculator");
     if (projectsCalc) {
-      (projectsCalc as any).allKnownProjectIds = this.discoverAllProjectsFromEventStore();
+      (projectsCalc as any).allKnownProjectIds =
+        knownProjectIds ?? this.discoverAllProjectsFromEventStore();
     }
 
     const results: Record<string, any> = {};
@@ -362,9 +367,30 @@ export class AnalyticsEngine {
       list.push(event);
     }
 
+    // Discovered once for the whole period, not once per bucket.
+    //
+    // `discoverAllProjectsFromEventStore` takes no arguments and queries
+    // `findBetween(0, Date.now() * 2)` -- the entire store, with bounds that
+    // have nothing to do with the bucket or the period. Nothing about a bucket
+    // is an input to it, so it cannot vary between buckets. The only two ways
+    // consecutive calls inside one aggregation could differ are a store
+    // mutated mid-pass, which cannot happen because this method is
+    // synchronous, and an event landing between two successive `Date.now() * 2`
+    // bounds, which is roughly the year 3995.
+    //
+    // It was called once per bucket, so a month cost 32 full-store scans
+    // against a day's 2. Measured before: 1 + buckets, at 1/3/7/31 buckets.
+    //
+    // Computed only when there is a projects calculator to receive it and at
+    // least one bucket to aggregate, so an empty period still performs exactly
+    // the one period query it did before rather than gaining a scan.
+    const projectsCalculator = this.calculators.get("projects-calculator");
+    const knownProjectIds =
+      projectsCalculator && buckets.size > 0 ? this.discoverAllProjectsFromEventStore() : undefined;
+
     const aggregatedBuckets = new Map<string, Record<string, any>>();
     for (const [key, bucketEvents] of buckets.entries()) {
-      aggregatedBuckets.set(key, this.aggregateEvents(bucketEvents));
+      aggregatedBuckets.set(key, this.aggregateEvents(bucketEvents, knownProjectIds));
     }
 
     return aggregatedBuckets;
