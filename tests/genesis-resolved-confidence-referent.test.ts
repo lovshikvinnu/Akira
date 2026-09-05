@@ -44,6 +44,8 @@ const { contextRelevanceSelector } =
   await import("../src/genesis/context/context-relevance-selector");
 const { intentResolver } = await import("../src/genesis/understanding/intent-resolver");
 const { promptBuilder } = await import("../src/genesis/context/ai/prompt-builder");
+const { knowledgeService } = await import("../src/genesis/context/knowledge/service");
+const { relationshipService } = await import("../src/genesis/context/relationships/service");
 
 const PROMPT = "what should I do next";
 
@@ -108,5 +110,30 @@ describe("a resolved context an engine did contribute to", () => {
     const block = promptBuilder.serializeResolvedContext(contributed);
     expect(block).toContain("Overall Confidence: 0.9");
     expect(block).toContain("Presence");
+  });
+});
+
+describe("the production case, where empty engines populate provenance", () => {
+  it("still states no confidence", () => {
+    // The case an earlier version of this fix missed, and the reason the gate
+    // moved off provenance. `__root.tsx` initializes both of these at boot.
+    // Neither has a producer -- `addNode` and `recordObservation` have no
+    // callers -- so both hold nothing, and both still report `confidence: 1`
+    // and populate provenance. Gating on "did anything contribute" was
+    // therefore always true in production and the line always printed.
+    knowledgeService.initialize();
+    relationshipService.initialize();
+    contextResolutionService.initialize();
+
+    const live = contextResolutionService.getContext();
+    expect(live).not.toBeNull();
+
+    // The guard: this must actually be the missed state -- provenance
+    // populated, by engines holding nothing.
+    const contributors = Object.values(live!.provenance).filter(Boolean);
+    expect(contributors.length).toBeGreaterThan(0);
+    expect(live!.overallConfidence).toBe(1);
+
+    expect(promptBuilder.serializeResolvedContext(live!)).toBe("");
   });
 });

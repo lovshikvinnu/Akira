@@ -226,8 +226,9 @@ export const promptBuilder = {
     // by value would hide the real case along with the empty one. The value
     // itself is untouched: `initiative/rules.ts` gates on it, and this changes
     // what is said rather than what is decided.
-    const contributed = Object.values(resolved.provenance).some((context) => Boolean(context));
-    let block = contributed ? `Overall Confidence: ${resolved.overallConfidence}\n\n` : "";
+    // The confidence line is decided at the end, once it is known whether the
+    // block says anything for it to be a confidence *in*. See the return below.
+    let block = "";
 
     const presence = resolved.provenance.presenceContext;
     if (presence) {
@@ -350,6 +351,28 @@ export const promptBuilder = {
       block += summaryBlock;
     }
 
-    return block.trim();
+    const body = block.trim();
+
+    // A confidence with nothing to be confident about is not reported.
+    //
+    // `resolveUnifiedContext` averages whichever sub-contexts exist and falls
+    // back to `1.0` when there are none, so the number is a default for absence
+    // as often as it is a measurement. An earlier version of this gated on
+    // provenance being non-empty, which reads correct and is not: measured at
+    // boot, `context/knowledge` and `context/relationships` are initialized,
+    // hold nothing, each report `confidence: 1`, and populate provenance
+    // anyway. So provenance was always non-empty in production and the line
+    // always printed -- "Overall Confidence: 1" as the entire block, from two
+    // engines that have no producer at all.
+    //
+    // Whether the number itself should change is a separate question and a
+    // real one: it gates `initiative/rules.ts`, and making empty engines report
+    // 0 moves initiative from proceeding to suppressed. This does not touch the
+    // value. It only declines to state an aggregate when there is no stated
+    // thing it aggregates over, which is decidable from the rendered block and
+    // needs no policy about what an empty engine believes.
+    if (!body) return "";
+
+    return `Overall Confidence: ${resolved.overallConfidence}\n\n${body}`;
   },
 };
