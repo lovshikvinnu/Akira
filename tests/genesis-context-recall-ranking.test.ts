@@ -152,3 +152,59 @@ describe("the recent activity summary uses the same ranking", () => {
     expect(contextRules.filterActiveRecallCandidates(candidates).length).toBe(9);
   });
 });
+
+describe("the prompt says why a memory is there", () => {
+  /**
+   * `inclusionReason` reaches the model verbatim, as
+   * `- <description> (Reason: <inclusionReason> | ID: <id>)`. It used to be
+   * derived by searching the recall reasons -- prose written for a human -- for
+   * the substrings "user intent" and "milestone". Neither occurs in either
+   * reason the rules produce, so both branches were dead and everything was
+   * labelled "Recent Recall", a note the user had just typed included.
+   */
+  const withSignals = (id: string, types: ImportanceSignal["type"][]): RecallCandidate =>
+    candidate(
+      id,
+      0.8,
+      types.map((type) => ({ type, strength: 0.8, explanation: `${type} signal` })),
+    );
+
+  it("labels an explicitly captured note as User Intent", () => {
+    const [item] = contextRules.filterActiveRecallCandidates([
+      withSignals("note", ["Recency", "User Intent"]),
+    ]);
+    expect(item.inclusionReason).toBe("User Intent");
+  });
+
+  it("labels a milestone as High Importance", () => {
+    const [item] = contextRules.filterActiveRecallCandidates([
+      withSignals("milestone", ["Milestone", "Recency"]),
+    ]);
+    expect(item.inclusionReason).toBe("High Importance");
+  });
+
+  it("prefers user intent over a milestone, as the original precedence did", () => {
+    const [item] = contextRules.filterActiveRecallCandidates([
+      withSignals("both", ["Milestone", "User Intent"]),
+    ]);
+    expect(item.inclusionReason).toBe("User Intent");
+  });
+
+  it("falls back to Recent Recall when neither signal is present", () => {
+    const [item] = contextRules.filterActiveRecallCandidates([
+      withSignals("plain", ["Recency", "Relationships"]),
+    ]);
+    expect(item.inclusionReason).toBe("Recent Recall");
+  });
+
+  it("does not read the label out of the reason prose any more", () => {
+    // A story whose title happens to contain the words would previously have
+    // relabelled every one of its members.
+    const trap: RecallCandidate = {
+      ...candidate("trap", 0.8),
+      recallReasons: ['Associated with active narrative: "User Intent milestone notes".'],
+    };
+    const [item] = contextRules.filterActiveRecallCandidates([trap]);
+    expect(item.inclusionReason).toBe("Recent Recall");
+  });
+});

@@ -11,6 +11,34 @@ import {
 } from "../stories/story-identity";
 
 /**
+ * Why this memory is in the prompt, in the two words the model sees.
+ *
+ * Read off the candidate's typed importance signals. It used to be read off
+ * the recall reasons -- prose the rules assemble for a human -- by searching
+ * them for the substrings "user intent" and "milestone". Neither string occurs
+ * in either reason a rule produces: one is `Associated with active narrative:
+ * "<title>"` and the other is `Multi-factor recall [Context: ... | Category:
+ * ... | Intent: 0.8 | ...]`, which spells the signal `Intent` and its strength
+ * rather than its name. So both branches were unreachable and every recalled
+ * memory reached the prompt labelled "Recent Recall", including a note the
+ * user had just typed.
+ *
+ * The signals were on the candidate the whole time, as a typed union. This
+ * reads them instead, which makes the labels the branches were written to
+ * produce actually appear. The precedence is theirs, unchanged: explicit user
+ * intent outranks a milestone, and anything else is recent recall.
+ */
+function inclusionReasonFor(candidate: RecallCandidate): string {
+  for (const signal of candidate.importanceSignals) {
+    if (signal.type === "User Intent") return "User Intent";
+  }
+  for (const signal of candidate.importanceSignals) {
+    if (signal.type === "Milestone") return "High Importance";
+  }
+  return "Recent Recall";
+}
+
+/**
  * The active candidates the prompt can afford, strongest first.
  *
  * `recallCache` is built by walking `memoryService.getMemories()` in insertion
@@ -44,18 +72,10 @@ export const contextRules = {
     // Capped independently of memory retention: what GENESIS may reason over
     // and what is worth spending prompt tokens on are different budgets.
     return rankedActive(candidates, getRetentionPolicy().context.maxRecallCandidates)
-      .map((c) => {
-        let reason = "Recent Recall";
-        if (c.recallReasons.some((r) => r.toLowerCase().includes("user intent"))) {
-          reason = "User Intent";
-        } else if (c.recallReasons.some((r) => r.toLowerCase().includes("milestone"))) {
-          reason = "High Importance";
-        }
-        return {
-          data: c,
-          inclusionReason: reason,
-        };
-      });
+      .map((c) => ({
+        data: c,
+        inclusionReason: inclusionReasonFor(c),
+      }));
   },
 
   /**
