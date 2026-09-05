@@ -1,7 +1,5 @@
 import { PresenceContext } from "../../../akira-os/presence/types";
 import { CompanionState } from "../state/types";
-import { GoalContext } from "../goals/types";
-import { KnowledgeContext } from "../knowledge/types";
 import { RelationshipContext } from "../relationships/types";
 
 export type HabitStatus =

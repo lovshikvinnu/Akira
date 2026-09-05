@@ -2,8 +2,6 @@ import { ContextCertainty, ResolvedContext } from "./types";
 import * as CONSTANTS from "./constants";
 import { PresenceContext } from "../../../akira-os/presence/types";
 import { CompanionState } from "../state/types";
-import { GoalContext } from "../goals/types";
-import { KnowledgeContext } from "../knowledge/types";
 import { RelationshipContext } from "../relationships/types";
 import { HabitContext } from "../habits/types";
 import { ReflectionContext } from "../../insights/reflection/types";
@@ -15,8 +13,6 @@ import { ReflectionContext } from "../../insights/reflection/types";
 export function resolveUnifiedContext(
   presence: PresenceContext | null,
   state: CompanionState | null,
-  goals: GoalContext | null,
-  knowledge: KnowledgeContext | null,
   relationships: RelationshipContext | null,
   habits: HabitContext | null,
   reflection: ReflectionContext | null,
@@ -53,77 +49,6 @@ export function resolveUnifiedContext(
   }
 
   // Ingest Goals Context
-  let activeGoals = goals ? [...goals.activeGoals] : [];
-  if (goals && goals.activeGoals.length > 0) {
-    const topGoal = goals.activeGoals[0];
-    currentPriorities.push(`Goal Priority: ${topGoal.title}`);
-
-    // No conflict is derived from focus vs goal title, deliberately.
-    //
-    // There was a check here that declared a "Subsystem conflict" when the
-    // top goal's title did not contain `currentFocus` as a substring, or vice
-    // versa. Those two operands are not comparable: `currentFocus` is a
-    // `FocusArea`, a closed vocabulary of "Planning" | "Learning" | "Building"
-    // | "Reflection" | "Casual" | "Problem Solving", while a goal title is
-    // whatever the user typed. A vocabulary token is not a substring of free
-    // prose except by coincidence, so the predicate was true almost by
-    // construction.
-    //
-    // Measured over the six real focus areas against six ordinary goal titles,
-    // driving `resolveUnifiedContext` itself: a conflict was declared in 36 of
-    // 36 pairs -- including every semantically aligned one.
-    //
-    //   Learning   vs "Learn Spanish"        -> conflict
-    //   Building   vs "Build a home lab"     -> conflict
-    //   Planning   vs "Plan the Q3 roadmap"  -> conflict
-    //   Reflection vs "Reflect on the year"  -> conflict
-    //
-    // A predicate with the same answer for every input carries no information,
-    // and this one was not inert. `conflictsExposed` costs
-    // `certainty.situational.score` 0.15 below, when there is a score to deduct
-    // from, prints an "Exposed Conflicts" block into the prompt, and is a
-    // branch `initiative/rules.ts` tests. Which harm followed depended on the
-    // baseline, and both were reachable:
-    //
-    //   baseline >= 0.90   lands in [0.75, 0.85] after the deduction, reaches
-    //                      the conflict branch, answers `decisionOutcome:
-    //                      "Question"` -- AKIRA interrupts to clarify a
-    //                      contradiction it invented
-    //   baseline <  0.90   falls under MIN_CONFIDENCE_FOR_PROACTIVE_INITIATIVE
-    //                      (0.75) and every proactive branch is skipped --
-    //                      AKIRA goes quiet instead
-    //
-    // So it either nagged the user or muted the assistant, decided by numbers
-    // with nothing to do with goals or focus, and most reliably when the user
-    // was doing exactly what their goal said.
-    //
-    // Only the producer is removed. `conflictsExposed`, the penalty, the prompt
-    // block and the initiative branch all stay, so a detector that can actually
-    // compare two claims has somewhere to publish to. Writing one means deciding
-    // what makes two statements contradictory, which is a cognitive-model
-    // question and not this function's to answer.
-    //
-    // The same comparison survives at `initiative/rules.ts:98`, as its mirror
-    // image: there a goal title *containing* the focus offers a "your focus
-    // aligns with this goal" suggestion. Being the same category error it fails
-    // the other way -- it matches almost never, so that suggestion is dead
-    // rather than harmful. Left in place: removing it would delete a feature
-    // instead of a false alarm, and repairing it needs the same focus-to-goal
-    // semantics that would be invented rather than derived.
-
-    // Prioritize relevance: keep goals associated with current project
-    if (state && state.activeProject?.id) {
-      activeGoals = goals.activeGoals.filter(
-        (g) =>
-          g.supportedTaskIds.length === 0 ||
-          g.supportedTaskIds.some((id) => id === state.activeProject?.id),
-      );
-    }
-
-    goals.evidence.evidenceLog.forEach((ev) => {
-      supportingEvidence.push(`[GoalEngine] ${ev.description}`);
-    });
-  }
 
   // Ingest Social Relationship Context
   let importantRelationships = relationships ? [...relationships.importantPeople] : [];
@@ -172,17 +97,6 @@ export function resolveUnifiedContext(
     });
   }
 
-  // Ingest Knowledge Domain Maps
-  const knowledgeRelevance = knowledge
-    ? [...knowledge.knownDomains, ...knowledge.skills, ...knowledge.concepts]
-    : [];
-
-  if (knowledge) {
-    knowledge.evidence.evidenceLog.forEach((ev) => {
-      supportingEvidence.push(`[KnowledgeEngine] ${ev.description}`);
-    });
-  }
-
   // Ingest Reflection Reports
   const reflectionRelevance =
     reflection && reflection.activeReflection ? [reflection.activeReflection] : [];
@@ -194,7 +108,7 @@ export function resolveUnifiedContext(
 
   // Compute composite confidence across inputs
 
-  const contexts = [presence, state, goals, knowledge, relationships, habits, reflection];
+  const contexts = [presence, state, relationships, habits, reflection];
   // Situational certainty: presence and companion state, and nothing else.
   //
   // This used to average every engine that had content into one score. They
@@ -243,8 +157,6 @@ export function resolveUnifiedContext(
     provenance: {
       presenceContext: presence,
       companionState: state,
-      goalContext: goals,
-      knowledgeContext: knowledge,
       relationshipContext: relationships,
       habitContext: habits,
       reflectionContext: reflection,
@@ -252,11 +164,9 @@ export function resolveUnifiedContext(
     currentPriorities,
     relevantContext,
     supportingEvidence,
-    activeGoals,
     currentFocus,
     importantRelationships,
     relevantHabits,
-    knowledgeRelevance,
     reflectionRelevance,
     conflictsExposed,
   };

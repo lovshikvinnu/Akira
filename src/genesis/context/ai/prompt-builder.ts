@@ -265,28 +265,6 @@ export const promptBuilder = {
       block += `• Confidence: ${confStr} (${state.contextConfidence})\n\n`;
     }
 
-    if (resolved.activeGoals && resolved.activeGoals.length > 0) {
-      block += `Goals (Origin: Goal Engine)\n`;
-      block +=
-        resolved.activeGoals
-          .map((g) => {
-            const confStr = g.confidence >= 0.8 ? "High" : g.confidence >= 0.5 ? "Medium" : "Low";
-            return `• Goal: ${g.title}\n  - Description: ${g.description}\n  - Status: ${g.status}\n  - Progress: ${g.progressPercentage}%\n  - Confidence: ${confStr} (${g.confidence})`;
-          })
-          .join("\n") + "\n\n";
-    }
-
-    if (resolved.knowledgeRelevance && resolved.knowledgeRelevance.length > 0) {
-      block += `Knowledge (Origin: Knowledge Engine)\n`;
-      block +=
-        resolved.knowledgeRelevance
-          .map((k) => {
-            const confStr = k.confidence >= 0.8 ? "High" : k.confidence >= 0.5 ? "Medium" : "Low";
-            return `• Knowledge: ${k.name} (${k.type})\n  - Detail: ${k.description}\n  - Status: ${k.status}\n  - Confidence: ${confStr} (${k.confidence})`;
-          })
-          .join("\n") + "\n\n";
-    }
-
     if (resolved.importantRelationships && resolved.importantRelationships.length > 0) {
       block += `Relationships (Origin: Relationship Engine)\n`;
       block +=
@@ -358,12 +336,12 @@ export const promptBuilder = {
     // `resolveUnifiedContext` averages whichever sub-contexts exist and falls
     // back to `1.0` when there are none, so the number is a default for absence
     // as often as it is a measurement. An earlier version of this gated on
-    // provenance being non-empty, which reads correct and is not: measured at
-    // boot, `context/knowledge` and `context/relationships` are initialized,
-    // hold nothing, each report `confidence: 1`, and populate provenance
-    // anyway. So provenance was always non-empty in production and the line
-    // always printed -- "Overall Confidence: 1" as the entire block, from two
-    // engines that have no producer at all.
+    // provenance being non-empty, which reads correct and is not: engines that
+    // hold nothing still report `confidence: 1` and still populate provenance,
+    // so provenance was always non-empty in production and the line always
+    // printed -- "Overall Confidence: 1" as the entire block. Two of the
+    // engines doing that, the Goal and Knowledge registries, have since been
+    // removed for having no producer at all.
     //
     // Whether the number itself should change is a separate question and a
     // real one: it gates `initiative/rules.ts`, and making empty engines report

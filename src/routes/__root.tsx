@@ -15,8 +15,6 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/app/ui/sonner";
 import { BootSequence } from "@/app/shell/BootSequence";
 import { presenceService, useAkiraHydrated, timelineService } from "@/akira-os";
-import { goalService } from "@/genesis";
-import { knowledgeService } from "@/genesis";
 import { relationshipService } from "@/genesis";
 import { habitService } from "@/genesis";
 import { reflectionService } from "@/genesis";
@@ -257,8 +255,6 @@ function RootComponent() {
     presenceService.initialize();
     timelineService.initialize();
     companionStateService.bootstrap();
-    goalService.initialize();
-    knowledgeService.initialize();
     relationshipService.initialize();
     habitService.initialize();
     reflectionService.initialize();
@@ -270,8 +266,6 @@ function RootComponent() {
       presenceService.shutdown();
       timelineService.shutdown();
       companionStateService.closeSession();
-      goalService.shutdown();
-      knowledgeService.shutdown();
       relationshipService.shutdown();
       habitService.shutdown();
       reflectionService.shutdown();

@@ -89,60 +89,14 @@ export function evaluateInitiative(resolved: ResolvedContext | null): Initiative
     };
   }
 
-  // 4. Evaluate Goal Progress Blockers -> Helpful Reminder
-  const blockedGoals = resolved.activeGoals.filter(
-    (g) => g.blockers.length > 0 || g.status === "Paused",
-  );
-  if (blockedGoals.length > 0) {
-    blockedGoals.forEach((goal) => {
-      evidence.push({
-        id: uid(),
-        timestamp: goal.updatedAt,
-        description: `Goal "${goal.title}" is blocked or paused.`,
-        source: "context_resolution",
-        verified: goal.confidence === 1.0,
-      });
-    });
-
-    return {
-      origin: "InitiativeEngine",
-      decisionOutcome: "Reminder",
-      confidence: CONSTANTS.CONFIDENCE_REMINDER,
-      supportingEvidence: evidence,
-      userBenefit: "Highlighting stagnated milestones to check for blockers.",
-      timingSuitability: 0.8,
-      interventionNecessity: "Proactive reminder is justified by blocked milestone evidence.",
-      createdAt: now,
-    };
-  }
-
-  // 5. Evaluate Project return and goal links -> Gentle Suggestion
-  if (resolved.currentFocus && resolved.activeGoals.length > 0) {
-    const matchingGoal = resolved.activeGoals.find((g) =>
-      g.title.toLowerCase().includes(resolved.currentFocus!.toLowerCase()),
-    );
-
-    if (matchingGoal && matchingGoal.status === "Active") {
-      evidence.push({
-        id: uid(),
-        timestamp: matchingGoal.updatedAt,
-        description: `Active goal "${matchingGoal.title}" aligns with current focus "${resolved.currentFocus}".`,
-        source: "context_resolution",
-        verified: matchingGoal.confidence === 1.0,
-      });
-
-      return {
-        origin: "InitiativeEngine",
-        decisionOutcome: "Suggestion",
-        confidence: CONSTANTS.CONFIDENCE_SUGGESTION,
-        supportingEvidence: evidence,
-        userBenefit: "Quietly linking active work focus with target goals.",
-        timingSuitability: 0.75,
-        interventionNecessity: "Opportunity found to align focus with active goal milestones.",
-        createdAt: now,
-      };
-    }
-  }
+  // Steps 4 and 5 are gone with the Goal Engine.
+  //
+  // Both read `resolved.activeGoals`, which only the Goal Engine ever filled
+  // and which no producer ever wrote to -- a blocked-goal reminder and a
+  // focus-matches-goal suggestion that could not fire. The user's goals still
+  // reach the model through `extractGoals`, as active projects and stated
+  // aspirations; nothing in the prompt changed. What went is two branches that
+  // had no input.
 
   // Fallback to default Silence
   return defaultDecision;

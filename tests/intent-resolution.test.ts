@@ -120,7 +120,6 @@ describe("BUG-006: Intent Resolution & Ambiguity Handling", () => {
         },
         currentPriorities: ["Active Focus: Coding"],
         relevantContext: ["Active Project: Verilog CP"],
-        activeGoals: [{ id: "g1", title: "Build CPU decoder" }],
       };
 
       const selection = contextRelevanceSelector.selectContext(
@@ -133,7 +132,6 @@ describe("BUG-006: Intent Resolution & Ambiguity Handling", () => {
       expect(selection.workspaceRelevant).toBe(false);
       expect(selection.contextPackage?.activeStories).toHaveLength(0);
       expect(selection.resolvedContext?.provenance.companionState?.activeProject).toBeNull();
-      expect(selection.resolvedContext?.activeGoals).toHaveLength(0);
     });
   });
 

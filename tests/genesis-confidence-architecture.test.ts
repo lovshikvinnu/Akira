@@ -8,16 +8,15 @@
  *                                 maximum certainty
  *   certainty { basis, score }    empty engines excluded, absence expressible
  *                                 as null -- but still one number averaging
- *                                 presence certainty, goal *definitional
- *                                 clarity*, knowledge *lifecycle stage* and
- *                                 habit stability
+ *                                 presence certainty, contact confidence
+ *                                 and habit stability
  *   certainty { situational }     the certainty a consumer's decision is
  *                                 actually about
  *
  * The second step fixed fabrication and left the meaning wrong. Averaging four
  * answers to four different questions produces an answer to none of them, and
  * it was doing real work: `initiative/rules.ts` decides whether to interrupt,
- * and a vaguely worded goal or an empty knowledge registry moved that decision.
+ * and an empty contact registry moved that decision.
  *
  * Situational certainty is presence plus companion state -- how well the moment
  * the user is in is understood, which is the question initiative asks. Neither
@@ -47,7 +46,7 @@ const { contextResolutionService } =
   await import("../src/genesis/context/context-resolution/service");
 const { promptBuilder } = await import("../src/genesis/context/ai/prompt-builder");
 const { evaluateInitiative } = await import("../src/genesis/context/initiative/rules");
-const { buildKnowledgeContext } = await import("../src/genesis/context/knowledge/builder");
+const { buildRelationshipContext } = await import("../src/genesis/context/relationships/builder");
 const { synthesizeReflectionReport } = await import("../src/genesis/insights/reflection/rules");
 const { presenceService } = await import("../src/akira-os");
 const { resolveUnifiedContext } = await import("../src/genesis/context/context-resolution/rules");
@@ -65,8 +64,6 @@ function bootAllEngines(): void {
   // started. That is exactly how the probe behind this file first misread
   // `presenceService`.
   presenceService.initialize();
-  genesis.goalService.initialize();
-  genesis.knowledgeService.initialize();
   genesis.relationshipService.initialize();
   genesis.habitService.initialize();
   genesis.reflectionService.initialize();
@@ -80,7 +77,7 @@ beforeEach(() => {
 
 describe("an engine with nothing in it", () => {
   it("reports a basis of zero rather than a confidence of one", () => {
-    const empty = buildKnowledgeContext([], [], []);
+    const empty = buildRelationshipContext([], []);
 
     expect(empty.basis).toBe(0);
     // The mean of an empty set is still computed. What changed is that nothing
@@ -127,16 +124,15 @@ describe("once the session engines have resolved", () => {
   });
 
   it("is not silenced by engines that have nothing to do with the moment", () => {
-    // The direction the previous design got wrong. `context/goals`,
-    // `context/knowledge` and `context/relationships` are all empty here --
-    // goals and knowledge have no producer at all -- and under the old average
-    // their absence pulled the shared score around. Whether it is a good time
-    // to speak does not depend on how many knowledge nodes exist.
+    // The direction the previous design got wrong. `context/relationships` is
+    // empty here -- nobody has been @mentioned -- and under the old average its
+    // absence pulled the shared score around. Whether it is a good time to
+    // speak does not depend on how many contacts are known.
     const resolved = contextResolutionService.getContext();
 
-    expect(resolved!.provenance.goalContext).toBeTruthy();
-    expect((resolved!.provenance.goalContext as unknown as { basis: number }).basis).toBe(0);
-    expect((resolved!.provenance.knowledgeContext as unknown as { basis: number }).basis).toBe(0);
+    expect((resolved!.provenance.relationshipContext as unknown as { basis: number }).basis).toBe(
+      0,
+    );
 
     // Still measured, and still able to act.
     expect(resolved!.certainty.situational.score).not.toBeNull();
@@ -171,7 +167,6 @@ describe("the model", () => {
       currentFocus: null,
       importantRelationships: [],
       relevantHabits: [],
-      knowledgeRelevance: [],
       activeReflections: [],
       conflictsExposed: [],
     } as unknown as ResolvedContext;
@@ -196,7 +191,6 @@ describe("behavioural gating, once a situation is understood", () => {
       currentFocus: null,
       importantRelationships: [],
       relevantHabits: [],
-      knowledgeRelevance: [],
       activeReflections: [],
       conflictsExposed: [],
     }) as unknown as ResolvedContext;
@@ -218,17 +212,17 @@ describe("behavioural gating, once a situation is understood", () => {
 });
 
 describe("the second aggregate, in the reflection engine", () => {
-  const emptyKnowledge = buildKnowledgeContext([], [], []);
+  const emptyEngine = buildRelationshipContext([], []);
 
   it("does not count an engine that has nothing in it", () => {
-    expect(emptyKnowledge.basis).toBe(0);
-    expect(emptyKnowledge.confidence).toBe(1);
+    expect(emptyEngine.basis).toBe(0);
+    expect(emptyEngine.confidence).toBe(1);
 
-    expect(synthesizeReflectionReport(null, emptyKnowledge, null, null).confidence).not.toBe(1);
+    expect(synthesizeReflectionReport(null, emptyEngine).confidence).not.toBe(1);
   });
 
   it("does not fall back to a number nobody derived", () => {
-    const report = synthesizeReflectionReport(null, null, null, null);
+    const report = synthesizeReflectionReport(null, null);
 
     expect(report.confidence).not.toBe(0.8);
     expect(report.confidence).toBe(0);
@@ -262,8 +256,8 @@ describe("what situational certainty is made of", () => {
     }) as never;
 
   it("does not move when an unrelated engine changes", () => {
-    const quiet = resolveUnifiedContext(null, state(0.9), null, null, null, habits(0.1), null);
-    const loud = resolveUnifiedContext(null, state(0.9), null, null, null, habits(0.95), null);
+    const quiet = resolveUnifiedContext(null, state(0.9), null, habits(0.1), null);
+    const loud = resolveUnifiedContext(null, state(0.9), null, habits(0.95), null);
 
     // The guard: the fixture really does vary the habit engine, and it really
     // does have a basis, so it would have been counted by the old average.
@@ -277,8 +271,8 @@ describe("what situational certainty is made of", () => {
   it("does move when the situation itself changes", () => {
     // The other direction, so the case above cannot be satisfied by a score
     // that never varies at all.
-    const unsure = resolveUnifiedContext(null, state(0.2), null, null, null, null, null);
-    const sure = resolveUnifiedContext(null, state(0.9), null, null, null, null, null);
+    const unsure = resolveUnifiedContext(null, state(0.2), null, null, null);
+    const sure = resolveUnifiedContext(null, state(0.9), null, null, null);
 
     expect(unsure.certainty.situational.score).not.toBe(sure.certainty.situational.score);
   });

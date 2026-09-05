@@ -73,8 +73,6 @@ export const contextRelevanceSelector = {
         currentPriorities: resolvedContext.currentPriorities.filter((p) => {
           return !p.startsWith("Active Focus:") && !p.startsWith("Goal Priority: Project");
         }),
-        // Exclude active goals related to projects/tasks
-        activeGoals: [],
         // Relationships are NOT stripped here, unlike the project context around
         // them.
         //

@@ -106,9 +106,7 @@ export type MemoryCategory =
  *   harmless -- they simply get new entries.
  *
  *   Immutable text. Nothing anywhere assigns to a Memory's `title`,
- *   `description` or `reason`. (The `updated.title = ...` assignments in
- *   `context/goals/rules.ts` and `context/knowledge/rules.ts` are on Goal and
- *   Knowledge objects, not memories.) A cached value therefore cannot go stale.
+ *   `description` or `reason`. A cached value therefore cannot go stale.
  *
  * The same reasoning would be wrong for a `Story`, which is replaced on every
  * update -- a story-keyed WeakMap would silently miss on every read.

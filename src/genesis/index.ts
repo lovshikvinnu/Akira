@@ -63,14 +63,8 @@ export * from "./context/intelligence";
 export * from "./context/relevance";
 export * from "./context/assembly";
 
-export { goalService } from "./context/goals/service";
-export * from "./context/goals/types";
-
 export { habitService } from "./context/habits/service";
 export * from "./context/habits/types";
-
-export { knowledgeService } from "./context/knowledge/service";
-export * from "./context/knowledge/types";
 
 export { initiativeService } from "./context/initiative/service";
 export * from "./context/initiative/types";
@@ -140,8 +134,7 @@ export * from "./decision";
 //
 // Type-only picks — the identity variants remain available from ./identity/types.
 // Chosen to match the services this barrel exports alongside them
-// (goalService, habitService, relationshipService).
-export type { GoalStatus } from "./context/goals/types";
+// (habitService, relationshipService).
 export type { HabitStatus } from "./context/habits/types";
 export type { RelationshipStatus } from "./context/relationships/types";
 

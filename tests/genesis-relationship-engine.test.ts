@@ -193,8 +193,6 @@ describe("an active project does not hide the user's contacts", () => {
     return resolveUnifiedContext(
       null,
       { activeProject, evidence: { evidenceLog: [], snapshot: {} } } as never,
-      null,
-      null,
       relationships as never,
       null,
       null,

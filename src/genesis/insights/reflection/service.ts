@@ -2,8 +2,6 @@ import { ReflectionReport, ReflectionEvidence, ReflectionContext } from "./types
 import { buildReflectionContext } from "./builder";
 import { reflectionEvents } from "./events";
 import { synthesizeReflectionReport, applyUserReflectionCorrection } from "./rules";
-import { GoalContext } from "../../context/goals/types";
-import { KnowledgeContext } from "../../context/knowledge/types";
 import { HabitContext } from "../../context/habits/types";
 import { RelationshipContext } from "../../context/relationships/types";
 import { eventService } from "../../events/event-service";
@@ -46,15 +44,13 @@ class ReflectionService {
    * Invoked ONLY at interaction/session conclusion (Temporal Decoupling Constraint).
    */
   public finalizeSession(
-    goals: GoalContext | null,
-    knowledge: KnowledgeContext | null,
     habits: HabitContext | null,
     relationships: RelationshipContext | null,
   ): ReflectionContext {
     reflectionEvents.publish("session_finalized", this.currentContext!);
 
     // Synthesize the new reflection report using finalized inputs
-    const report = synthesizeReflectionReport(goals, knowledge, habits, relationships);
+    const report = synthesizeReflectionReport(habits, relationships);
     this.historicalReports.push(report);
 
     this.rebuildContext();

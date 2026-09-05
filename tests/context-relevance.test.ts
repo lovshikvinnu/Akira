@@ -131,7 +131,6 @@ describe("BUG-005: Context Relevance Selector & Intent Classifier", () => {
               temporalReference: 123,
               sessionIntent: "Building",
               activeStories: [],
-              activeGoals: [],
               relevantMemories: [],
               identityObservations: [],
               currentConstraints: [],
@@ -145,21 +144,9 @@ describe("BUG-005: Context Relevance Selector & Intent Classifier", () => {
       currentPriorities: ["Active Focus: Coding", "Goal Priority: Project Verilog CP"],
       relevantContext: ["Active Project: Verilog CP"],
       supportingEvidence: [],
-      activeGoals: [
-        {
-          id: "g1",
-          title: "Build CPU decoder",
-          description: "",
-          status: "Active",
-          progressPercentage: 50,
-          confidence: 0.9,
-          supportedTaskIds: ["task-1"],
-        },
-      ],
       currentFocus: "Coding",
       importantRelationships: [],
       relevantHabits: [],
-      knowledgeRelevance: [],
       reflectionRelevance: [],
       conflictsExposed: [],
     };
@@ -182,7 +169,6 @@ describe("BUG-005: Context Relevance Selector & Intent Classifier", () => {
       expect(selection.resolvedContext?.provenance.companionState?.activeProject).toBeNull();
       expect(selection.resolvedContext?.currentPriorities).toHaveLength(0);
       expect(selection.resolvedContext?.relevantContext).toHaveLength(0);
-      expect(selection.resolvedContext?.activeGoals).toHaveLength(0);
 
       // Understandings filtering checks
       const mockUnderstandings = [

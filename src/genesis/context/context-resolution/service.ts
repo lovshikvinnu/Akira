@@ -7,10 +7,6 @@ import type { AkiraEvent } from "../../../instrumentation/event-types";
 import { Events } from "../../../contracts/events";
 import { companionStateService } from "../state/service";
 import { stateEvents } from "../state/events";
-import { goalService } from "../goals/service";
-import { goalEvents } from "../goals/events";
-import { knowledgeService } from "../knowledge/service";
-import { knowledgeEvents } from "../knowledge/events";
 import { relationshipService } from "../relationships/service";
 import { relationshipEvents } from "../relationships/events";
 import { habitService } from "../habits/service";
@@ -52,8 +48,6 @@ class ContextResolutionService {
       }),
     );
     this.unsubscribers.push(stateEvents.subscribe(() => this.rebuildResolvedContext()));
-    this.unsubscribers.push(goalEvents.subscribe(() => this.rebuildResolvedContext()));
-    this.unsubscribers.push(knowledgeEvents.subscribe(() => this.rebuildResolvedContext()));
     this.unsubscribers.push(relationshipEvents.subscribe(() => this.rebuildResolvedContext()));
     this.unsubscribers.push(habitEvents.subscribe(() => this.rebuildResolvedContext()));
     this.unsubscribers.push(reflectionEvents.subscribe(() => this.rebuildResolvedContext()));
@@ -74,8 +68,6 @@ class ContextResolutionService {
   public rebuildResolvedContext(): void {
     const presence = this.latestPresenceContext;
     const state = companionStateService.getState();
-    const goals = goalService.getContext();
-    const knowledge = knowledgeService.getContext();
     const relationships = relationshipService.getContext();
     const habits = habitService.getContext();
     const reflection = reflectionService.getContext();
@@ -83,8 +75,6 @@ class ContextResolutionService {
     this.currentResolvedContext = buildResolvedContext(
       presence,
       state,
-      goals,
-      knowledge,
       relationships,
       habits,
       reflection,
