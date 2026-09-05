@@ -189,12 +189,40 @@ export const goalRule: UnderstandingRule = {
     };
 
     // 1. Scan memories
+    //
+    // A memory contributes only when it names a goal. There used to be a third
+    // branch here falling back to the literal `"general_progress"` for any
+    // memory whose reason was "Goal Progress" -- and `candidate-rules` sets
+    // that reason on *every* `task_completed` and `mission_completed`, so it
+    // was not a fallback so much as the only branch that ever ran:
+    // `metadata.goalId` and `metadata.goalName` have no producer anywhere, and
+    // were measured undefined on every such memory.
+    //
+    // The result was one understanding collecting every task the user had ever
+    // ticked off, across unrelated work. Measured on two projects that share
+    // nothing -- a chip design course and marathon training -- it produced a
+    // single fragment of 8 memories at High confidence, rendered as:
+    //
+    //   Goal
+    //   • General Progress
+    //   The user has consistently demonstrated a long-term commitment toward
+    //   general progress.
+    //
+    // That sentence cannot be false and cannot be informative: the same claim
+    // appears whatever the user does, because the key is a constant. It also
+    // sat directly beside a real goal in the same block -- declarations
+    // produce keys like `goal:become-a-commercial-pilot` through
+    // `personalDeclarationRule` -- at equal confidence, so the fabricated one
+    // diluted the stated one.
+    //
+    // Nothing about the activity is lost by dropping it. Completed tasks reach
+    // the prompt through the Project understanding, which names the project.
+    //
+    // The `goalId`/`goalName` branches stay so that a producer for either
+    // lights this path up with real goals and no further change.
     for (const memory of memories) {
       const metadata = memory.metadata || {};
-      const goalId =
-        (metadata.goalId as string) ||
-        (metadata.goalName as string) ||
-        (memory.reason === "Goal Progress" ? "general_progress" : null);
+      const goalId = (metadata.goalId as string) || (metadata.goalName as string) || null;
 
       if (goalId) {
         addRef(goalId, "memories", memory.id);
@@ -206,12 +234,17 @@ export const goalRule: UnderstandingRule = {
       const isGoalStory =
         story.title.toLowerCase().includes("goal") || story.summary.toLowerCase().includes("goal");
       if (isGoalStory) {
-        let goalId = "general_progress";
+        // Same rule as above: only a story that names a goal contributes one.
+        // This defaulted to `"general_progress"` too, which is the second route
+        // into the fragment removed above. It is unreachable today -- no story
+        // this system writes contains the word "goal", and `Goal ID:` has a
+        // reader here and no producer anywhere -- but leaving the default in
+        // place means the next story titled "Goal Review" quietly restores a
+        // vacuous High-confidence claim about the user.
         const idMatch = story.summary.match(/Goal ID:\s*([a-zA-Z0-9-]+)/i);
         if (idMatch) {
-          goalId = idMatch[1];
+          addRef(idMatch[1], "stories", story.id);
         }
-        addRef(goalId, "stories", story.id);
       }
     }
 
