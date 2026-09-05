@@ -46,6 +46,8 @@ await import("../src/genesis/index");
 const { akira, settlePendingPersistence } = await import("../src/persistence/akira-store");
 const { settingsRepository, noteRepository } = await import("../src/persistence/repositories");
 const { healthRegistry } = await import("../src/observability/health/health-registry");
+const { setObservabilityRetention, resetObservabilityRetention } =
+  await import("../src/observability/store/retention");
 
 const MEMORIES = "akira-store.persist.settings.updateMemories";
 const NOTES_ADD = "akira-store.persist.notes.add";
@@ -258,5 +260,60 @@ describe("the two kinds of write fail differently, which is why health is per op
       healthRegistry.get(MEMORIES)?.status,
       "one operation's failure was attributed to another",
     ).toBe("healthy");
+  });
+});
+
+describe("when observability itself cannot observe", () => {
+  /**
+   * `register` returns false at `maxHealthComponents`, and `recordSuccess` /
+   * `recordFailure` are silent no-ops for an unregistered component. A full
+   * registry would therefore take this feature back to console-only with
+   * nothing saying observability had stopped -- the failure this change exists
+   * to prevent, one level up.
+   *
+   * Driven through the real cap rather than by mocking `register`, so what is
+   * under test is the registry's actual behaviour at its limit.
+   */
+  afterEach(() => resetObservabilityRetention());
+
+  it("says so, rather than silently recording nothing", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // Fill the registry with components that are not ours, then leave no room.
+    setObservabilityRetention({ maxHealthComponents: 1 });
+    healthRegistry.unregister(MEMORIES);
+    healthRegistry.unregister(NOTES_ADD);
+    expect(healthRegistry.register("occupant")).toBe(true);
+    expect(healthRegistry.register("one-too-many")).toBe(false);
+
+    akira.addNote({ content: "a write nobody can observe" });
+    await settlePendingPersistence();
+
+    expect(healthRegistry.get(MEMORIES), "the component should not exist").toBeUndefined();
+    expect(warn, "a write became unobservable and said nothing").toHaveBeenCalled();
+    const first = warn.mock.calls
+      .map((c) => String(c[0]))
+      .filter((m) => m.includes('"settings.updateMemories" is not observable'));
+    expect(first.length).toBe(1);
+
+    // Said once per operation, not once per write. `register` is called on
+    // every mutation, so without the bound a full registry would put a console
+    // line on every store action -- noisier than the silence it exists to
+    // break. Asserted here rather than trusted, and asserted in the same case
+    // because the bound is module state that never resets: a separate test
+    // would depend on running second, which is the kind of order coupling that
+    // passes until someone reorders the file.
+    warn.mockClear();
+    akira.addNote({ content: "a second unobservable write" });
+    await settlePendingPersistence();
+    expect(
+      warn.mock.calls
+        .map((c) => String(c[0]))
+        .filter((m) => m.includes('"settings.updateMemories" is not observable')).length,
+      "the warning repeated per write",
+    ).toBe(0);
+
+    healthRegistry.unregister("occupant");
+    warn.mockRestore();
   });
 });

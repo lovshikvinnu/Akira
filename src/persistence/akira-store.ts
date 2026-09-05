@@ -186,10 +186,40 @@ const HEALTH_COMPONENT_PREFIX = "akira-store.persist.";
  * guards its own listeners, so this is defence against the registry itself, and
  * it is cheap.
  */
+/**
+ * Operations already reported as unobservable, so the warning below is said
+ * once per operation rather than once per write.
+ *
+ * Without this the failure mode it reports -- a full registry -- would produce
+ * a console line on every single store mutation, which is noisier than the
+ * silence it exists to break.
+ */
+const unobservableOperations = new Set<string>();
+
 function observeWrite(operation: string, error?: unknown): void {
   try {
     const component = `${HEALTH_COMPONENT_PREFIX}${operation}`;
-    healthRegistry.register(component);
+
+    // `register` returns false when the registry is at `maxHealthComponents`,
+    // and `recordSuccess` / `recordFailure` are silent no-ops for a component
+    // that is not registered. So a full registry would take this feature back
+    // to console-only with nothing anywhere saying that observability had
+    // stopped observing -- the precise failure this change exists to prevent,
+    // reappearing one level up.
+    //
+    // Not reachable today: 29 persist operations plus roughly 8 event-bus
+    // subscriber ids against a cap of 64, all code-defined literals with no
+    // dynamic construction on either side. The return value was already there
+    // and already discarded, so saying something costs an `if`, and a guard
+    // would be a mechanism built for a condition that cannot currently occur.
+    if (!healthRegistry.register(component) && !unobservableOperations.has(operation)) {
+      unobservableOperations.add(operation);
+      console.warn(
+        `[akira-store] Durable write "${operation}" is not observable: ` +
+          `the health registry is full, so its failures will only reach the console.`,
+      );
+    }
+
     if (error === undefined) healthRegistry.recordSuccess(component);
     else healthRegistry.recordFailure(component, error);
   } catch {
