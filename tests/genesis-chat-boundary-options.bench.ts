@@ -261,6 +261,59 @@ describe("chat boundary options", () => {
     log("  -- chat.tsx passes currentProjectId, so attached is the companion-session case");
   });
 
+  it("O10: is the slot count actually a function of distinct phrasings", () => {
+    resetRetentionPolicy();
+
+    // The claim to test: chat prompt slots = the number of chat memories
+    // sharing vocabulary with the last user message, floored at 1 because the
+    // last message is itself in the corpus and matches itself perfectly.
+    const arm = (distinct: number, turns: number) => {
+      freshWorkspace();
+      akira.addProject({ name: "Formula Arm" });
+      const pid = akira.getState().lastProjectId as string;
+      for (let i = 0; i < 30; i++) completeTask(pid, `fa-${i}`);
+      akira.addNote("A written reflection that is not chat.");
+
+      // `distinct` different sentences, cycled to fill `turns`. Deliberately
+      // disjoint vocabulary between them so overlap is only ever self-overlap.
+      const bank = [
+        "how do I wire the uart",
+        "remind me about deployment",
+        "is the invoice paid",
+        "explain monads again",
+        "which flight school is nearest",
+        "what time is standup",
+        "why is the build slow",
+        "book a table for two",
+        "did the tests pass",
+        "draft a reply to Sam",
+      ].slice(0, Math.max(1, distinct));
+      for (let i = 0; i < turns; i++) chatTurn(bank[i % bank.length], pid);
+
+      const chatIds = new Set(
+        memoryService.getMemories().filter((m) => isChat(m.description)).map((m) => m.id),
+      );
+      recallBuilder.rebuildRecallCandidates();
+      const cache = recallService.getRecallCandidates();
+      const prompt = contextRules.filterActiveRecallCandidates(cache);
+      const slots = prompt.filter((i) => chatIds.has(i.data.memoryId)).length;
+      const predicted = Math.min(12, Math.ceil(turns / Math.max(1, distinct)));
+      return { slots, predicted };
+    };
+
+    log("");
+    log("=== O10  slots vs distinct phrasings, 20 turns ===");
+    log("  distinct  copies-of-last  predicted  actual");
+    for (const d of [1, 2, 4, 5, 10, 20]) {
+      const r = arm(d, 20);
+      const copies = Math.ceil(20 / Math.max(1, Math.min(d, 10)));
+      log(
+        `  ${String(d).padStart(8)}  ${String(copies).padStart(14)}  ${String(r.predicted).padStart(9)}  ${String(r.slots).padStart(6)}`,
+      );
+    }
+    log("  -- floor of 1 is structural: the current message is in the corpus and matches itself");
+  });
+
   it("O9: is chat's score real, or does my fixture share vocabulary with the query", () => {
     resetRetentionPolicy();
 
