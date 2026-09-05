@@ -406,26 +406,25 @@ export const contextRules = {
       //
       // `recallReasons` mixes two kinds of string. One explains the memory in
       // terms the model can use -- `Associated with active narrative: "..."`.
-      // The other is the ranking breakdown, and it was reaching the model
-      // verbatim in a real system prompt:
+      // The other is the ranking breakdown, and it reached the model verbatim
+      // in a real system prompt:
       //
       //   Multi-factor recall [Context: QUERY | Score: 0.87 | Category: Goal
       //   | Stability: 1.0 | SemanticMatch: Yes | Recency: 1.0 | ...]
       //
       // Those are weights this code computed to decide what to recall. The
       // model cannot check them, cannot act on them, and reads them as if they
-      // were facts about the user. Filtering is a blacklist rather than a
-      // whitelist on purpose: a recall rule added later is far more likely to
-      // write a sentence than a metrics dump, so the default should be to show
-      // it.
+      // were facts about the user. A blacklist rather than a whitelist on
+      // purpose: a recall rule added later is far likelier to write a sentence
+      // than a metrics dump, so the default should be to show it.
       //
       // The candidate keeps every reason. This filters the copy built for the
       // prompt; `brain.tsx` still renders `recallReasons` in full.
       const readable = c.recallReasons.filter((r) => !r.startsWith(MULTI_FACTOR_RECALL_PREFIX));
 
-      // The id stays: `prompt-builder` uses it to swap in the memory's text,
-      // and drops the entry when it cannot. It is a join key here, never
-      // something the model sees.
+      // The id stays: `prompt-builder` uses it to swap in the memory's text and
+      // drops the entry when it cannot. It is a join key, never something the
+      // model sees.
       return readable.length > 0
         ? `Recall active memory node (${c.memoryId}) because: ${readable.join(" | ")}`
         : `Recall active memory node (${c.memoryId})`;
