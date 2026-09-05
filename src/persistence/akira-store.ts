@@ -1243,6 +1243,15 @@ registerStoreProvider({
       // survive the cold start in memory either. Deferring it would mean
       // holding a queue across hydration to re-persist an event that hydration
       // is about to discard anyway.
+      // What this guards is exactly one window -- before the first hydration --
+      // and not the broader property "never write an empty stream over a full
+      // one", which is how a guard on `hydrated` invites you to read it.
+      // `hydrated` is one-way: set true once and never set back, so a store
+      // emptied *after* hydration is unprotected by construction. `reset()`
+      // does exactly that (`state = seed()`), and its only caller is the
+      // destructive confirm at settings.tsx:636, where overwriting the stream
+      // is what the user asked for. Correct today; the thing to check before
+      // adding another path that empties the store.
       if (hydrated) {
         // Fire-and-forget, matching every other write in this store. A failed
         // persist costs the next reload some history; it must not break the
