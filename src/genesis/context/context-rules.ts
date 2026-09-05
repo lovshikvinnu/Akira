@@ -137,12 +137,44 @@ export const contextRules = {
   filterIdentityObservations(
     observations: IdentityObservation[],
   ): ContextItem<IdentityObservation>[] {
+    // Confidence first, then recency -- because confidence alone does not
+    // order these.
+    //
+    // Every declaration-derived observation is written at exactly 1.0
+    // (`PersonalDeclarationRule`), and the two computed traits saturate to 1.0
+    // after five reflections and twelve work memories respectively. Measured on
+    // sixteen ordinary declarations: fourteen observations, *all* at 1.0. So
+    // `b.confidence - a.confidence` returns 0 for every pair and the sort
+    // degenerates into the array's own order, which is `observationCache` in
+    // insertion order, oldest first.
+    //
+    // With `maxIdentityObservations` at 12 the tail is then cut off by age:
+    // "I am interested in starting my own company" was dropped in favour of
+    // "I enjoy cooking Thai food" declared earlier. Not a tie-break detail --
+    // it means the longer someone uses AKIRA, the less likely anything they
+    // newly declare ever reaches the prompt.
+    //
+    // `updatedAt` rather than `createdAt`, so re-stating a belief renews it:
+    // upsert refreshes that field while keeping the cache position. The index
+    // is the final discriminator because two observations written in the same
+    // millisecond would otherwise fall back to insertion order and reinstate
+    // the original bug in miniature.
+    //
+    // This deliberately does not touch what confidence *means*. When two
+    // observations differ in confidence the ordering is exactly as before;
+    // this only decides the cases the old sort left to chance.
+    const policy = getRetentionPolicy().context.maxIdentityObservations;
     return observations
       .filter((o) => o.confidence >= 0.5)
-      .slice()
-      .sort((a, b) => b.confidence - a.confidence)
-      .slice(0, getRetentionPolicy().context.maxIdentityObservations)
-      .map((o) => ({
+      .map((o, index) => ({ o, index }))
+      .sort(
+        (a, b) =>
+          b.o.confidence - a.o.confidence ||
+          Date.parse(b.o.updatedAt) - Date.parse(a.o.updatedAt) ||
+          b.index - a.index,
+      )
+      .slice(0, policy)
+      .map(({ o }) => ({
         data: o,
         inclusionReason: "Identity Evidence",
       }));
