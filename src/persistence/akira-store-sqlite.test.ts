@@ -86,6 +86,16 @@ test("read-after-restart: a fresh read sees what the store persisted", async () 
   expect(all.some((p) => p.id === id && p.name === "Survives Restart")).toBe(true);
 });
 
+// Hydrate before asserting a durable memory write.
+//
+// `saveMemory` now skips `settings.updateMemories` until `initializeState` has
+// run, because that write replaces the whole blob and doing it against a store
+// not yet filled from the database puts a one-element array over the user's
+// history. These cases call `saveMemory` on a module-fresh store, which is a
+// state production never reaches -- hydration resolves before anything can
+// record. Only the precondition is added; the assertions are unchanged.
+akira.initializeState(akira.getState());
+
 test("the GENESIS memory stream is durably written", async () => {
   const event = {
     id: "mem-durable-1",

@@ -1192,14 +1192,47 @@ registerStoreProvider({
       // See ../genesis/retention/policy.ts for which events are which.
       const memories = applyDurableRetention([event, ...s.memories]);
 
-      // Fire-and-forget, matching every other write in this store. A failed
-      // persist costs the next reload some history; it must not break the
-      // cognitive cycle that produced the event.
-      persist("settings.updateMemories", () =>
-        import("../akira-os/settings").then(({ settingsService }) =>
-          settingsService.updateMemories(memories),
-        ),
-      );
+      // Never write the stream before the database has answered.
+      //
+      // `settings.updateMemories` replaces the whole blob, so what it writes is
+      // whatever `s.memories` holds at the time. `__root.tsx` hydrates in an
+      // async effect and calls `companionStateService.bootstrap()` from a
+      // synchronous one below it, so on a cold start a `note_created` event is
+      // recorded while this array is still empty -- and the write puts
+      // `[bootstrapEvent]` over the user's history.
+      //
+      // Reproduced end to end against the real repository: seven events on
+      // disk, hydration withheld, one bootstrap event recorded, disk 7 -> 1
+      // holding only "Companion State Bootstrapped". The same bootstrap with
+      // the store hydrated first leaves 7 -> 8, so the cause is the empty
+      // array rather than anything about bootstrap.
+      //
+      // It does not self-heal. A later write rewrites the blob from the store,
+      // which by then holds the damaged stream: measured 1 -> 2 with 0 of the
+      // 7 original events recovered. The loss is permanent from the instant
+      // this write lands.
+      //
+      // A guard here rather than a reordering of those effects. The ordering is
+      // load-bearing for cognition and `__root.tsx` documents why: bootstrap
+      // reconstructs against an empty stream and hydration re-runs
+      // `memoryService.initialize()` afterwards to rebuild it. That mitigation
+      // covers the read. This covers the write, which is the half that reaches
+      // disk.
+      //
+      // Skipping the persist loses the bootstrap event from the durable stream,
+      // which is what already happens to it in memory: hydration replaces
+      // `s.memories` wholesale a moment later, so the event was never going to
+      // survive the cold start either way.
+      if (hydrated) {
+        // Fire-and-forget, matching every other write in this store. A failed
+        // persist costs the next reload some history; it must not break the
+        // cognitive cycle that produced the event.
+        persist("settings.updateMemories", () =>
+          import("../akira-os/settings").then(({ settingsService }) =>
+            settingsService.updateMemories(memories),
+          ),
+        );
+      }
 
       return { ...s, memories };
     });

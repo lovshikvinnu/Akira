@@ -60,6 +60,20 @@ function durableMemoryCount(): number {
 
 let consoleError: ReturnType<typeof vi.spyOn>;
 
+// Hydrate once, because a durable memory write is now gated on it.
+//
+// `saveMemory` skips `settings.updateMemories` until `initializeState` has run:
+// the write replaces the whole blob, so performing it against a store that has
+// not yet been filled from the database puts a one-element array over the
+// user's history. Reproduced at 7 events -> 1.
+//
+// This file drove `akira.addNote` on a module-fresh store, which no user can
+// do -- the UI that calls it does not exist until hydration has resolved. So
+// the fixture was modelling a state production cannot reach, and every
+// assertion about a memory write here now needs the state production is
+// actually in. Nothing else about these cases changes.
+akira.initializeState(akira.getState());
+
 beforeEach(() => {
   // Health state is a module singleton and accumulates across a file, so each
   // case starts from a component with no observations rather than inheriting
