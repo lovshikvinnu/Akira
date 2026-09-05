@@ -28,16 +28,35 @@ export function evaluateInitiative(resolved: ResolvedContext | null): Initiative
     return defaultDecision;
   }
 
+  // 0. Nothing known about the context means no grounds to interrupt.
+  //
+  // This is the case the old scalar could not express. `overallConfidence` fell
+  // back to 1.0 when no engine contributed, so an install with no user data
+  // read as maximum certainty and sailed through the threshold below -- the
+  // system was most willing to act proactively exactly when it knew least.
+  //
+  // Silence is the answer rather than a low score, because a low score is a
+  // different claim: it says the evidence is weak, and there is no evidence.
+  if (resolved.certainty.score === null) {
+    return {
+      ...defaultDecision,
+      interventionNecessity:
+        "No context engine has contributed anything yet, so there is nothing to act on.",
+    };
+  }
+
+  const confidence = resolved.certainty.score;
+
   // 1. Evaluate Timing: If focus metrics indicate deep focus, block all proactive actions
-  if (resolved.currentFocus && resolved.overallConfidence > 0.85) {
+  if (resolved.currentFocus && confidence > 0.85) {
     return defaultDecision;
   }
 
   // 2. Assess Subsystem Confidence: If overall context confidence is below threshold, default to Silence
-  if (resolved.overallConfidence < CONSTANTS.MIN_CONFIDENCE_FOR_PROACTIVE_INITIATIVE) {
+  if (confidence < CONSTANTS.MIN_CONFIDENCE_FOR_PROACTIVE_INITIATIVE) {
     return {
       ...defaultDecision,
-      interventionNecessity: `Proactive action suppressed due to low context confidence (${resolved.overallConfidence}).`,
+      interventionNecessity: `Proactive action suppressed due to low context confidence (${confidence}).`,
     };
   }
 

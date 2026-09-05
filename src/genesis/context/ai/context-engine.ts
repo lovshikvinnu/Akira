@@ -108,7 +108,12 @@ export const aiContextEngine = {
    * Serializes a Resolved Context, preserving confidence, provenance, and subsystem ownership.
    */
   serializeResolvedContext(resolved: ResolvedContext): string {
-    let block = `Overall Confidence: ${resolved.overallConfidence}\n\n`;
+    // Unreachable duplicate of `promptBuilder.serializeResolvedContext`.
+    // `executeRequestStream` builds its instruction through the prompt builder,
+    // and nothing calls this. Updated only to keep it compiling and honest;
+    // whether to delete it is the dead-vs-dormant question, not this change.
+    const { score } = resolved.certainty;
+    let block = score === null ? "" : `Overall Confidence: ${score}\n\n`;
 
     const presence = resolved.provenance.presenceContext;
     if (presence) {

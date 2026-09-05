@@ -45,6 +45,14 @@ export interface ObservedHabit {
 }
 
 export interface HabitContext {
+  /**
+   * How many records this confidence is an average of.
+   *
+   * Zero means the engine has nothing to be confident about. The `confidence`
+   * beside it is then a default rather than a measurement, and every aggregate
+   * skips it -- see `ContextCertainty` in context-resolution/types.ts.
+   */
+  basis: number;
   // Provenance Preservation metadata
   origin: "HabitIntelligenceEngine";
   evidence: {

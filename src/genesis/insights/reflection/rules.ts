@@ -97,18 +97,32 @@ export function synthesizeReflectionReport(
     });
   }
 
-  // Calculate composite confidence rating
-  let confidence = 0.8;
-  const confidenceRatings: number[] = [];
-  if (goals) confidenceRatings.push(goals.confidence);
-  if (knowledge) confidenceRatings.push(knowledge.confidence);
-  if (habits) confidenceRatings.push(habits.confidence);
-  if (relationships) confidenceRatings.push(relationships.confidence);
+  // Calculate composite confidence rating.
+  //
+  // The second place these four context confidences get averaged -- the other
+  // is `resolveUnifiedContext` -- and it had the same flaw plus a different
+  // invented number. An engine with nothing in it reports `confidence: 1` and
+  // was counted, and when none of the four existed the result defaulted to
+  // `0.8`, a figure with no derivation at all. This report's confidence then
+  // flows into `ReflectionContext.confidence` and back into the resolver's
+  // average, so a manufactured number did not stay local.
+  //
+  // Contributors are now the engines with a `basis`, and the fallback is
+  // stated rather than picked: with nothing to average, the report is as
+  // uncertain as this scale can say. Fixing it in one place would have left
+  // this path producing the old answer.
+  const contributing = [goals, knowledge, habits, relationships].filter(
+    (ctx): ctx is NonNullable<typeof ctx> => Boolean(ctx) && ctx!.basis > 0,
+  );
 
-  if (confidenceRatings.length > 0) {
-    const sum = confidenceRatings.reduce((a, b) => a + b, 0);
-    confidence = Number((sum / confidenceRatings.length).toFixed(2));
-  }
+  const confidence =
+    contributing.length > 0
+      ? Number(
+          (
+            contributing.reduce((sum, ctx) => sum + ctx.confidence, 0) / contributing.length
+          ).toFixed(2),
+        )
+      : 0;
 
   return {
     id: uid(),

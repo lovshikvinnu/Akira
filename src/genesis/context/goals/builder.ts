@@ -54,6 +54,10 @@ export function buildGoalContext(goals: Goal[], evidenceLog: GoalEvidence[]): Go
     }));
 
   // Calculate aggregated confidence rating across active goals
+  // `confidence` here is a mean over active goals, so with none of them it is
+  // an average of nothing. It stays 1.0 for the readers that only ever look at
+  // it when there is something to look at, and `basis` is what tells an
+  // aggregate whether that number was measured or defaulted.
   let confidence = 1.0;
   if (activeGoals.length > 0) {
     const totalConfidence = activeGoals.reduce((sum, g) => sum + g.confidence, 0);
@@ -67,6 +71,7 @@ export function buildGoalContext(goals: Goal[], evidenceLog: GoalEvidence[]): Go
       goalsSnapshot: [...goals],
     },
     confidence,
+    basis: activeGoals.length,
     activeGoals,
     currentPriorities,
     goalHierarchy,

@@ -56,6 +56,10 @@ export function buildKnowledgeContext(
     .map((n) => n.id);
 
   // Compute aggregated confidence
+  // `confidence` here is a mean over knowledge nodes, so with none of them it is
+  // an average of nothing. It stays 1.0 for the readers that only ever look at
+  // it when there is something to look at, and `basis` is what tells an
+  // aggregate whether that number was measured or defaulted.
   let confidence = 1.0;
   if (nodes.length > 0) {
     const totalConfidence = nodes.reduce((sum, n) => sum + n.confidence, 0);
@@ -69,6 +73,7 @@ export function buildKnowledgeContext(
       nodesSnapshot: [...nodes],
     },
     confidence,
+    basis: nodes.length,
     knownDomains,
     skills,
     concepts,

@@ -9,7 +9,7 @@
  * workspace, this is all the model received:
  *
  *   [RESOLVED CONTEXT]
- *   Overall Confidence: 1
+ *   Overall Confidence: 1        (from no contributing engine at all)
  *
  * A maximum-confidence claim with no subject, from no inputs, in a system whose
  * stated aim is not to invent beliefs about the user.
@@ -72,8 +72,11 @@ describe("a resolved context nothing contributed to", () => {
     // trivially against a null context or one that happened to be populated.
     expect(resolved).not.toBeNull();
     expect(Object.values(resolved!.provenance).some((c) => Boolean(c))).toBe(false);
-    // And the default really is the maximum, which is what made it misleading.
-    expect(resolved!.overallConfidence).toBe(1);
+    // The old scalar defaulted to the maximum here, which is what made it
+    // misleading. The replacement says the honest thing: nothing contributed,
+    // so there is no score at all.
+    expect(resolved!.certainty.basis).toBe(0);
+    expect(resolved!.certainty.score).toBeNull();
   });
 
   it("states no confidence", () => {
@@ -96,7 +99,7 @@ describe("a resolved context an engine did contribute to", () => {
     // single contributing engine is enough to make the average mean something.
     const contributed = {
       ...resolved!,
-      overallConfidence: 0.9,
+      certainty: { basis: 1, score: 0.9 },
       provenance: {
         ...resolved!.provenance,
         presenceContext: {
@@ -108,7 +111,9 @@ describe("a resolved context an engine did contribute to", () => {
     } as ResolvedContext;
 
     const block = promptBuilder.serializeResolvedContext(contributed);
-    expect(block).toContain("Overall Confidence: 0.9");
+    // The claim now says what it spans, so a reader can tell one certain engine
+    // from seven agreeing ones.
+    expect(block).toContain("Overall Confidence: 0.9 (across 1 context engine)");
     expect(block).toContain("Presence");
   });
 });
@@ -132,7 +137,10 @@ describe("the production case, where empty engines populate provenance", () => {
     // populated, by engines holding nothing.
     const contributors = Object.values(live!.provenance).filter(Boolean);
     expect(contributors.length).toBeGreaterThan(0);
-    expect(live!.overallConfidence).toBe(1);
+    // Present in provenance, but contributing nothing: that gap is the defect,
+    // and `basis` is what now records it.
+    expect(live!.certainty.basis).toBe(0);
+    expect(live!.certainty.score).toBeNull();
 
     expect(promptBuilder.serializeResolvedContext(live!)).toBe("");
   });

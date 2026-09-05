@@ -44,6 +44,10 @@ export function buildRelationshipContext(
   }));
 
   // Compute aggregated active confidence
+  // `confidence` here is a mean over known people, so with none of them it is
+  // an average of nothing. It stays 1.0 for the readers that only ever look at
+  // it when there is something to look at, and `basis` is what tells an
+  // aggregate whether that number was measured or defaulted.
   let confidence = 1.0;
   if (activePeople.length > 0) {
     const totalConfidence = activePeople.reduce((sum, r) => sum + r.confidence, 0);
@@ -57,6 +61,7 @@ export function buildRelationshipContext(
       relationshipsSnapshot: [...relationships],
     },
     confidence,
+    basis: activePeople.length,
     importantPeople: activePeople,
     relationshipSignificance,
     sharedContext,

@@ -373,6 +373,14 @@ export const promptBuilder = {
     // needs no policy about what an empty engine believes.
     if (!body) return "";
 
-    return `Overall Confidence: ${resolved.overallConfidence}\n\n${body}`;
+    // The model is told a confidence only when one was measured, and told what
+    // it spans. `basis` is how many context engines contributed something real;
+    // a score with no basis is not reported at all, because "we are certain"
+    // and "we have nothing" must not arrive as the same sentence.
+    const { basis, score } = resolved.certainty;
+    if (score === null) return body;
+
+    const engines = basis === 1 ? "1 context engine" : `${basis} context engines`;
+    return `Overall Confidence: ${score} (across ${engines})\n\n${body}`;
   },
 };

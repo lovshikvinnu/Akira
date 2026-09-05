@@ -10,7 +10,7 @@
  * ordinary goal titles, a conflict was declared in 36 of 36 pairs, including
  * every aligned one: "Learning" against "Learn Spanish" was a conflict.
  *
- * It was not a harmless label. `conflictsExposed` docks `overallConfidence` by
+ * It was not a harmless label. `conflictsExposed` docks `certainty.score` by
  * 0.15, prints an "Exposed Conflicts" block into the prompt, and is the first
  * branch `evaluateInitiative` tests -- returning `decisionOutcome: "Question"`.
  * AKIRA interrupted the user to clarify a contradiction it had invented, most
@@ -98,7 +98,7 @@ describe("focus against a goal title", () => {
   it("does not spend the confidence penalty on an invented conflict", () => {
     // 0.15 is deducted per resolution when anything is exposed.
     const resolved = resolve("Learning", "Learn Spanish");
-    expect(resolved.overallConfidence).toBeGreaterThan(0.75);
+    expect(resolved.certainty.score ?? 0).toBeGreaterThan(0.75);
   });
 
   it("does not interrupt the user to clarify it", () => {
@@ -120,6 +120,6 @@ describe("focus against a goal title", () => {
     // interrupted the user or muted AKIRA, depending on numbers that have
     // nothing to do with goals or focus.
     const resolved = resolve("Learning", "Learn Spanish");
-    expect(resolved.overallConfidence).toBeGreaterThanOrEqual(0.75);
+    expect(resolved.certainty.score ?? 0).toBeGreaterThanOrEqual(0.75);
   });
 });

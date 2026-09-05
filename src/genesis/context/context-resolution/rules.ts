@@ -1,4 +1,4 @@
-import { ResolvedContext } from "./types";
+import { ContextCertainty, ResolvedContext } from "./types";
 import * as CONSTANTS from "./constants";
 import { PresenceContext } from "../../../akira-os/presence/types";
 import { CompanionState } from "../state/types";
@@ -173,27 +173,48 @@ export function resolveUnifiedContext(
   let confidenceSum = 0;
 
   const contexts = [presence, state, goals, knowledge, relationships, habits, reflection];
+  // An engine counts when it has something to be certain about, not when it
+  // merely exists.
+  //
+  // This used to count any non-null context. `context/knowledge` and
+  // `context/relationships` are initialized at boot, have no producer, hold
+  // nothing, and each report `confidence: 1` -- so on an install with no user
+  // data they were the only two contributors and the mean was 1.0, maximum
+  // certainty assembled entirely out of absence. `basis` is how many records
+  // the engine's own average was taken over; zero means its number was a
+  // default rather than a measurement.
+  //
+  // Presence and companion state carry no `basis`. They describe the session
+  // that is happening rather than a collection that may be empty, so their
+  // existence is their basis.
   contexts.forEach((ctx) => {
-    if (ctx) {
-      const conf =
-        "contextConfidence" in ctx ? (ctx as any).contextConfidence : (ctx as any).confidence;
-      confidenceSum += conf;
-      confidenceCount++;
-    }
+    if (!ctx) return;
+
+    const hasBasis = "basis" in ctx ? (ctx as { basis: number }).basis > 0 : true;
+    if (!hasBasis) return;
+
+    const conf =
+      "contextConfidence" in ctx
+        ? (ctx as { contextConfidence: number }).contextConfidence
+        : (ctx as { confidence: number }).confidence;
+    confidenceSum += conf;
+    confidenceCount++;
   });
 
-  let overallConfidence =
-    confidenceCount > 0 ? Number((confidenceSum / confidenceCount).toFixed(2)) : 1.0;
+  let score = confidenceCount > 0 ? Number((confidenceSum / confidenceCount).toFixed(2)) : null;
 
-  // CONFLICT RESOLUTION: Lower overall certainty when contradictions exist
-  if (conflictsExposed.length > 0) {
-    overallConfidence = Math.max(0.1, Number((overallConfidence - 0.15).toFixed(2)));
+  // CONFLICT RESOLUTION: Lower overall certainty when contradictions exist.
+  // Nothing can be deducted from a certainty that was never established.
+  if (conflictsExposed.length > 0 && score !== null) {
+    score = Math.max(0.1, Number((score - 0.15).toFixed(2)));
   }
+
+  const certainty: ContextCertainty = { basis: confidenceCount, score };
 
   return {
     origin: "ContextResolutionEngine",
     status: "ResolvedContextConstructed",
-    overallConfidence,
+    certainty,
     provenance: {
       presenceContext: presence,
       companionState: state,

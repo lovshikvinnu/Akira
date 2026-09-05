@@ -31,6 +31,14 @@ export interface ReflectionReport {
 }
 
 export interface ReflectionContext {
+  /**
+   * How many records this confidence is an average of.
+   *
+   * Zero means the engine has nothing to be confident about. The `confidence`
+   * beside it is then a default rather than a measurement, and every aggregate
+   * skips it -- see `ContextCertainty` in context-resolution/types.ts.
+   */
+  basis: number;
   origin: "ReflectionEngine";
   evidence: {
     evidenceLog: ReflectionEvidence[];
