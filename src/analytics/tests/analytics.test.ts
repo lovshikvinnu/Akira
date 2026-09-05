@@ -782,6 +782,24 @@ test("Sprint 1.2 - Large Datasets Performance boundary checking", () => {
     }
   })();
 
+  // Counted, not timed.
+  //
+  // This asserted `elapsed < 150`, which on a machine with ~3x timing variance
+  // failed intermittently and passed on re-run -- reporting the machine rather
+  // than the code. The property it was a proxy for is that `aggregatePeriod`
+  // reads the event store ONCE for the whole period and buckets in memory; the
+  // regression it existed to catch is someone making it query per day or per
+  // event, which is what would actually make 2,000 events slow.
+  //
+  // That is countable and deterministic, so it is counted. The duration is
+  // still logged, because it is useful to see and costs nothing to not assert.
+  let findBetweenCalls = 0;
+  const realFindBetween = eventRepo.findBetween.bind(eventRepo);
+  eventRepo.findBetween = (...args: Parameters<typeof realFindBetween>) => {
+    findBetweenCalls += 1;
+    return realFindBetween(...args);
+  };
+
   const startTime = Date.now();
   // Aggregate period
   const report = engine.aggregatePeriod(
@@ -793,7 +811,22 @@ test("Sprint 1.2 - Large Datasets Performance boundary checking", () => {
   const elapsed = Date.now() - startTime;
 
   console.log(`Aggregated 2,000 events in ${elapsed}ms`);
-  assert(elapsed < 150, "Aggregation of 2,000 events must run in under 150ms");
+  // Bounded by buckets, never by events. 2,000 events land in one day bucket
+  // here, so the bound is 2: one `findBetween` for the period, plus one
+  // full-store scan from `discoverAllProjectsFromEventStore`, which
+  // `aggregateEvents` runs per bucket.
+  //
+  // ponytail: that per-bucket full scan is the real cost this test was
+  // fuzzily measuring -- aggregating a month does 1 + 31 scans. Hoisting the
+  // discovery to once per `aggregatePeriod` call is the fix; left alone here
+  // because this change is scoped to the flake. Asserted as an upper bound so
+  // that fix makes this pass more easily rather than failing it.
+  const bucketCount = report.size;
+  assert(
+    findBetweenCalls <= 1 + bucketCount,
+    `Aggregation must scan per period and per bucket, never per event: ` +
+      `${findBetweenCalls} scans for ${bucketCount} bucket(s) over 2,000 events`,
+  );
 
   const dayData = report.get("2026-07-19");
   assertExists(dayData, "Metrics calculated successfully for July 19th");
