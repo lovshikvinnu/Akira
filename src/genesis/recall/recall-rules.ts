@@ -402,6 +402,29 @@ function computeSemanticRelevance(
  */
 const USER_AUTHORED_STABILITY = 0.8;
 
+/**
+ * Marks a recall reason as engineering diagnostics rather than context.
+ *
+ * The factors below -- score, category, stability, semantic match, recency,
+ * intent, reinforcement -- exist to explain a ranking decision to whoever is
+ * debugging recall. They are meaningless to the model, which cannot act on a
+ * weight it did not compute, and they were reaching it: measured in a real
+ * system prompt as
+ *
+ *   Multi-factor recall [Context: QUERY | Score: 0.87 | Category: Goal | ...]
+ *
+ * `compileRecentActivity` filters on this prefix so the model-facing summary
+ * carries only reasons a reader would recognise as a reason. Exported rather
+ * than written out there, because a literal duplicated across two files drifts
+ * on the first edit and the drift would be silent -- the filter would simply
+ * stop matching and the diagnostics would reappear in the prompt.
+ *
+ * The reasons themselves are untouched. `RecallCandidate.recallReasons` still
+ * carries them and `brain.tsx` still shows them; only the model-facing copy is
+ * filtered.
+ */
+export const MULTI_FACTOR_RECALL_PREFIX = "Multi-factor recall [";
+
 export const recallRules: RecallRule[] = [
   {
     name: "Active Story Recall Rule",
@@ -563,7 +586,7 @@ export const recallRules: RecallRule[] = [
         ];
         return {
           shouldRecall: true,
-          reason: `Multi-factor recall [${factors.join(" | ")}]`,
+          reason: `${MULTI_FACTOR_RECALL_PREFIX}${factors.join(" | ")}]`,
           score: compositeScore,
         };
       }
