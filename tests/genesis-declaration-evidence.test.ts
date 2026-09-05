@@ -139,19 +139,34 @@ describe("every declaration category creates real graph evidence", () => {
     expect(goal.confidenceReference, "the goal has no graph node").toBeTruthy();
   });
 
-  it("does not attach evidence to a node it did not create", () => {
-    // The `exists` guard means a repeated declaration creates no second aspect.
-    // It must also create no second evidence record, or replaying a stream
-    // would inflate confidence without new information.
+  it("records a restatement as evidence without creating a second aspect", () => {
+    // This case used to assert that the second note added no evidence either,
+    // on the rationale that "replaying a stream would inflate confidence
+    // without new information". That rationale is about replay, but the case
+    // exercises two separate notes -- two occasions on which the user said the
+    // thing. Those are new information, and `calculateConfidence` is built to
+    // count them; the version that dropped them left every declared aspect
+    // scoring 0.25 forever. Replay idempotency is a different property and is
+    // pinned by the reload cases below, which re-derive from one stream.
     akira.addNote({ content: "I want to become a pilot" });
     const node = nodeFor("become a pilot")!;
     const first = identityService.getEvidenceByNode(node.id).length;
     // Without this the case is satisfied by 0 === 0 and passes against a build
     // that attaches no evidence at all.
-    expect(first, "no evidence to be idempotent about").toBeGreaterThan(0);
+    expect(first, "no evidence to count from").toBeGreaterThan(0);
 
     akira.addNote({ content: "I want to become a pilot" });
-    expect(identityService.getEvidenceByNode(node.id).length).toBe(first);
+
+    expect(
+      identityService.getEvidenceByNode(node.id).length,
+      "the second time the user said it was dropped",
+    ).toBe(first + 1);
+    // The aspect itself is still one node -- the guard that stops a duplicate
+    // goal being created is unchanged, and only evidence accumulates.
+    expect(
+      identityService.getIdentityNodes().filter((n) => n.value === "become a pilot").length,
+      "a restatement created a second aspect",
+    ).toBe(1);
   });
 });
 

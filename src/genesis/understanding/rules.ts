@@ -639,6 +639,58 @@ export const personalDeclarationRule: UnderstandingRule = {
              * identity services stays a no-op and belongs to that subsystem.
              */
             const attachEvidence = (aspect: { confidenceReference: string }): void => {
+              // Once per memory, not once per aspect.
+              //
+              // This used to sit inside `if (!exists)`, so an aspect collected
+              // evidence from whichever declaration reached it first and every
+              // later restatement was dropped. `calculateConfidence` is built
+              // around evidence *count* -- its own comment says "4 solid items
+              // reach ~1.0" -- so pinning the count at 1 left every declared
+              // aspect scoring exactly `0.25 x recencyFactor`: one of three
+              // possible values, whatever the user had said or how often.
+              //
+              // Worse, which statement supplied that one record depended on the
+              // order the durable stream happened to be in. Measured on the same
+              // two declarations, one 200 days old and one from yesterday:
+              //
+              //     stream [old, new]   score 0.250 Possible  (kept the new one)
+              //     stream [new, old]   score 0.175 Weak      (kept the old one)
+              //
+              // Same facts, different answer. Attaching every memory takes the
+              // ordering out of the result: all of them land on the node, so the
+              // count is how many times the user said it and the recency factor
+              // reads the most recent time they did.
+              //
+              // Deduped on what the declaration *was*, not on the id of the
+              // Memory carrying it. `addEvidence` mints a new record per call and
+              // reconstruction replays the whole stream, so without a guard a node
+              // gains a record per reload and confidence climbs with restarts.
+              //
+              // The memory id cannot be that guard: `reconstructRuntimeMemory`
+              // rebuilds Memory objects with fresh uids, so the same declaration
+              // arrives under a different `sourceId` every time. Measured with the
+              // id as the key -- two statements, then repeated reconstructions:
+              //
+              //     1 reload    evidence 2
+              //     2 reloads   evidence 4
+              //     5 reloads   evidence 10   score 1.000 "Confirmed"
+              //
+              // `sourceEventId` is the memory's lineage back to the durable
+              // event, so it survives rebuilding and still tells two statements
+              // apart. The pair (text, `memory.timestamp`) was tried first and is
+              // wrong in a way that only shows up under load: two notes written
+              // in the same millisecond share both fields and collapse into one
+              // record, which made the count depend on how fast the events
+              // arrived.
+              const already = identityFoundationService
+                .getEvidenceByNode(aspect.confidenceReference)
+                .some(
+                  (e) =>
+                    e.sourceType === "Memory" &&
+                    e.metadata?.sourceEventId === memory.sourceEventId,
+                );
+              if (already) return;
+
               identityFoundationService.addEvidence(
                 aspect.confidenceReference,
                 "Memory",
@@ -647,17 +699,16 @@ export const personalDeclarationRule: UnderstandingRule = {
                 // The memory's own instant, not this one. Reconstruction replays
                 // the whole stream, so without this every reload would restamp a
                 // years-old declaration as today's.
-                { createdAt: memory.timestamp },
+                { createdAt: memory.timestamp, sourceEventId: memory.sourceEventId },
               );
             };
 
             if (match.category === "Goal") {
-              const existingGoals = identityFoundationService.getGoals(identityId);
-              const exists = existingGoals.some(
-                (g: any) => g.title.toLowerCase() === match.content.toLowerCase(),
-              );
-              if (!exists) {
-                attachEvidence(
+              const existing = identityFoundationService
+                .getGoals(identityId)
+                .find((g: any) => g.title.toLowerCase() === match.content.toLowerCase());
+              attachEvidence(
+                existing ??
                   identityFoundationService.createGoal(
                     identityId,
                     match.content,
@@ -666,39 +717,33 @@ export const personalDeclarationRule: UnderstandingRule = {
                     "High",
                     [memory.id],
                   ),
-                );
-              }
-            } else if (match.category === "Interest") {
-              const existingInterests = identityFoundationService.getInterests(identityId);
-              const exists = existingInterests.some(
-                (i: any) => i.topic.toLowerCase() === match.content.toLowerCase(),
               );
-              if (!exists) {
-                attachEvidence(
+            } else if (match.category === "Interest") {
+              const existing = identityFoundationService
+                .getInterests(identityId)
+                .find((i: any) => i.topic.toLowerCase() === match.content.toLowerCase());
+              attachEvidence(
+                existing ??
                   identityFoundationService.createInterest(identityId, match.content, "Other", [
                     memory.id,
                   ]),
-                );
-              }
-            } else if (match.category === "Preference") {
-              const existingPrefs = identityFoundationService.getPreferences(identityId);
-              const exists = existingPrefs.some(
-                (p: any) => p.value.toLowerCase() === match.content.toLowerCase(),
               );
-              if (!exists) {
-                attachEvidence(
+            } else if (match.category === "Preference") {
+              const existing = identityFoundationService
+                .getPreferences(identityId)
+                .find((p: any) => p.value.toLowerCase() === match.content.toLowerCase());
+              attachEvidence(
+                existing ??
                   identityFoundationService.createPreference(identityId, "Other", match.content, [
                     memory.id,
                   ]),
-                );
-              }
-            } else if (match.category === "Value") {
-              const existingValues = identityFoundationService.getValues(identityId);
-              const exists = existingValues.some(
-                (v: any) => v.name.toLowerCase() === match.content.toLowerCase(),
               );
-              if (!exists) {
-                attachEvidence(
+            } else if (match.category === "Value") {
+              const existing = identityFoundationService
+                .getValues(identityId)
+                .find((v: any) => v.name.toLowerCase() === match.content.toLowerCase());
+              attachEvidence(
+                existing ??
                   identityFoundationService.createValue(
                     identityId,
                     match.content,
@@ -706,20 +751,17 @@ export const personalDeclarationRule: UnderstandingRule = {
                     [],
                     [memory.id],
                   ),
-                );
-              }
-            } else if (match.category === "Habit") {
-              const existingHabits = identityFoundationService.getHabits(identityId);
-              const exists = existingHabits.some(
-                (h: any) => h.name.toLowerCase() === match.content.toLowerCase(),
               );
-              if (!exists) {
-                attachEvidence(
+            } else if (match.category === "Habit") {
+              const existing = identityFoundationService
+                .getHabits(identityId)
+                .find((h: any) => h.name.toLowerCase() === match.content.toLowerCase());
+              attachEvidence(
+                existing ??
                   identityFoundationService.createHabit(identityId, match.content, "Other", [
                     memory.id,
                   ]),
-                );
-              }
+              );
             } else {
               // Same guarantee as DECLARATION_IDENTITY_CATEGORY, for the half
               // that cannot be a lookup because each category calls a

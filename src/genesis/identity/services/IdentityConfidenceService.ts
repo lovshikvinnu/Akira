@@ -4,6 +4,14 @@ import { defaultIdentityRepository } from "../repositories/InMemoryIdentityRepos
 import { eventService } from "../../events/event-service";
 import { Events } from "../../../contracts/events";
 
+/**
+ * The highest score inference alone can reach.
+ *
+ * Sits at the top of "Strong" so that 1.0 / "Confirmed" stays reserved for the
+ * explicit-confirmation branch. See the clamp in `calculateConfidence`.
+ */
+const MAX_INFERRED_SCORE = 0.95;
+
 export class IdentityConfidenceService {
   private repository: IdentityRepository;
 
@@ -113,8 +121,20 @@ export class IdentityConfidenceService {
       const contradictionPenalty = contradictionCount * 0.35;
       // Combined with recency decay
       score = (baseScore - contradictionPenalty) * recencyFactor;
-      // Clamp between 0.0 and 1.0
-      score = Math.max(0.0, Math.min(1.0, score));
+      // Clamped below 1.0, which is not the same as clamping to it.
+      //
+      // 1.0 and the level "Confirmed" are what the `explicitConfirmation` branch
+      // above returns -- the user said so directly, or an evidence record came
+      // from `UserConfirmation`/`UserDirect`. Everything down here is inferred
+      // from counting, and `evidenceCount * 0.25` reaches 1.0 on the fourth
+      // record, so four repetitions of a sentence would land on the same score
+      // and the same label as the user confirming it outright. Repeating
+      // something is evidence; it is not confirmation, and the two must not be
+      // indistinguishable to whatever reads the level.
+      //
+      // 0.95 is the top of "Strong" (`score < 1.0`), so inference saturates one
+      // level below confirmation rather than reaching it.
+      score = Math.max(0.0, Math.min(MAX_INFERRED_SCORE, score));
 
       // Level boundaries
       if (score === 0) {
