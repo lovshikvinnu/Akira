@@ -3,6 +3,7 @@ import { getRetentionPolicy } from "../retention/policy";
 import { Story } from "../stories/types";
 import { IdentityObservation } from "../understanding/identity-types";
 import { hypothesesService } from "../understanding/hypotheses";
+import { getWorkspaceProvider } from "../../contracts/workspace-provider";
 import { identityService } from "../identity";
 import { identityConfidenceService } from "../identity";
 import { IdentityGoal } from "../identity/types";
@@ -76,6 +77,43 @@ export function identityInclusionReason(observation: IdentityObservation): strin
   return level
     ? `Stated explicitly by the user; supporting evidence so far: ${level}`
     : "Stated explicitly by the user";
+}
+
+/**
+ * True when a story arc describes a project the workspace no longer has.
+ *
+ * Deleting a project publishes `PROJECT_DELETED`, and `event-translation` has no
+ * translator for it, so `reality-adapter` drops it and GENESIS is never told.
+ * The arc stays `Active` and keeps producing present-tense claims. Measured on
+ * a project with one completed task:
+ *
+ *     before delete   arc Active   goal "Complete Project Arc: Pilot Licence"
+ *     after delete    arc Active   goal "Complete Project Arc: Project Created"
+ *     after a reload  no arc       no goal
+ *
+ * The second line is the harm twice over: the goal survives the project, and
+ * `projectArcProjectName` can no longer resolve a name for it, so what reaches
+ * the model is the translator's fixed label -- an active commitment to
+ * something unnamed.
+ *
+ * Answered by asking the workspace rather than by archiving the arc, for three
+ * reasons. Nothing in `src/` calls `storyService.updateStory`, so a status
+ * transition would be the first of its kind and a larger decision than this
+ * finding settles. The arc and its memories are history and stay untouched --
+ * only the claim that the work is current is withdrawn. And a reload already
+ * behaves this way, so deriving it here makes live agree with replay instead of
+ * adding a second mechanism that has to be kept consistent with it.
+ *
+ * A story carrying no `relatedProjectId` is left alone: arcs from
+ * `registerStoryRule` need not carry one, and absence is not evidence of
+ * deletion.
+ */
+function describesDeletedProject(story: Story): boolean {
+  if (!isProjectArc(story) || !story.relatedProjectId) return false;
+  const projectId = story.relatedProjectId;
+  return !getWorkspaceProvider()
+    .getState()
+    .projects.some((p) => p.id === projectId);
 }
 
 /** A project arc the user has open. Work is happening. */
@@ -206,15 +244,19 @@ export const contextRules = {
   filterActiveStories(stories: Story[]): ContextItem<Story>[] {
     // Most recently touched arcs first: an arc that has not moved in weeks is
     // the least useful thing to spend prompt space on.
-    return stories
-      .filter((s) => s.status === "Active")
-      .slice()
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      .slice(0, getRetentionPolicy().context.maxStories)
-      .map((s) => ({
-        data: s,
-        inclusionReason: "Active Story",
-      }));
+    return (
+      stories
+        // Same reason as `extractGoals`: an arc for a project the user has
+        // deleted is not an active narrative, whatever its status field says.
+        .filter((s) => s.status === "Active" && !describesDeletedProject(s))
+        .slice()
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .slice(0, getRetentionPolicy().context.maxStories)
+        .map((s) => ({
+          data: s,
+          inclusionReason: "Active Story",
+        }))
+    );
   },
 
   /**
@@ -316,7 +358,7 @@ export const contextRules = {
 
     // 1. What the user is working on.
     stories
-      .filter((s) => s.status === "Active" && isProjectArc(s))
+      .filter((s) => s.status === "Active" && isProjectArc(s) && !describesDeletedProject(s))
       .forEach((s) => {
         // The project's name, not the arc's title. Every arc is titled
         // "Project Arc: Project Created", so building the goal from the title
