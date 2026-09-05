@@ -1,4 +1,4 @@
-import { parseDeclaration } from "./declaration";
+import { Declaration, parseDeclaration } from "./declaration";
 import { Memory } from "../validation/types";
 import { Story } from "../stories/types";
 import { isProjectArc } from "../stories/story-identity";
@@ -10,6 +10,26 @@ import {
 } from "./types";
 import { identityService } from "./identity-service";
 import { identityService as identityFoundationService } from "../identity";
+import { IdentityCategory } from "./identity-types";
+
+/**
+ * Declaration category -> the emergent store's own vocabulary.
+ *
+ * A `Record` keyed on `Declaration["category"]` rather than an if/else chain
+ * ending in a `"Trait"` default. That default was unreachable -- the union has
+ * five members and the chain handled all five -- but it was typed `any`, so
+ * adding a sixth category to `Declaration` would have compiled and silently
+ * written every instance of it to the emergent store as a Trait, and to the
+ * foundation store not at all. As a `Record`, that same change fails to
+ * compile here instead of diverging the two stores at runtime.
+ */
+const DECLARATION_IDENTITY_CATEGORY: Record<Declaration["category"], IdentityCategory> = {
+  Goal: "Aspiration",
+  Value: "Value",
+  Interest: "Interest",
+  Preference: "Preference",
+  Habit: "Habit",
+};
 
 // Helper to determine status based on linked stories or memories
 function determineStatus(stories: Story[], relatedStoryIds: string[]): UnderstandingStatus {
@@ -417,21 +437,31 @@ export const personalDeclarationRule: UnderstandingRule = {
       if (match) {
         fragments.push({
           canonicalKey: `${match.category.toLowerCase()}:${match.content.toLowerCase().replace(/\s+/g, "-")}`,
-          category: match.category as any,
+          category: match.category,
           confidence: "High",
           status: "Active",
           supportingMemoryIds: [memory.id],
           supportingStoryIds: [],
         });
 
-        try {
-          let identityCategory: any = "Trait";
-          if (match.category === "Goal") identityCategory = "Aspiration";
-          else if (match.category === "Value") identityCategory = "Value";
-          else if (match.category === "Interest") identityCategory = "Interest";
-          else if (match.category === "Preference") identityCategory = "Preference";
-          else if (match.category === "Habit") identityCategory = "Habit";
+        const identityCategory = DECLARATION_IDENTITY_CATEGORY[match.category];
 
+        // The two identity stores are written under separate guards so a
+        // partial write is attributable.
+        //
+        // One try/catch wrapped both. The emergent observation is written
+        // first, so a throw anywhere in the foundation half left it already
+        // committed and logged "Error updating identity" -- one line naming
+        // neither the store that failed nor the declaration, for a state where
+        // the emergent store holds a claim the identity graph does not. The
+        // stores had diverged and nothing said so.
+        //
+        // The foundation write stays conditional on the emergent one having
+        // succeeded, which is what the single try/catch did by falling through
+        // to the catch. Attempting it anyway would turn an emergent failure --
+        // today a consistent no-op -- into the mirror-image divergence.
+        let emergentWritten = false;
+        try {
           identityService.addObservation({
             category: identityCategory,
             name: match.content,
@@ -441,13 +471,57 @@ export const personalDeclarationRule: UnderstandingRule = {
             supportingMemoryIds: [memory.id],
             provenance: `Extracted via PersonalDeclarationRule from: "${text}"`,
           });
+          emergentWritten = true;
+        } catch (err) {
+          console.error(
+            `PersonalDeclarationRule: emergent identity write failed for ${identityCategory} ` +
+              `"${match.content}" (memory ${memory.id}). Neither store was updated.`,
+            err,
+          );
+        }
 
-          if (identityFoundationService) {
+        if (emergentWritten) {
+          try {
             let identity = identityFoundationService.getIdentity();
             if (!identity) {
               identity = identityFoundationService.createIdentity({});
             }
             const identityId = identity.id;
+
+            /**
+             * Attach the originating memory to the aspect's graph node.
+             *
+             * Every `create*` below already takes the memory id as
+             * `initialEvidenceIds`, and every one of them loses it.
+             * `IdentityGoalService.createGoal` and its siblings pass that array
+             * to `linkEvidenceToNode(nodeId, evidenceId)`, which looks the id up
+             * with `repository.getEvidence(id)` and returns false when it
+             * misses. A Memory id is not an `IdentityEvidence` id, no such
+             * record exists, the boolean is discarded, and the node ends with
+             * `evidenceIds: []`. `calculateConfidence` is then correct to report
+             * score 0 / "Unknown" -- there genuinely is no evidence.
+             *
+             * `addEvidence` is the call that creates the record rather than
+             * looking for one: `sourceType` "Memory" and `sourceId` the memory
+             * id are the designed pointer back to origin, so the evidence
+             * references the memory instead of copying it. It also refreshes
+             * confidence itself, so nothing here needs to call
+             * `calculateConfidence`.
+             *
+             * `initialEvidenceIds` is deliberately still passed. It populates
+             * the aspect's own `evidenceReferences` field, which is a separate
+             * record from the graph edge; dropping it would lose that while
+             * fixing this. The doomed `linkEvidenceToNode` call inside the
+             * identity services stays a no-op and belongs to that subsystem.
+             */
+            const attachEvidence = (aspect: { confidenceReference: string }): void => {
+              identityFoundationService.addEvidence(
+                aspect.confidenceReference,
+                "Memory",
+                memory.id,
+                text,
+              );
+            };
 
             if (match.category === "Goal") {
               const existingGoals = identityFoundationService.getGoals(identityId);
@@ -455,13 +529,15 @@ export const personalDeclarationRule: UnderstandingRule = {
                 (g: any) => g.title.toLowerCase() === match.content.toLowerCase(),
               );
               if (!exists) {
-                identityFoundationService.createGoal(
-                  identityId,
-                  match.content,
-                  `Explicitly declared goal: ${match.content}`,
-                  "Personal",
-                  "High",
-                  [memory.id],
+                attachEvidence(
+                  identityFoundationService.createGoal(
+                    identityId,
+                    match.content,
+                    `Explicitly declared goal: ${match.content}`,
+                    "Personal",
+                    "High",
+                    [memory.id],
+                  ),
                 );
               }
             } else if (match.category === "Interest") {
@@ -470,9 +546,11 @@ export const personalDeclarationRule: UnderstandingRule = {
                 (i: any) => i.topic.toLowerCase() === match.content.toLowerCase(),
               );
               if (!exists) {
-                identityFoundationService.createInterest(identityId, match.content, "Other", [
-                  memory.id,
-                ]);
+                attachEvidence(
+                  identityFoundationService.createInterest(identityId, match.content, "Other", [
+                    memory.id,
+                  ]),
+                );
               }
             } else if (match.category === "Preference") {
               const existingPrefs = identityFoundationService.getPreferences(identityId);
@@ -480,9 +558,11 @@ export const personalDeclarationRule: UnderstandingRule = {
                 (p: any) => p.value.toLowerCase() === match.content.toLowerCase(),
               );
               if (!exists) {
-                identityFoundationService.createPreference(identityId, "Other", match.content, [
-                  memory.id,
-                ]);
+                attachEvidence(
+                  identityFoundationService.createPreference(identityId, "Other", match.content, [
+                    memory.id,
+                  ]),
+                );
               }
             } else if (match.category === "Value") {
               const existingValues = identityFoundationService.getValues(identityId);
@@ -490,12 +570,14 @@ export const personalDeclarationRule: UnderstandingRule = {
                 (v: any) => v.name.toLowerCase() === match.content.toLowerCase(),
               );
               if (!exists) {
-                identityFoundationService.createValue(
-                  identityId,
-                  match.content,
-                  "Personal",
-                  [],
-                  [memory.id],
+                attachEvidence(
+                  identityFoundationService.createValue(
+                    identityId,
+                    match.content,
+                    "Personal",
+                    [],
+                    [memory.id],
+                  ),
                 );
               }
             } else if (match.category === "Habit") {
@@ -504,14 +586,29 @@ export const personalDeclarationRule: UnderstandingRule = {
                 (h: any) => h.name.toLowerCase() === match.content.toLowerCase(),
               );
               if (!exists) {
-                identityFoundationService.createHabit(identityId, match.content, "Other", [
-                  memory.id,
-                ]);
+                attachEvidence(
+                  identityFoundationService.createHabit(identityId, match.content, "Other", [
+                    memory.id,
+                  ]),
+                );
               }
+            } else {
+              // Same guarantee as DECLARATION_IDENTITY_CATEGORY, for the half
+              // that cannot be a lookup because each category calls a
+              // different method. A sixth `Declaration` category makes this
+              // assignment fail to compile rather than writing the emergent
+              // store and silently skipping the foundation store.
+              const unhandled: never = match.category;
+              void unhandled;
             }
+          } catch (err) {
+            console.error(
+              `PersonalDeclarationRule: foundation identity write failed for ${identityCategory} ` +
+                `"${match.content}" (memory ${memory.id}). The emergent store holds this ` +
+                `observation and the identity graph does not -- the two stores have diverged.`,
+              err,
+            );
           }
-        } catch (err) {
-          console.error("Error updating identity from PersonalDeclarationRule:", err);
         }
       }
     }
