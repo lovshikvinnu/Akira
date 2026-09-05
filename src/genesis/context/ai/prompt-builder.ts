@@ -61,7 +61,11 @@ export const promptBuilder = {
 
     if (selection.resolvedContext) {
       const resolvedBlock = this.serializeResolvedContext(selection.resolvedContext);
-      structuredSystemInstruction += `\n\n[RESOLVED CONTEXT]\n${resolvedBlock}`;
+      // A heading with nothing under it is worse than no heading: it tells the
+      // model a section exists and then says nothing in it.
+      if (resolvedBlock) {
+        structuredSystemInstruction += `\n\n[RESOLVED CONTEXT]\n${resolvedBlock}`;
+      }
     }
 
     if (selection.workspaceRelevant) {
@@ -202,7 +206,28 @@ export const promptBuilder = {
   },
 
   serializeResolvedContext(resolved: ResolvedContext): string {
-    let block = `Overall Confidence: ${resolved.overallConfidence}\n\n`;
+    // The score, only when something actually scored.
+    //
+    // `resolveUnifiedContext` averages whichever sub-contexts exist and falls
+    // back to `1.0` when there are none -- `confidenceCount > 0 ? mean : 1.0`.
+    // That default is "nothing contributed", but printed here it read as
+    // certainty, and on a workspace whose engines have produced nothing yet it
+    // was the entire block:
+    //
+    //   [RESOLVED CONTEXT]
+    //   Overall Confidence: 1
+    //
+    // A maximum-confidence claim with no subject, from no inputs. Measured on
+    // a real workspace through `contextResolutionService`, that was the whole
+    // of what the model received under that heading.
+    //
+    // Gated on provenance rather than on the number, because 1.0 is also a
+    // legitimate mean when every contributing engine is certain -- suppressing
+    // by value would hide the real case along with the empty one. The value
+    // itself is untouched: `initiative/rules.ts` gates on it, and this changes
+    // what is said rather than what is decided.
+    const contributed = Object.values(resolved.provenance).some((context) => Boolean(context));
+    let block = contributed ? `Overall Confidence: ${resolved.overallConfidence}\n\n` : "";
 
     const presence = resolved.provenance.presenceContext;
     if (presence) {
