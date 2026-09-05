@@ -47,6 +47,8 @@ const { identityService: observationService } =
   await import("../src/genesis/understanding/identity-service");
 const { identityBuilder } = await import("../src/genesis/understanding/identity-builder");
 const { hypothesesService } = await import("../src/genesis/understanding/hypotheses");
+const { promptBuilder } = await import("../src/genesis/context/ai/prompt-builder");
+const { contextService } = await import("../src/genesis/context/context-service");
 const { setRetentionPolicy, resetRetentionPolicy, getRetentionPolicy } =
   await import("../src/genesis/retention/policy");
 
@@ -237,5 +239,52 @@ describe("a completed project is evidence of progress, not of achievement", () =
       "a project completing was treated as the user settling the question",
     ).not.toBe("Confirmed");
     expect(hypothesis!.status).toBe("Refined");
+  });
+});
+
+describe("the distinction survives all the way into the prompt", () => {
+  /**
+   * Everything above tests `extractGoals`. This tests the string the model is
+   * actually handed, because a label that never leaves the context package
+   * changes nothing about what AKIRA believes.
+   *
+   * The live path is `aiContextEngine` -> `promptBuilder.buildSystemInstruction`
+   * -> `promptBuilder.serializeContextPackage`. `context-engine` carried a
+   * second, byte-similar `serializeContextPackage` with the same Goals block
+   * and no callers at all, which is the copy a maintainer would most likely
+   * have edited -- it sits in the file whose name sounds authoritative. It has
+   * been deleted; this case is what pins the surviving one to its behaviour.
+   */
+  it("prints both kinds under Goals, each with its own reason", () => {
+    akira.addNote({ content: "I want to become a pilot" });
+    project("Pilot Licence");
+
+    const contextPackage = contextService.getActiveContext();
+    expect(contextPackage, "no context package to build a prompt from").toBeTruthy();
+
+    const instruction = promptBuilder.buildSystemInstruction(
+      "what should I do next",
+      { contextPackage: contextPackage! },
+      {
+        intent: null,
+        confidence: 1,
+        ambiguous: false,
+        clarificationRequired: false,
+        candidates: [],
+      },
+    );
+
+    expect(instruction).toContain("Goals:");
+    expect(instruction).toContain(`become a pilot (Reason: ${STATED_ASPIRATION_REASON})`);
+    expect(instruction).toContain(
+      `Complete Project Arc: Pilot Licence (Reason: ${ACTIVE_PROJECT_REASON})`,
+    );
+
+    // The failure this guards is subtle: both lines present, both labelled the
+    // same, which reads as working and loses the distinction entirely.
+    expect(
+      instruction.includes(`become a pilot (Reason: ${ACTIVE_PROJECT_REASON})`),
+      "a stated aspiration was presented to the model as active work",
+    ).toBe(false);
   });
 });
