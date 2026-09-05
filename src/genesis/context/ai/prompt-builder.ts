@@ -373,14 +373,21 @@ export const promptBuilder = {
     // needs no policy about what an empty engine believes.
     if (!body) return "";
 
-    // The model is told a confidence only when one was measured, and told what
-    // it spans. `basis` is how many context engines contributed something real;
-    // a score with no basis is not reported at all, because "we are certain"
-    // and "we have nothing" must not arrive as the same sentence.
-    const { basis, score } = resolved.certainty;
-    if (score === null) return body;
-
-    const engines = basis === 1 ? "1 context engine" : `${basis} context engines`;
-    return `Overall Confidence: ${score} (across ${engines})\n\n${body}`;
+    // No aggregate confidence line.
+    //
+    // There is no single proposition a cross-domain number would be about.
+    // What used to print here was the mean of presence certainty, goal
+    // definitional clarity, knowledge lifecycle stage and habit stability --
+    // four different questions averaged into one figure that answered none of
+    // them, and which read to the model as a summary of how well it knows the
+    // user.
+    //
+    // Nothing is lost by dropping it. Every domain already states its own
+    // confidence beside the thing it describes -- `Presence ... Confidence:`,
+    // `• Goal: ... Confidence:`, `• Contact: ... Confidence:` -- and those are
+    // certainties about a stated subject. `certainty.situational` still exists
+    // for `initiative/rules.ts`, which is asking a real question of it; the
+    // model was not.
+    return body;
   },
 };

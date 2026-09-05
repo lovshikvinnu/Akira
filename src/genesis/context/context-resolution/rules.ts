@@ -192,47 +192,48 @@ export function resolveUnifiedContext(
   }
 
   // Compute composite confidence across inputs
-  let confidenceCount = 0;
-  let confidenceSum = 0;
 
   const contexts = [presence, state, goals, knowledge, relationships, habits, reflection];
-  // An engine counts when it has something to be certain about, not when it
-  // merely exists.
+  // Situational certainty: presence and companion state, and nothing else.
   //
-  // This used to count any non-null context. `context/knowledge` and
-  // `context/relationships` are initialized at boot, have no producer, hold
-  // nothing, and each report `confidence: 1` -- so on an install with no user
-  // data they were the only two contributors and the mean was 1.0, maximum
-  // certainty assembled entirely out of absence. `basis` is how many records
-  // the engine's own average was taken over; zero means its number was a
-  // default rather than a measurement.
+  // This used to average every engine that had content into one score. They
+  // measure different propositions -- presence certainty, goal definitional
+  // clarity, knowledge lifecycle stage, habit stability -- and the mean of
+  // those answers no question anyone asks. It existed because
+  // `initiative/rules.ts` wanted a number, and it was handed one that had
+  // nothing to do with whether interrupting was appropriate: a vaguely worded
+  // goal made AKIRA less willing to speak.
   //
-  // Presence and companion state carry no `basis`. They describe the session
-  // that is happening rather than a collection that may be empty, so their
-  // existence is their basis.
-  contexts.forEach((ctx) => {
-    if (!ctx) return;
+  // These two describe the moment the user is in, which is the proposition
+  // initiative is actually evaluating. Neither carries a `basis` field, because
+  // neither is an average over a collection that might be empty -- they either
+  // resolved for this session or they did not, so presence is the basis.
+  //
+  // The other engines are not replaced by a sibling field. Nothing consumed a
+  // cross-domain number for a real decision, and the prompt prints each
+  // domain's own confidence next to the thing it describes, so there was
+  // nothing to preserve.
+  const situationalSources = [
+    presence ? presence.confidence : null,
+    state ? state.contextConfidence : null,
+  ].filter((value): value is number => typeof value === "number");
 
-    const hasBasis = "basis" in ctx ? (ctx as { basis: number }).basis > 0 : true;
-    if (!hasBasis) return;
+  let situationalScore =
+    situationalSources.length > 0
+      ? Number(
+          (situationalSources.reduce((a, b) => a + b, 0) / situationalSources.length).toFixed(2),
+        )
+      : null;
 
-    const conf =
-      "contextConfidence" in ctx
-        ? (ctx as { contextConfidence: number }).contextConfidence
-        : (ctx as { confidence: number }).confidence;
-    confidenceSum += conf;
-    confidenceCount++;
-  });
-
-  let score = confidenceCount > 0 ? Number((confidenceSum / confidenceCount).toFixed(2)) : null;
-
-  // CONFLICT RESOLUTION: Lower overall certainty when contradictions exist.
-  // Nothing can be deducted from a certainty that was never established.
-  if (conflictsExposed.length > 0 && score !== null) {
-    score = Math.max(0.1, Number((score - 0.15).toFixed(2)));
+  // CONFLICT RESOLUTION: Lower certainty when contradictions exist. Nothing can
+  // be deducted from a certainty that was never established.
+  if (conflictsExposed.length > 0 && situationalScore !== null) {
+    situationalScore = Math.max(0.1, Number((situationalScore - 0.15).toFixed(2)));
   }
 
-  const certainty: ContextCertainty = { basis: confidenceCount, score };
+  const certainty: ContextCertainty = {
+    situational: { basis: situationalSources.length, score: situationalScore },
+  };
 
   return {
     origin: "ContextResolutionEngine",

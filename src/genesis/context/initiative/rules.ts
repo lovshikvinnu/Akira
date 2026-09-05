@@ -28,7 +28,12 @@ export function evaluateInitiative(resolved: ResolvedContext | null): Initiative
     return defaultDecision;
   }
 
-  // 0. Nothing known about the context means no grounds to interrupt.
+  // 0. Nothing known about the *situation* means no grounds to interrupt.
+  //
+  // Situational certainty is presence plus companion state -- how well the
+  // moment the user is in is understood. It used to be an average across every
+  // engine, so a vaguely worded goal or an empty knowledge registry moved the
+  // decision about whether to speak. Those are answers to other questions.
   //
   // This is the case the old scalar could not express. `overallConfidence` fell
   // back to 1.0 when no engine contributed, so an install with no user data
@@ -37,15 +42,15 @@ export function evaluateInitiative(resolved: ResolvedContext | null): Initiative
   //
   // Silence is the answer rather than a low score, because a low score is a
   // different claim: it says the evidence is weak, and there is no evidence.
-  if (resolved.certainty.score === null) {
+  if (resolved.certainty.situational.score === null) {
     return {
       ...defaultDecision,
       interventionNecessity:
-        "No context engine has contributed anything yet, so there is nothing to act on.",
+        "Nothing is known about the user's current situation, so there is no basis to interrupt.",
     };
   }
 
-  const confidence = resolved.certainty.score;
+  const confidence = resolved.certainty.situational.score;
 
   // 1. Evaluate Timing: If focus metrics indicate deep focus, block all proactive actions
   if (resolved.currentFocus && confidence > 0.85) {

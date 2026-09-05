@@ -26,37 +26,49 @@ export type ResolutionStatus =
  * point of the type: the old scalar let a caller read a default for absence as
  * a measurement without ever deciding to.
  */
-export interface ContextCertainty {
+export interface DomainCertainty {
   /** Contributing engines that actually had something to be certain about. */
   basis: number;
   /** Mean over those engines. `null` when `basis` is 0. */
   score: number | null;
 }
 
+export interface ContextCertainty {
+  /**
+   * How well AKIRA understands the user's situation right now.
+   *
+   * Presence and companion state, and deliberately nothing else. This exists
+   * to answer one question -- is there enough understanding of the moment to
+   * justify interrupting -- and those are the two engines that describe the
+   * moment.
+   *
+   * The previous version averaged every context engine into a single score:
+   * presence certainty, companion-state certainty, goal *definitional
+   * clarity*, knowledge *lifecycle stage*, habit stability, reflection
+   * observation certainty. Those are answers to different questions, and the
+   * mean of them answers none. How clearly a goal is worded is not evidence
+   * about whether now is a good time to speak.
+   *
+   * There is no cross-domain replacement because no consumer needed one. The
+   * prompt does not get an aggregate at all: it already prints each domain's
+   * own confidence beside the thing it describes -- `• Goal: ... Confidence:`,
+   * `• Contact: ... Confidence:`, `Presence ... Confidence:` -- which is the
+   * certainty a reader can actually use. A universal number was kept only
+   * because the code expected one.
+   */
+  situational: DomainCertainty;
+}
+
 export interface ResolvedContext {
   origin: "ContextResolutionEngine";
   status: ResolutionStatus;
   /**
-   * How certain the resolved context is, and whether that is a measurement.
+   * The certainty a consumer needs for the decision it is making.
    *
-   * This replaced `overallConfidence: number`, which could not distinguish
-   * "every engine is sure" from "no engine had anything to say". The old value
-   * was the mean of whichever sub-contexts existed and fell back to `1.0` when
-   * there were none -- so an install with no data reported maximum certainty,
-   * and two permanently-empty engines (`context/knowledge` and
-   * `context/relationships`, neither of which has a producer) were enough to
-   * make that mean look computed.
-   *
-   * A number alone cannot carry the difference, because the difference is not a
-   * quantity. `basis` says how many engines contributed something real; `score`
-   * is the mean over those and is `null` when there were none.
-   *
-   * One further caveat this does NOT fix, recorded so it is not mistaken for
-   * settled: the engines that do contribute are measuring different things --
-   * a goal's definitional clarity, a knowledge node's lifecycle stage, how sure
-   * the presence engine is that the user just returned. Averaging them is still
-   * a questionable operation. What has changed is that it is now an average of
-   * things that exist.
+   * See {@link ContextCertainty}. This replaced a scalar `overallConfidence`
+   * that could not distinguish "every engine is sure" from "no engine had
+   * anything to say", and then a single aggregate that could not distinguish
+   * one proposition from another.
    */
   certainty: ContextCertainty;
 
