@@ -219,6 +219,85 @@ describe("chat boundary options", () => {
     );
   });
 
+  it("O5: is the zero-output claim conditional on there being no project session", () => {
+    resetRetentionPolicy();
+
+    // chat.tsx is the *companion workspace*. An active project session is the
+    // normal case there, not the exception, so a zero-output finding measured
+    // free-standing needs that condition stated.
+    const arm = (attachToProject: boolean) => {
+      freshWorkspace();
+      akira.addProject({ name: "Session Arm" });
+      const pid = akira.getState().lastProjectId as string;
+      for (let i = 0; i < 10; i++) completeTask(pid, `sa-${i}`);
+      for (let i = 0; i < 20; i++) chatTurn(`question ${i}`, attachToProject ? pid : null);
+
+      const chatIds = new Set(
+        memoryService.getMemories().filter((m) => isChat(m.description)).map((m) => m.id),
+      );
+      recallBuilder.rebuildRecallCandidates();
+      const cache = recallService.getRecallCandidates();
+      const active = cache.filter((c) => c.status === "Active" && chatIds.has(c.memoryId));
+      const prompt = contextRules
+        .filterActiveRecallCandidates(cache)
+        .filter((i) => chatIds.has(i.data.memoryId));
+      const rels = relationshipService
+        .getRelationships()
+        .filter((r) => chatIds.has(r.sourceMemoryId) || chatIds.has(r.targetMemoryId));
+      const arcSeats = storyService
+        .getStories()
+        .flatMap((st) => st.relatedMemoryIds)
+        .filter((id) => chatIds.has(id)).length;
+      return { active: active.length, prompt: prompt.length, rels: rels.length, arcSeats };
+    };
+
+    const free = arm(false);
+    const attached = arm(true);
+
+    log("");
+    log("=== O5  zero output, or zero output without a project session ===");
+    log(`free-standing chat   active recall ${free.active}, prompt ${free.prompt}, relationships ${free.rels}, arc seats ${free.arcSeats}`);
+    log(`project-attached     active recall ${attached.active}, prompt ${attached.prompt}, relationships ${attached.rels}, arc seats ${attached.arcSeats}`);
+    log("  -- chat.tsx passes currentProjectId, so attached is the companion-session case");
+  });
+
+  it("O6: does a memory keep Story Influence after the arc evicts it", () => {
+    resetRetentionPolicy();
+    freshWorkspace();
+    setRetentionPolicy({ maxMemoriesPerStory: 12, maxMemories: 500, maxCoreMemories: 2000 });
+
+    // Chat 4 flagged this as retention territory: importance is not
+    // recalculated when a story drops a member, so a signal derived from
+    // membership may outlive the membership.
+    for (let i = 0; i < 4; i++) akira.addNote(`A written reflection number ${i}.`);
+    const notes = memoryService.getMemories().filter((m) => m.relatedNoteId);
+    const before = notes.map((m) => ({
+      id: m.id,
+      inArc: Boolean(storyService.findStoryContainingMemory(m.id)),
+      hasStoryInfluence: Boolean(
+        importanceService.getImportance(m.id)?.signals.some((sg) => sg.type === "Story Influence"),
+      ),
+    }));
+
+    for (let i = 0; i < 30; i++) chatTurn(`flood ${i}`);
+
+    const after = before.map((b) => ({
+      inArc: Boolean(storyService.findStoryContainingMemory(b.id)),
+      hasStoryInfluence: Boolean(
+        importanceService.getImportance(b.id)?.signals.some((sg) => sg.type === "Story Influence"),
+      ),
+    }));
+
+    log("");
+    log("=== O6  stale Story Influence after arc eviction ===");
+    log(`notes before flood: in arc ${before.filter((b) => b.inArc).length}/${before.length}, with Story Influence ${before.filter((b) => b.hasStoryInfluence).length}`);
+    log(`notes after flood:  in arc ${after.filter((b) => b.inArc).length}/${after.length}, with Story Influence ${after.filter((b) => b.hasStoryInfluence).length}`);
+    const stale = after.filter((a) => !a.inArc && a.hasStoryInfluence).length;
+    log(`memories holding Story Influence while NOT in any arc: ${stale}`);
+
+    resetRetentionPolicy();
+  });
+
   it("O4: is B safe -- chat as Episodic against the task-completion substrate", () => {
     resetRetentionPolicy();
     freshWorkspace();
