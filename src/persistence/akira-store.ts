@@ -268,32 +268,34 @@ function persist(operation: string, run: () => Promise<unknown>): void {
   // until the previous write settles rather than invoked immediately -- the one
   // timing property this function used to promise, and it is the one that was
   // wrong.
-  const task = writeChain.then(() => runInServerRuntime(run)).then(
-    () => {
-      observeWrite(operation);
-    },
-    (err: unknown) => {
-      // Console first, health second, so the change is additive: the existing
-      // report happens exactly as before regardless of what health does.
-      //
-      // Before this, a failed durable write was reported here and nowhere else.
-      // The caller had already mutated in-memory state and returned, so it
-      // believed the write had landed -- measured at 12 events in memory
-      // against 11 on disk -- and `settlePendingPersistence()` resolved rather
-      // than rejecting, so no lifecycle boundary could notice either. The
-      // health registry is where a failed write is now held: it keeps the error
-      // as evidence, counts consecutive failures, and turns degraded into
-      // critical on its own threshold.
-      //
-      // The event-bus path is already observed this way. `EventBusObserver`
-      // derives health from delivery outcomes and handles async subscribers
-      // correctly, but `persist` is not a bus delivery -- it is started inside
-      // `set()` and returns immediately -- so this write-through was the one
-      // durable path with no observer.
-      console.error(`[akira-store] Persistence write "${operation}" failed:`, err);
-      observeWrite(operation, err);
-    },
-  );
+  const task = writeChain
+    .then(() => runInServerRuntime(run))
+    .then(
+      () => {
+        observeWrite(operation);
+      },
+      (err: unknown) => {
+        // Console first, health second, so the change is additive: the existing
+        // report happens exactly as before regardless of what health does.
+        //
+        // Before this, a failed durable write was reported here and nowhere else.
+        // The caller had already mutated in-memory state and returned, so it
+        // believed the write had landed -- measured at 12 events in memory
+        // against 11 on disk -- and `settlePendingPersistence()` resolved rather
+        // than rejecting, so no lifecycle boundary could notice either. The
+        // health registry is where a failed write is now held: it keeps the error
+        // as evidence, counts consecutive failures, and turns degraded into
+        // critical on its own threshold.
+        //
+        // The event-bus path is already observed this way. `EventBusObserver`
+        // derives health from delivery outcomes and handles async subscribers
+        // correctly, but `persist` is not a bus delivery -- it is started inside
+        // `set()` and returns immediately -- so this write-through was the one
+        // durable path with no observer.
+        console.error(`[akira-store] Persistence write "${operation}" failed:`, err);
+        observeWrite(operation, err);
+      },
+    );
 
   // The chain advances whether the write succeeded or failed, because `task`
   // has both handlers and therefore always resolves.
