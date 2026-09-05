@@ -48,6 +48,36 @@ function writtenReflections(story: Story): number {
   return n;
 }
 
+/**
+ * Event types that represent work being done on a project.
+ *
+ * An allowlist rather than a list of exclusions, for the reason
+ * `classifyDurability` gives about durability: a new event type should have to
+ * earn its way into a claim about the user rather than inherit it by being
+ * unlisted. `declaration_captured` is the one that made this necessary and is
+ * deliberately absent -- saying what you intend to do is not doing it.
+ */
+const WORK_EVENT_TYPES: ReadonlySet<string> = new Set([
+  "task_completed",
+  "project_created",
+  "project_updated",
+  "project_continued",
+  "mission_completed",
+  "note_created",
+  "note_edited",
+]);
+
+/** How many of a story's members represent work on the project. */
+function workMemories(story: Story): number {
+  const memories = memoryService.getMemories();
+  const members = new Set(story.relatedMemoryIds);
+  let n = 0;
+  for (const memory of memories) {
+    if (members.has(memory.id) && WORK_EVENT_TYPES.has(memory.eventType)) n += 1;
+  }
+  return n;
+}
+
 export const identityRules: IdentityRule[] = [
   {
     name: "Reflective Trait Evaluation",
@@ -84,14 +114,27 @@ export const identityRules: IdentityRule[] = [
   {
     name: "Deep Work Focus Style Evaluation",
     evaluateStory(story) {
-      if (isProjectArc(story) && story.relatedMemoryIds.length >= 3) {
+      // Counted from work, not from the size of the arc -- the same defect the
+      // Reflective rule had, in the same shape, and still live here.
+      //
+      // A project arc gathers everything carrying the project's id, and since
+      // the chat boundary landed that includes `declaration_captured`: an
+      // aspiration stated while a project session is open is filed under that
+      // project. This rule's own provenance says "work milestones and
+      // sessions", and a stated intention is neither.
+      //
+      // Measured before this filter: three aspirations spoken during a session
+      // took the arc from 4 members to 7 and the confidence from 0.60 to 0.75,
+      // with no work done in between.
+      const worked = workMemories(story);
+      if (isProjectArc(story) && worked >= 3) {
         return {
           detected: true,
           category: "WorkStyle",
           observationName: "Deep Work Focus",
           value: "Active",
-          confidence: Math.min(1.0, 0.4 + story.relatedMemoryIds.length * 0.05),
-          provenance: `Inferred Deep Work focus because project narrative "${story.title}" gathered ${story.relatedMemoryIds.length} work milestones and sessions.`,
+          confidence: Math.min(1.0, 0.4 + worked * 0.05),
+          provenance: `Inferred Deep Work focus because project narrative "${story.title}" gathered ${worked} work milestones and sessions.`,
         };
       }
       return { shouldCluster: false } as any;

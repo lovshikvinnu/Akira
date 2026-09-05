@@ -144,6 +144,72 @@ describe("A: the Reflective trait is evidenced by reflections", () => {
     expect(reflective()!.confidence).toBeGreaterThan(two);
   });
 
+  it("does not credit an aspiration as work on a project", () => {
+    // The same defect as the Reflective one, in the sibling rule, found while
+    // tracing the Reflective mechanism. A project arc gathers everything
+    // carrying the project's id, and a declaration made while a session is open
+    // carries it -- so an intention was counted as "work milestones and
+    // sessions", which is what the rule's own provenance calls its evidence.
+    akira.addProject({ name: "Sibling Rule" });
+    const projectId = akira.getState().lastProjectId as string;
+    for (let i = 0; i < 3; i++) {
+      const title = `sr-${i}`;
+      akira.addTaskDetails({ title, projectId });
+      const task = akira.getState().tasks.find((t) => t.title === title);
+      if (task) akira.toggleTask(task.id);
+    }
+    identityBuilder.flushDirtyStories();
+
+    const deepWork = () =>
+      identityService.getObservations().find((o) => o.name === "Deep Work Focus");
+    const before = deepWork()?.confidence;
+    expect(before).toBeDefined();
+
+    const arcBefore = storyService
+      .getStories()
+      .find((st) => st.title.startsWith("Project Arc:"))!.relatedMemoryIds.length;
+
+    for (const t of [
+      "My goal is to learn Verilog",
+      "I want to become a pilot",
+      "My dream is to ship AKIRA",
+    ]) {
+      eventService.record("declaration_captured", "Declaration Captured", t, projectId);
+    }
+    identityBuilder.flushDirtyStories();
+
+    const arcAfter = storyService
+      .getStories()
+      .find((st) => st.title.startsWith("Project Arc:"))!.relatedMemoryIds.length;
+
+    // The arc genuinely grew -- this is not a fixture that failed to add them.
+    expect(arcAfter).toBeGreaterThan(arcBefore);
+    // Before the fix this went 0.60 -> 0.75 with no work done.
+    expect(deepWork()?.confidence).toBe(before);
+  });
+
+  it("still credits real work on a project", () => {
+    akira.addProject({ name: "Real Work Counts" });
+    const projectId = akira.getState().lastProjectId as string;
+    const complete = (title: string) => {
+      akira.addTaskDetails({ title, projectId });
+      const task = akira.getState().tasks.find((t) => t.title === title);
+      if (task) akira.toggleTask(task.id);
+    };
+    for (let i = 0; i < 3; i++) complete(`rw-${i}`);
+    identityBuilder.flushDirtyStories();
+    const three = identityService.getObservations().find((o) => o.name === "Deep Work Focus")!
+      .confidence;
+
+    for (let i = 3; i < 6; i++) complete(`rw-${i}`);
+    identityBuilder.flushDirtyStories();
+
+    // The fix must not over-reach: work still moves the number.
+    expect(
+      identityService.getObservations().find((o) => o.name === "Deep Work Focus")!.confidence,
+    ).toBeGreaterThan(three);
+  });
+
   it("holds across reconstruction, and repeated reconstruction", () => {
     akira.addNote("Reflection one.");
     akira.addNote("Reflection two.");
