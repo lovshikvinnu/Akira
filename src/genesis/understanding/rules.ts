@@ -1,3 +1,4 @@
+import { parseDeclaration } from "./declaration";
 import { Memory } from "../validation/types";
 import { Story } from "../stories/types";
 import { isProjectArc } from "../stories/story-identity";
@@ -365,196 +366,27 @@ export const personalDeclarationRule: UnderstandingRule = {
   evaluate(memories, stories) {
     const fragments: UnderstandingFragment[] = [];
 
-    const parseDeclaration = (text: string) => {
-      let clean = text.trim();
-      const prefixes = [
-        "User query submitted to AKIRA:",
-        "User query:",
-        "Query submitted to AKIRA:",
-        "User query submitted:",
-      ];
-      for (const prefix of prefixes) {
-        if (clean.toLowerCase().startsWith(prefix.toLowerCase())) {
-          clean = clean.slice(prefix.length).trim();
-        }
-      }
-
-      // Strip surrounding quotes
-      clean = clean.replace(/^["']|["']$/g, "").trim();
-
-      // Strip trailing punctuation
-      clean = clean.replace(/[^\w\s]+$/, "").trim();
-      const lower = clean.toLowerCase();
-
-      const normalizePayload = (payload: string) => {
-        const index = clean.toLowerCase().indexOf(payload.toLowerCase());
-        let normalized = payload.trim();
-        if (index === 0 && normalized.length > 0) {
-          const first = normalized.charAt(0);
-          if (
-            normalized.length > 1 &&
-            normalized.charAt(1) === normalized.charAt(1).toUpperCase() &&
-            normalized.charAt(1) !== " "
-          ) {
-            // Keep acronyms/proper nouns as is
-          } else {
-            normalized = first.toLowerCase() + normalized.slice(1);
-          }
-        }
-        return normalized.replace(/\s+/g, " ");
-      };
-
-      // Goal
-      if (lower.startsWith("my dream is ")) {
-        let content = clean.slice("my dream is ".length).trim();
-        if (content.toLowerCase().startsWith("to ")) content = content.slice(3).trim();
-        if (content) return { category: "Goal", content: normalizePayload(content) };
-      }
-      if (lower.startsWith("my goal is ")) {
-        let content = clean.slice("my goal is ".length).trim();
-        if (content.toLowerCase().startsWith("to ")) content = content.slice(3).trim();
-        if (content) return { category: "Goal", content: normalizePayload(content) };
-      }
-      if (lower.startsWith("i want to become ")) {
-        const content = clean.slice("i want to become ".length).trim();
-        if (content) return { category: "Goal", content: "become " + normalizePayload(content) };
-      }
-      if (lower.startsWith("i aspire to ")) {
-        const content = clean.slice("i aspire to ".length).trim();
-        if (content) return { category: "Goal", content: normalizePayload(content) };
-      }
-      if (lower.startsWith("my ambition is ")) {
-        let content = clean.slice("my ambition is ".length).trim();
-        if (content.toLowerCase().startsWith("to ")) content = content.slice(3).trim();
-        if (content) return { category: "Goal", content: normalizePayload(content) };
-      }
-      if (lower.startsWith("i hope to become ")) {
-        const content = clean.slice("i hope to become ".length).trim();
-        if (content) return { category: "Goal", content: "become " + normalizePayload(content) };
-      }
-      if (lower.startsWith("i plan to become ")) {
-        const content = clean.slice("i plan to become ".length).trim();
-        if (content) return { category: "Goal", content: "become " + normalizePayload(content) };
-      }
-      if (lower.endsWith(" is my dream")) {
-        const content = clean.slice(0, clean.length - " is my dream".length).trim();
-        if (content) return { category: "Goal", content: normalizePayload(content) };
-      }
-      if (lower.endsWith(" is my goal")) {
-        const content = clean.slice(0, clean.length - " is my goal".length).trim();
-        if (content) return { category: "Goal", content: normalizePayload(content) };
-      }
-
-      // Interest
-      if (lower.startsWith("i love ")) {
-        const content = clean.slice("i love ".length).trim();
-        if (content && content.toLowerCase() !== "it") {
-          return { category: "Interest", content: normalizePayload(content) };
-        }
-      }
-      if (lower.startsWith("i'm interested in ")) {
-        const content = clean.slice("i'm interested in ".length).trim();
-        if (content) return { category: "Interest", content: normalizePayload(content) };
-      }
-      if (lower.startsWith("i am interested in ")) {
-        const content = clean.slice("i am interested in ".length).trim();
-        if (content) return { category: "Interest", content: normalizePayload(content) };
-      }
-      if (lower.startsWith("i enjoy ")) {
-        const content = clean.slice("i enjoy ".length).trim();
-        if (content) return { category: "Interest", content: normalizePayload(content) };
-      }
-
-      // Preference
-      if (lower.startsWith("i prefer ")) {
-        const content = clean.slice("i prefer ".length).trim();
-        if (content) return { category: "Preference", content: normalizePayload(content) };
-      }
-      if (lower.startsWith("i like ")) {
-        const content = clean.slice("i like ".length).trim();
-        if (content) return { category: "Preference", content: normalizePayload(content) };
-      }
-      if (lower.startsWith("i dislike ")) {
-        const content = clean.slice("i dislike ".length).trim();
-        if (content)
-          return { category: "Preference", content: "dislike " + normalizePayload(content) };
-      }
-      if (lower.startsWith("i hate ")) {
-        const content = clean.slice("i hate ".length).trim();
-        if (content)
-          return { category: "Preference", content: "hate " + normalizePayload(content) };
-      }
-
-      // Value
-      if (lower.startsWith("i value ")) {
-        const content = clean.slice("i value ".length).trim();
-        if (content) return { category: "Value", content: normalizePayload(content) };
-      }
-      if (lower.startsWith("i believe ")) {
-        let content = clean.slice("i believe ".length).trim();
-        if (content.toLowerCase().startsWith("in ")) content = content.slice(3).trim();
-        if (content) return { category: "Value", content: normalizePayload(content) };
-      }
-      if (lower.endsWith(" is important to me")) {
-        const content = clean.slice(0, clean.length - " is important to me".length).trim();
-        if (content) return { category: "Value", content: normalizePayload(content) };
-      }
-      if (lower.startsWith("what's important to me is ")) {
-        const content = clean.slice("what's important to me is ".length).trim();
-        if (content) return { category: "Value", content: normalizePayload(content) };
-      }
-      if (lower.startsWith("what is important to me is ")) {
-        const content = clean.slice("what is important to me is ".length).trim();
-        if (content) return { category: "Value", content: normalizePayload(content) };
-      }
-      if (lower.startsWith("i care deeply about ")) {
-        const content = clean.slice("i care deeply about ".length).trim();
-        if (content) return { category: "Value", content: normalizePayload(content) };
-      }
-
-      // Habit
-      if (lower.startsWith("i usually ")) {
-        const content = clean.slice("i usually ".length).trim();
-        if (content) return { category: "Habit", content: normalizePayload(content) };
-      }
-      if (lower.startsWith("i always ")) {
-        const content = clean.slice("i always ".length).trim();
-        if (content) return { category: "Habit", content: normalizePayload(content) };
-      }
-      if (lower.startsWith("every morning i ")) {
-        const content = clean.slice("every morning i ".length).trim();
-        if (content) return { category: "Habit", content: normalizePayload(content) };
-      }
-      if (lower.startsWith("every day i ")) {
-        const content = clean.slice("every day i ".length).trim();
-        if (content) return { category: "Habit", content: normalizePayload(content) };
-      }
-      if (lower.endsWith(" every morning")) {
-        let content = clean.slice(0, clean.length - " every morning".length).trim();
-        if (content.toLowerCase().startsWith("i ")) content = content.slice(2).trim();
-        if (content) return { category: "Habit", content: normalizePayload(content) };
-      }
-      if (lower.endsWith(" every day")) {
-        let content = clean.slice(0, clean.length - " every day".length).trim();
-        if (content.toLowerCase().startsWith("i ")) content = content.slice(2).trim();
-        if (content) return { category: "Habit", content: normalizePayload(content) };
-      }
-
-      return null;
-    };
-
     for (const memory of memories) {
+      // Two parse sites, not three.
+      //
+      // The third split the description on "User query submitted to AKIRA: "
+      // and re-parsed the remainder. It was written for chat turns, which
+      // reached here wrapped in that string -- but `parseDeclaration` strips
+      // the same prefix and the same surrounding quotes as its first act, so
+      // site 3 could only run on input site 1 had already rejected, after
+      // normalising it to the identical string. `tests/genesis-declaration-parser.test.ts`
+      // runs both pipelines over every sentence-and-wrapper combination and
+      // requires them to agree; it passed before the site was removed, which
+      // is what makes it evidence rather than a description of this code.
+      //
+      // Chat no longer arrives here at all -- a `chat_message` is transient and
+      // produces no memory -- but the prefix stripping stays in the parser for
+      // the wrapped memories already in the durable stream, which age out
+      // rather than being migrated.
       const text = memory.description || "";
       let match = parseDeclaration(text);
       if (!match && memory.title) {
         match = parseDeclaration(memory.title);
-      }
-      if (!match && text.includes("User query submitted to AKIRA: ")) {
-        const queryText = text.split("User query submitted to AKIRA: ")[1];
-        if (queryText) {
-          const cleanQuery = queryText.replace(/^["']|["']$/g, "");
-          match = parseDeclaration(cleanQuery);
-        }
       }
 
       if (match) {
