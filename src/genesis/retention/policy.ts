@@ -320,6 +320,20 @@ const DURABILITY_BY_EVENT_TYPE: Readonly<Record<string, DurabilityClass>> = Obje
   // unknown-type default below: the default is a safety net for types nobody
   // has considered, and this one has been considered.
   chat_message: "Transient",
+
+  // The Companion State Engine's own session handoff. Same reasoning as
+  // `chat_message` one line up, and it arrived the same way: published as
+  // `note_created`, so it inherited a user note's Core durability.
+  //
+  // It is not a note. `bootstrap()` runs on every new chat as well as every
+  // cold start, and over 100 sessions each writing one real note it was 101 of
+  // 201 durable events -- and 101 of 201 Memories, classified "Reflection
+  // Worthy" and pulled into a story. Half the Core tier, and a cognitive layer
+  // reasoning about the user from the system's own plumbing.
+  //
+  // Listed explicitly rather than left to the Episodic default: the default is
+  // for types nobody has considered, and this one has been measured.
+  companion_bootstrapped: "Transient",
 });
 
 /**

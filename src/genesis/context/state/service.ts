@@ -67,9 +67,17 @@ class CompanionStateService {
     // Publish initialization event
     stateEvents.publish("state_initialized", state);
 
-    // Record system update
+    // Record system update.
+    //
+    // `companion_bootstrapped`, not `note_created`. Durability is decided by
+    // event type, so publishing this as a note gave an internal handoff the
+    // Core tier that exists to protect what the user actually wrote -- and made
+    // it indistinguishable from a note downstream, where it promoted to a
+    // Memory, was classified "Reflection Worthy" and reached stories. It is
+    // still published to every subscriber; it is no longer written down or
+    // reasoned about. See `DURABILITY_BY_EVENT_TYPE`.
     eventService.record(
-      "note_created",
+      "companion_bootstrapped",
       "Companion State Bootstrapped",
       `Handoff complete. Sole ownership transitioned to Companion State. Intent: ${state.currentFocus}`,
       state.activeProject?.id,
