@@ -6,6 +6,7 @@ import { IntentResolution } from "../../understanding/intent-resolver";
 import { ContextPackage } from "../types";
 import { ResolvedContext } from "../context-resolution/types";
 import { memoryService } from "../../memory/memory-service";
+import { MULTI_FACTOR_RECALL_PREFIX } from "../../recall/recall-rules";
 
 export const promptBuilder = {
   buildSystemInstruction(
@@ -98,7 +99,24 @@ export const promptBuilder = {
           // selected -- "User Intent", "Recent Recall" -- which the model can
           // act on. `memory.id` was bookkeeping: seven uuids in a seven-memory
           // prompt, none of them referable to.
-          block += `- ${memory.description} (Reason: ${item.inclusionReason})\n`;
+          //
+          // The recall reason rides on the same line rather than in a block of
+          // its own. It used to arrive via "Recent Activity History", which
+          // reprinted all twelve descriptions to carry it; attaching it here
+          // frames the evidence instead of restating it, which is the only way
+          // a second mention of a memory earns its place.
+          //
+          // Filtered the way `compileRecentActivity` filters it: everything
+          // except the ranking breakdown, which is a metrics dump the model
+          // reads as though it were a fact about the user. Deduplicated because
+          // the arc title inside it is the fixed label "Project Arc: Project
+          // Created" for every project, so without this one constant sentence
+          // would be repeated on most lines of the block.
+          const readable = candidate.recallReasons.filter(
+            (r) => !r.startsWith(MULTI_FACTOR_RECALL_PREFIX),
+          );
+          const why = Array.from(new Set([item.inclusionReason, ...readable])).join(" | ");
+          block += `- ${memory.description} (Reason: ${why})\n`;
         }
       }
     }
@@ -147,33 +165,38 @@ export const promptBuilder = {
         "\n";
     }
 
-    if (pkg.recentActivitySummary.length > 0) {
-      block += `\nRecent Activity History:\n`;
-      for (const summary of pkg.recentActivitySummary) {
-        const idMatch = summary.match(/Recall active memory node \(([^)]+)\)/);
-        if (!idMatch || !idMatch[1]) {
-          // Nothing id-shaped to resolve, so there is nothing to leak.
-          block += `- ${summary}\n`;
-          continue;
-        }
-
-        const memoryId = idMatch[1];
-        const memory = memoryService.getMemories().find((m) => m.id === memoryId);
-
-        // The line was emitted either way, so a memory that had aged out of the
-        // runtime set between the context rebuild and this call printed its raw
-        // uuid where its text should have been: the failure case leaked exactly
-        // what the success case hid. An entry naming a memory the prompt cannot
-        // show tells the model nothing, so it is dropped rather than half
-        // rendered.
-        if (!memory) continue;
-
-        block += `- ${summary.replace(
-          `Recall active memory node (${memoryId})`,
-          `Recall active memory node [${memory.description}]`,
-        )}\n`;
-      }
-    }
+    /*
+     * No "Recent Activity History" block.
+     *
+     * It restated "Relevant Long-Term Memories" and added nothing. Both are
+     * built by `rankedActive` from the same `recallCache`, and
+     * `maxRecallCandidates` and `maxRecentActivity` are both 12 -- so the two
+     * lists are the same memories in the same order by construction, not just
+     * in the workload that measured this:
+     *
+     *     Long-Term Memories entries              12
+     *     Recent Activity entries                 12
+     *     descriptions present in BOTH blocks     12
+     *     descriptions only in Recent Activity     0
+     *     Recent Activity share of the prompt     1471 chars (39.1%)
+     *
+     * `compileRecentActivity` says as much itself: "The two lists are drawn
+     * from one pool and should not disagree about which of it matters."
+     *
+     * What the second copy wrapped around each description was `Recall active
+     * memory node [...] because: Associated with active narrative: "..."` --
+     * this engine narrating its own recall, the same class of thing as the
+     * ranking breakdown already filtered out of `recallReasons`. The narrative
+     * title it carried is the fixed label "Project Arc: Project Created" for
+     * every project in the workspace, so it could not even say which arc a
+     * memory belonged to.
+     *
+     * The producer stays. `compileRecentActivity` still fills
+     * `recentActivitySummary` and `brain.tsx` still renders it in the Brain
+     * inspector -- the same split the recall-telemetry filter uses, where the
+     * candidate keeps everything and only the copy built for the model is
+     * narrowed.
+     */
 
     return block.trim();
   },

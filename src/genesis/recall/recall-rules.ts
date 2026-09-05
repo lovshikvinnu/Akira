@@ -2,7 +2,7 @@ import { Memory } from "../validation/types";
 import { MemoryImportance } from "../importance/types";
 import { Story } from "../stories/types";
 import { storyService } from "../stories/story-service";
-import { isReflectionsArc } from "../stories/story-identity";
+import { isProjectArc, isReflectionsArc, projectArcProjectName } from "../stories/story-identity";
 import { getChat, getCompanionState } from "../../shared/genesis-provider";
 import { RecallContext } from "./types";
 
@@ -437,7 +437,16 @@ export const recallRules: RecallRule[] = [
       ) {
         return {
           shouldRecall: true,
-          reason: `Associated with active narrative: "${parentStory.title}".`,
+          // The project's name, not the arc's title. Every project arc is
+          // titled "Project Arc: Project Created" -- `story-rules` builds it
+          // from the originating memory's title and `event-translation` sets
+          // that to a fixed label -- so this sentence was the same constant for
+          // every memory of every project. It now reaches the model on each
+          // recalled memory's own line, where a string that cannot tell two
+          // projects apart is repetition rather than a reason.
+          reason: `Associated with active narrative: "${
+            isProjectArc(parentStory) ? projectArcProjectName(parentStory) : parentStory.title
+          }".`,
         };
       }
       return { shouldRecall: false };
