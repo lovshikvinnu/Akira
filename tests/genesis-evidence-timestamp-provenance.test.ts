@@ -237,3 +237,57 @@ describe("nothing about live evidence changed", () => {
     expect(stamped).toBeLessThanOrEqual(Date.now() + 5000);
   });
 });
+
+describe("the invariant, stated without naming a producer", () => {
+  /**
+   * The residual risk in this fix is that `createdAt` defaults to the clock, so
+   * a future producer that calls `addEvidence` without supplying the origin
+   * instant reintroduces the bug silently. The cases above would not catch it:
+   * they seed declarations, so they only exercise the one producer that exists
+   * today.
+   *
+   * This asserts the property rather than the call site. After a replay -- with
+   * no live activity to legitimately stamp anything "now" -- every piece of
+   * Memory-sourced evidence must carry exactly its source memory's instant,
+   * whoever created it and whatever event type it came from.
+   *
+   * Exact equality rather than a tolerance, which is what makes it usable: a
+   * replay creates nothing concurrently, so there is no drift to allow for, and
+   * a producer stamping the clock fails by ninety days rather than by
+   * milliseconds.
+   */
+  it("no Memory-sourced evidence is newer than the memory it points at", () => {
+    reloadFrom([
+      noteEvent("inv1", "I want to become a pilot", yearAgo),
+      noteEvent("inv2", "I prefer dark roast", ninetyDaysAgo),
+      noteEvent("inv3", "I run every morning", ninetyDaysAgo),
+    ]);
+
+    const memoryById = new Map(memoryService.getMemories().map((m) => [m.id, m]));
+    const memoryEvidence = allEvidence().filter((e) => e.sourceType === "Memory");
+    expect(memoryEvidence.length, "no Memory-sourced evidence to check").toBeGreaterThan(0);
+
+    for (const e of memoryEvidence) {
+      const source = memoryById.get(e.sourceId);
+      expect(source, `evidence ${e.id} points at a memory that does not exist`).toBeDefined();
+      expect(
+        e.createdAt,
+        `evidence for "${source!.description}" was stamped ${e.createdAt} ` +
+          `but its memory happened at ${source!.timestamp}`,
+      ).toBe(source!.timestamp);
+    }
+  });
+
+  it("survives the fallback one layer below this fix", () => {
+    // `memory-service.ts:65` rebuilds a memory as
+    // `candidate.timestamp || new Date().toISOString()`. If that fallback fired
+    // on the reconstruction path it would restamp the memories themselves and
+    // this whole fix would be resting on nothing -- the evidence would faithfully
+    // copy an instant that had already been rewritten. It does not fire:
+    // `candidate.timestamp` survives replay.
+    reloadFrom([noteEvent("fb1", "I want to become a pilot", yearAgo)]);
+    expect(memoryService.getMemories()[0].timestamp).toBe(yearAgo);
+    reloadFrom([noteEvent("fb1", "I want to become a pilot", yearAgo)]);
+    expect(memoryService.getMemories()[0].timestamp).toBe(yearAgo);
+  });
+});
