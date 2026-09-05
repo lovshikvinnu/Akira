@@ -120,6 +120,20 @@ describe("reset deletes what the dialog promises", () => {
   it("empties the in-memory store as well", async () => {
     await createUserData();
     akira.reset();
+    // Settled even though this case only reads the in-memory store. `reset()`
+    // enqueues a `DELETE FROM tasks/notes/projects` through `persist`, and
+    // leaving it in flight lets it land during the *next* test, after that
+    // test's fixture has inserted its rows.
+    //
+    // This file is flaky and this is not the whole cause. The failure is always
+    // the precondition in "removes projects, missions, notes and chat" -- zero
+    // task rows immediately after creating a task -- and closing this leak moved
+    // it from about one isolated run in three to about one in three of eight,
+    // without removing it. The residual is undiagnosed. It is a fixture race,
+    // not a fault in `persistResetLocalData`: every case that reaches its
+    // assertions passes, and the precondition exists precisely so a fixture that
+    // built nothing cannot be mistaken for a reset that worked.
+    await settlePendingPersistence();
 
     const state = akira.getState();
     expect(state.projects).toEqual([]);
