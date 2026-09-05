@@ -19,6 +19,16 @@ let clearSub: (() => void) | null = null;
  */
 const dirtyStoryIds = new Set<string>();
 
+/**
+ * Memories that left a story during the transaction.
+ *
+ * Tracked apart from `dirtyStoryIds` because by the time the flush runs the
+ * story no longer names them, so recalculating its members cannot reach them --
+ * and a Story Influence signal is derived from a membership, so a memory that
+ * has lost one is carrying a signal whose source is gone.
+ */
+const departedMemoryIds = new Set<string>();
+
 export const importanceBuilder = {
   /**
    * Subscribe to Memory and Story events to update importance signals.
@@ -45,12 +55,15 @@ export const importanceBuilder = {
         // The signals themselves are a pure function of the memory and the
         // current stories, so recalculating once after the story settles yields
         // the same values the final pass would have produced.
+        for (const memoryId of event.departedMemoryIds ?? []) departedMemoryIds.add(memoryId);
+
         if (isBatching()) {
           dirtyStoryIds.add(event.story.id);
           markDirty("importance");
           return;
         }
         this.recalculateStoryMembers(event.story);
+        this.recalculateDeparted();
       });
     }
 
@@ -102,7 +115,7 @@ export const importanceBuilder = {
    * can reach.
    */
   flushDirtyStories(): void {
-    if (dirtyStoryIds.size === 0) return;
+    if (dirtyStoryIds.size === 0 && departedMemoryIds.size === 0) return;
 
     const ids = [...dirtyStoryIds];
     dirtyStoryIds.clear();
@@ -111,6 +124,33 @@ export const importanceBuilder = {
     for (const id of ids) {
       const story = stories.find((s) => s.id === id);
       if (story) this.recalculateStoryMembers(story);
+    }
+
+    // After the members, because a memory can leave one story and join another
+    // inside the same transaction; recalculating it last reads settled state.
+    this.recalculateDeparted();
+  },
+
+  /**
+   * Recomputes the memories that left a story, so a signal derived from a
+   * membership does not outlive it.
+   *
+   * The rule needs no change to do this: `Story Influence Signal Rule` already
+   * returns null when `findStoryContainingMemory` finds nothing. Nothing was
+   * asking it again. A memory retention has since evicted is skipped -- its
+   * profile is dropped by `importanceService.forgetMemories`, and writing one
+   * here would resurrect it.
+   */
+  recalculateDeparted(): void {
+    if (departedMemoryIds.size === 0) return;
+
+    const ids = [...departedMemoryIds];
+    departedMemoryIds.clear();
+
+    const byId = new Map(memoryService.getMemories().map((m) => [m.id, m]));
+    for (const id of ids) {
+      const memory = byId.get(id);
+      if (memory) this.evaluateMemoryImportance(memory, "Left story");
     }
   },
 

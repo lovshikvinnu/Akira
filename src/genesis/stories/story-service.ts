@@ -5,6 +5,17 @@ import { isBatching, markDirty, registerFlusher } from "../batch";
 export type StoryListener = (event: {
   type: "Created" | "Updated" | "Completed";
   story: Story;
+  /**
+   * Members this update removed, if any.
+   *
+   * Carried on the event because a subscriber cannot recover it: once the
+   * update lands, the story no longer mentions them and nothing else records
+   * that it ever did. `importanceBuilder` needs exactly this -- a memory's
+   * Story Influence signal is derived from a membership, so when the
+   * membership ends the signal has to be recomputed, and recalculating the
+   * story's *current* members can never reach a memory that just left it.
+   */
+  departedMemoryIds?: string[];
 }) => void;
 const listeners = new Set<StoryListener>();
 
@@ -160,10 +171,16 @@ export const storyService = {
     // unconditional irrelevant.
     memberIndex.set(id, new Set(updated.relatedMemoryIds));
 
+    // Who this update dropped. The sliding window in `addMemoryToStory` is the
+    // only path that removes a member while the memory itself stays alive, and
+    // it routes through here like every other membership change.
+    const stillMember = new Set(updated.relatedMemoryIds);
+    const departed = oldStory.relatedMemoryIds.filter((memoryId) => !stillMember.has(memoryId));
+
     if (patch.status === "Completed" && oldStory.status !== "Completed") {
-      this.notify("Completed", updated);
+      this.notify("Completed", updated, departed);
     } else {
-      this.notify("Updated", updated);
+      this.notify("Updated", updated, departed);
     }
     return updated;
   },
@@ -298,10 +315,14 @@ export const storyService = {
     }
   },
 
-  notify(type: "Created" | "Updated" | "Completed", story: Story): void {
+  notify(
+    type: "Created" | "Updated" | "Completed",
+    story: Story,
+    departedMemoryIds: string[] = [],
+  ): void {
     listeners.forEach((listener) => {
       try {
-        listener({ type, story });
+        listener({ type, story, departedMemoryIds });
       } catch (err) {
         console.error("Error executing story listener callback:", err);
       }
