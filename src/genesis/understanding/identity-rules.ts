@@ -6,7 +6,7 @@ import {
   REFLECTIONS_ARC_TITLE,
   isProjectArc,
   isReflectionsArc,
-  projectArcTitleRemainder,
+  projectArcProjectName,
 } from "../stories/story-identity";
 
 export interface IdentityRule {
@@ -144,7 +144,10 @@ export const identityRules: IdentityRule[] = [
     name: "Project Completion Hypothesis Confirmation",
     evaluateStory(story) {
       if (isProjectArc(story) && story.status === "Completed") {
-        const projectName = projectArcTitleRemainder(story);
+        // Resolved from the arc's project id. The arc's own title is the fixed
+        // label "Project Created" for every project, so matching an aspiration
+        // against it could not succeed for any project.
+        const projectName = projectArcProjectName(story);
 
         const hypotheses = hypothesesService.getHypotheses();
         const matchingHyp = hypotheses.find(

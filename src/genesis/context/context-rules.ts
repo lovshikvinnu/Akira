@@ -7,7 +7,7 @@ import { ContextItem } from "./types";
 import {
   PROJECT_ARC_TITLE_PREFIX,
   isProjectArc,
-  projectArcTitleRemainder,
+  projectArcProjectName,
 } from "../stories/story-identity";
 
 /**
@@ -190,7 +190,11 @@ export const contextRules = {
     stories
       .filter((s) => s.status === "Active" && isProjectArc(s))
       .forEach((s) => {
-        goals.push(`Complete ${PROJECT_ARC_TITLE_PREFIX} ${projectArcTitleRemainder(s)}`);
+        // The project's name, not the arc's title. Every arc is titled
+        // "Project Arc: Project Created", so building the goal from the title
+        // gave every project the same string and the Set below collapsed them
+        // into one -- two projects, one goal, naming neither.
+        goals.push(`Complete ${PROJECT_ARC_TITLE_PREFIX} ${projectArcProjectName(s)}`);
       });
 
     // 2. Extract goals from proposed/confirmed onboarding aspirations

@@ -63,6 +63,7 @@ const {
   isProjectArc,
   isReflectionsArc,
   projectArcTitleRemainder,
+  projectArcProjectName,
 } = await import("../src/genesis/stories/story-identity");
 const { identityRules } = await import("../src/genesis/understanding/identity-rules");
 const { recallRules } = await import("../src/genesis/recall/recall-rules");
@@ -137,16 +138,27 @@ describe("the producer and every consumer agree on the arc titles", () => {
     expect(observation("Reflective")?.provenance).toContain(REFLECTIONS_ARC_TITLE);
   });
 
-  it("derives the prompt goal from the project arc, unchanged by the refactor", () => {
+  it("derives the prompt goal from the project, not from the arc's title", () => {
     const { projectId } = buildBothArcs();
 
     const goals = contextRules.extractGoals(storyService.getStories());
     const arcGoals = goals.filter((g) => g.data.includes(PROJECT_ARC_TITLE_PREFIX));
 
     expect(arcGoals.length).toBeGreaterThan(0);
-    // The exact string the prompt carried before the constants were extracted.
+
+    // This case used to pin `Complete ${arc.title}` as "the exact string the
+    // prompt carried before the constants were extracted". That string was
+    // "Complete Project Arc: Project Created" for every project in the
+    // workspace, which is what `projectArcProjectName` exists to fix -- so the
+    // pin moves from the arc's title to the project's name. The remainder
+    // helper is still pinned below, unchanged, because it still backs the
+    // fallback.
     const arc = projectArc()!;
-    expect(arcGoals.some((g) => g.data === `Complete ${arc.title}`)).toBe(true);
+    const name = projectArcProjectName(arc);
+    expect(name, "the goal is compared against a name it also derives").toBe("Coupling Project");
+    expect(arcGoals.some((g) => g.data === `Complete ${PROJECT_ARC_TITLE_PREFIX} ${name}`)).toBe(
+      true,
+    );
     expect(projectArcTitleRemainder(arc)).toBe(arc.title.replace(PROJECT_ARC_TITLE_PREFIX, "").trim());
     expect(projectId).toBeTruthy();
   });
