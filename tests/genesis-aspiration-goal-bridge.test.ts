@@ -188,57 +188,100 @@ describe("a stated aspiration reaches the prompt", () => {
   });
 });
 
-describe("a completed project is evidence of progress, not of achievement", () => {
+describe("a completed project does not link itself to an aspiration", () => {
   /**
-   * This path has no producer in the app -- `proposeHypothesis` has no callers,
-   * so `hypothesisCache` is empty for the life of the process and the rule
-   * never fires. The hypothesis is proposed directly here so the mechanism's
-   * semantics can be pinned; what is being tested is what the rule *would*
-   * record, which is why it mattered that it recorded "Achieved" at confidence
-   * 1.0 from a name match.
+   * `identity-rules` used to carry "Project Completion Progress", which matched
+   * a completed project arc against a stated aspiration with
+   * `h.name.toLowerCase().includes(projectName.toLowerCase())` and, on a hit,
+   * advanced the hypothesis and wrote an identity observation about the user.
+   *
+   * A project and an aspiration may be related as a fact the user established,
+   * or as an inference that stays labelled as one, or not at all. Sharing a
+   * word is none of those, so the rule is gone and nothing replaces it.
+   *
+   * These cases drive the path the way the rule required -- a hypothesis has to
+   * exist for it to match, and `proposeHypothesis` has no production callers --
+   * so they are pinning that a mechanism which never fired in production also
+   * cannot fire here.
    */
   function completedProjectNamed(name: string): void {
     project(name);
     const arc = storyService.getStories().find(isProjectArc);
     if (!arc) throw new Error("no project arc to complete");
     storyService.updateStory(arc.id, { status: "Completed" });
-    identityBuilder.processStoryEvent(storyService.getStories().find(isProjectArc)!);
+    identityBuilder.processStoryEvent(storyService.getStories().find((s) => s.id === arc.id)!);
   }
 
-  it("records progress towards the aspiration rather than having reached it", () => {
-    hypothesesService.proposeHypothesis("Aspiration", "become a pilot", "stated during onboarding");
+  it("leaves an aspiration alone when a project merely shares a word with it", () => {
+    // A pilot programme and an aviation goal. `prompt-builder` disambiguates
+    // this exact word between "aircraft pilot", "pilot project" and "pilot
+    // testing", so the collision is one this codebase already knows it has.
+    hypothesesService.proposeHypothesis("Aspiration", "become a pilot", "stated by the user");
 
-    completedProjectNamed("pilot");
-
-    const observation = observationService
-      .getObservations()
-      .find((o) => o.name === "become a pilot");
-    expect(
-      observation,
-      "the completed project recorded nothing about the aspiration",
-    ).toBeDefined();
-    expect(observation!.value, "a name match claimed the user achieved a life goal").not.toBe(
-      "Achieved",
-    );
-    expect(observation!.value).toBe("Progress observed");
-    expect(
-      observation!.confidence,
-      "an inference from a name match was recorded as certain",
-    ).toBeLessThan(1.0);
-  });
-
-  it("does not mark the aspiration confirmed, because the user did not confirm it", () => {
-    hypothesesService.proposeHypothesis("Aspiration", "become a pilot", "stated during onboarding");
-
-    completedProjectNamed("pilot");
+    completedProjectNamed("Pilot");
 
     const hypothesis = hypothesesService.getHypotheses().find((h) => h.name === "become a pilot");
     expect(hypothesis, "the hypothesis vanished").toBeDefined();
+    expect(hypothesis!.status, "completing an unrelated project moved the aspiration along").toBe(
+      "Proposed",
+    );
+  });
+
+  it("writes no claim about the user from a name match", () => {
+    hypothesesService.proposeHypothesis("Aspiration", "become a pilot", "stated by the user");
+    const before = observationService.getObservations().length;
+
+    completedProjectNamed("Pilot");
+
+    const written = observationService.getObservations().find((o) => o.name === "become a pilot");
+    expect(written, "a name match produced an observation about the user").toBeUndefined();
+    expect(observationService.getObservations().length).toBe(before);
+  });
+
+  it("does not claim the aspiration was achieved, under any name", () => {
+    // The exact-name case as well as the substring one, so this does not pass
+    // merely because "Pilot" and "become a pilot" differ.
+    hypothesesService.proposeHypothesis("Aspiration", "become a pilot", "stated by the user");
+
+    completedProjectNamed("become a pilot");
+
+    const values = observationService.getObservations().map((o) => o.value);
+    expect(values, "a completed project claimed a life goal was achieved").not.toContain(
+      "Achieved",
+    );
+    expect(values).not.toContain("Progress observed");
+    expect(hypothesesService.getHypotheses().find((h) => h.name === "become a pilot")!.status).toBe(
+      "Proposed",
+    );
+  });
+
+  it("still shows both to the model, side by side and separately labelled", () => {
+    // The behaviour that makes removing the link safe rather than lossy: the
+    // model is told the user stated an aspiration and that a project is active,
+    // and can relate them for this turn without AKIRA storing a claim.
+    akira.addNote({ content: "I want to become a pilot" });
+    project("Pilot Licence");
+
+    expect(reasonFor("become a pilot")).toBe(STATED_ASPIRATION_REASON);
+    expect(reasonFor("Complete Project Arc: Pilot Licence")).toBe(ACTIVE_PROJECT_REASON);
+  });
+
+  it("keeps them unlinked across a replay", () => {
+    akira.addNote({ content: "I want to become a pilot" });
+    completedProjectNamed("Pilot");
+
+    identityService.setRepository(new InMemoryIdentityRepository());
+    observationService.clearHistory();
+    memoryService.reconstructRuntimeMemory();
+
+    const written = observationService
+      .getObservations()
+      .find((o) => o.value === "Progress observed");
+    expect(written, "a replay re-created the link").toBeUndefined();
     expect(
-      hypothesis!.status,
-      "a project completing was treated as the user settling the question",
-    ).not.toBe("Confirmed");
-    expect(hypothesis!.status).toBe("Refined");
+      observationService.getObservations().map((o) => o.value),
+      "a replay claimed an achievement",
+    ).not.toContain("Achieved");
   });
 });
 

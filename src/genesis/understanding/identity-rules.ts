@@ -1,12 +1,10 @@
 import { Story } from "../stories/types";
 import { memoryService } from "../memory/memory-service";
 import { IdentityCategory } from "./identity-types";
-import { hypothesesService } from "./hypotheses";
 import {
   REFLECTIONS_ARC_TITLE,
   isProjectArc,
   isReflectionsArc,
-  projectArcProjectName,
 } from "../stories/story-identity";
 
 export interface IdentityRule {
@@ -140,37 +138,45 @@ export const identityRules: IdentityRule[] = [
       return { shouldCluster: false } as any;
     },
   },
-  {
-    name: "Project Completion Progress",
-    evaluateStory(story) {
-      if (isProjectArc(story) && story.status === "Completed") {
-        // Resolved from the arc's project id. The arc's own title is the fixed
-        // label "Project Created" for every project, so matching an aspiration
-        // against it could not succeed for any project.
-        const projectName = projectArcProjectName(story);
-
-        const hypotheses = hypothesesService.getHypotheses();
-        const matchingHyp = hypotheses.find(
-          (h) =>
-            h.category === "Aspiration" &&
-            h.status === "Proposed" &&
-            h.name.toLowerCase().includes(projectName.toLowerCase()),
-        );
-
-        if (matchingHyp) {
-          return {
-            detected: false,
-            hypothesisTrigger: {
-              targetHypothesisName: matchingHyp.name,
-              confirm: true,
-            },
-          };
-        }
-      }
-      return { shouldCluster: false } as any;
-    },
-  },
 ];
+
+/*
+ * REMOVED: "Project Completion Progress".
+ *
+ * It linked a completed project arc to a stated aspiration with
+ * `h.name.toLowerCase().includes(projectName.toLowerCase())`, and on a match
+ * moved the hypothesis along and wrote an identity observation about the user.
+ *
+ * A project and an aspiration may be related as an explicit fact the user
+ * established, or as an inference that stays labelled as one, or not at all.
+ * Sharing a word is none of those. Reproduced before removal, with a pilot
+ * *programme* and an aviation goal that have nothing to do with each other:
+ *
+ *     aspiration      "become a pilot"   (stated by the user)
+ *     project         "Pilot"            (completed)
+ *     result          hypothesis Proposed -> Refined
+ *                     observation "Progress observed" written about the user
+ *
+ * `prompt-builder` disambiguates that exact word between "aircraft pilot",
+ * "pilot project" and "pilot testing", so the collision is one this codebase
+ * already knows it has.
+ *
+ * It never fired in production -- `proposeHypothesis` has no callers, so
+ * `hypothesisCache` is empty for the life of the process -- which is why this
+ * is a removed hazard rather than a fixed bug.
+ *
+ * Nothing replaces it. Aspirations and projects already reach the prompt side
+ * by side under their own labels ("Stated aspiration", "Active project"), which
+ * lets the model relate them for a single turn without AKIRA storing a claim it
+ * cannot support. A real link would have to be something the user states, and
+ * there is no field on `Project` or `IdentityGoal` to carry one; adding that
+ * machinery on the strength of a name match is what this removal rejects.
+ *
+ * `hypothesisTrigger` on `IdentityRule` and its branch in `identity-builder`
+ * are left in place and now have no producer. Any future producer has to carry
+ * a relationship the user established, or one labelled as inferred that no
+ * consumer can read as a fact. It must not be a name comparison.
+ */
 
 export function registerIdentityRule(rule: IdentityRule) {
   identityRules.unshift(rule);
