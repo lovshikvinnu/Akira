@@ -1,4 +1,4 @@
-import { Understanding, UnderstandingConfidence } from "./types";
+import { Understanding, UnderstandingCategory, UnderstandingConfidence } from "./types";
 
 /**
  * Capitalizes each word and cleans up separators (dashes/underscores) for display.
@@ -84,6 +84,43 @@ function goalSentence(level: "High" | "Medium" | "Low", concept: string): string
   }
 }
 
+/** What each category is, as a noun, for describing one that is no longer active. */
+const CATEGORY_NOUN: Record<UnderstandingCategory, string> = {
+  Goal: "goal",
+  Project: "project",
+  Knowledge: "knowledge area",
+  Habit: "habit",
+  Relationship: "relationship",
+  Preference: "preference",
+  Interest: "interest",
+  Value: "value",
+};
+
+/**
+ * The sentence for an understanding that has stopped being current.
+ *
+ * `determineStatus` already resolves Active / Completed / Archived from the
+ * linked stories and `builder.ts` merges it -- but nothing read it here, so
+ * every block used the present tense whatever the status said. A project whose
+ * arc had completed was still described as "The user is actively building X",
+ * verbatim, in the live prompt. Reproduced by completing the arc and
+ * re-serializing: status went Active -> Completed and the sentence did not
+ * change at all.
+ *
+ * One form for every category rather than eight past-tense rewrites. The claim
+ * that had to go is the present-tense one; naming the category and the state
+ * retires it, and it cannot read as nonsense for whichever category reaches
+ * here.
+ *
+ * Nothing is hidden. The understanding still appears, still carries its
+ * confidence, and still references the memories and stories behind it. What
+ * changes is the tense, not whether the model is told.
+ */
+function inactiveSentence(u: Understanding, displayTitle: string): string {
+  const state = u.status === "Completed" ? "completed" : "archived";
+  return `The user's ${CATEGORY_NOUN[u.category]} ${displayTitle} is ${state} and no longer active.`;
+}
+
 /**
  * Serializes a single Understanding object into a deterministic natural-language summary block.
  */
@@ -136,6 +173,13 @@ export function serializeUnderstanding(u: Understanding): string {
   }
 
   const confidenceStr = formatConfidence(u.confidence);
+
+  // Only a still-active understanding gets the present-tense sentence
+  // above. The Active wording stays byte-identical, so this narrows an
+  // over-broad claim rather than restating every block.
+  if (u.status !== "Active") {
+    return `${u.category}\n• ${displayTitle}\n${inactiveSentence(u, displayTitle)}\nStatus: ${u.status}\nConfidence: ${confidenceStr}`;
+  }
 
   return `${u.category}\n• ${displayTitle}\n${sentence}\nConfidence: ${confidenceStr}`;
 }
