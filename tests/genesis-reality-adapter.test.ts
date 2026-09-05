@@ -175,6 +175,11 @@ describe("reality adapter — translation", () => {
         Events.MISSION_COMPLETED,
         Events.NOTE_CREATED,
         Events.NOTE_EDITED,
+        // Deletion reaches GENESIS as a fact of its own. Without a translator
+        // these were dropped here and the understanding of a deleted project
+        // went on calling it current work.
+        Events.PROJECT_DELETED,
+        Events.NOTE_DELETED,
       ].sort(),
     );
 

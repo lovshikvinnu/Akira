@@ -301,6 +301,14 @@ const DURABILITY_BY_EVENT_TYPE: Readonly<Record<string, DurabilityClass>> = Obje
   note_created: "Core",
   note_edited: "Core",
 
+  // Core because losing one silently un-deletes something. Identity and
+  // understanding are re-derived from the durable stream, so a deletion that
+  // aged out would let an archived project or knowledge area return as
+  // current work at the next reload. They are also rare -- bounded by how
+  // often someone deletes, not by how often they work.
+  project_deleted: "Core",
+  note_deleted: "Core",
+
   task_completed: "Episodic",
   project_continued: "Episodic",
   mission_completed: "Episodic",

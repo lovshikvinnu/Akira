@@ -26,14 +26,14 @@
  * that the work is current, and makes the live answer agree with the one a
  * reload already gives instead of adding a second mechanism to keep in step.
  *
- * WHAT THIS DOES NOT COVER
- * ------------------------
- * The understanding fragments still say "The user is actively building Pilot
- * Licence" after the project is gone, and "The user is actively learning
- * Aviation" after the note that produced it is gone. Those come from
- * `UnderstandingStatus`, not from the arc, and are the status half of this
- * finding. The cases at the end pin them as they are so the gap is recorded
- * rather than implied.
+ * THE OTHER HALF, SINCE CLOSED
+ * ----------------------------
+ * The understanding fragments went on saying "The user is actively building
+ * Pilot Licence" after the project was gone, because they take their status
+ * from stories rather than from the arc filter here. That is fixed separately,
+ * by translating `PROJECT_DELETED` into a durable memory the fragment reads --
+ * see `genesis-deletion-archives-understanding`. The last case below is the
+ * join between the two halves.
  */
 process.env.AKIRA_DATABASE_PATH = ":memory:";
 process.env.NODE_ENV = "test";
@@ -123,9 +123,14 @@ describe("a deleted project stops being claimed as current work", () => {
 
     // The stream is append-only and the arc is a record of what happened. Only
     // the claim that it is current was withdrawn.
-    expect(memoryService.getMemories().length, "deleting a project erased memories").toBe(
-      memoriesBefore,
-    );
+    //
+    // Greater-or-equal rather than equal: a deletion is now itself an event, so
+    // the count rises by the `project_deleted` memory. What matters is that
+    // nothing was removed.
+    expect(
+      memoryService.getMemories().length,
+      "deleting a project erased memories",
+    ).toBeGreaterThanOrEqual(memoriesBefore);
     expect(
       storyService.getStories().filter(isProjectArc).length,
       "deleting a project erased its narrative",
@@ -178,11 +183,12 @@ describe("a deleted project stops being claimed as current work", () => {
   });
 });
 
-describe("the status half of this finding is still open", () => {
-  it("still calls a deleted project something the user is actively building", () => {
-    // Pinned as it is, not as it should be. `UnderstandingStatus` drives this
-    // sentence and no deletion signal reaches it. Recorded so the gap is
-    // visible; the fix belongs with the status work.
+describe("the status half is closed too", () => {
+  it("describes a deleted project as archived rather than as current work", () => {
+    // This case used to pin the gap: the understanding stayed "Active" and the
+    // prompt still said "The user is actively building Pilot Licence." The
+    // deletion now reaches GENESIS as a `project_deleted` memory, the fragment
+    // reads it, and `serializeUnderstanding` has a status it can describe.
     const id = project("Pilot Licence");
     const key = understandingEngine
       .getUnderstandings()
@@ -192,6 +198,6 @@ describe("the status half of this finding is still open", () => {
     akira.deleteProject(id);
 
     const after = understandingEngine.getUnderstandings().find((u) => u.canonicalKey === key);
-    expect(after?.status, "if this is no longer Active the status half has landed").toBe("Active");
+    expect(after?.status, "a deleted project is still described as active").toBe("Archived");
   });
 });

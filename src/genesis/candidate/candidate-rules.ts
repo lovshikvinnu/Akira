@@ -41,6 +41,21 @@ export const rules: CandidateRule[] = [
     },
   },
   {
+    name: "Entity Deleted",
+    evaluate(event) {
+      if (event.eventType === "project_deleted" || event.eventType === "note_deleted") {
+        return {
+          shouldGenerate: true,
+          reason: "Milestone",
+          explanation:
+            "The user deleted something. Recorded so cognition can stop describing it as " +
+            "current work without any of its history being removed.",
+        };
+      }
+      return { shouldGenerate: false };
+    },
+  },
+  {
     name: "Project Continued",
     evaluate(event) {
       if (event.eventType === "project_continued") {

@@ -31,6 +31,68 @@ const DECLARATION_IDENTITY_CATEGORY: Record<Declaration["category"], IdentityCat
   Habit: "Habit",
 };
 
+/**
+ * An understanding of something the user has deleted is Archived.
+ *
+ * `determineStatus` below reads the status of the stories an understanding was
+ * built from, and nothing in `src/` ever transitions a story's status -- so
+ * every understanding stayed "Active" for the life of the process. Deleting a
+ * project left `The user is actively building Pilot Licence.` in the prompt and
+ * deleting a note left `The user is actively learning Aviation.`
+ * `serializeUnderstanding` already knows how to describe an inactive
+ * understanding; it had no way to be handed one. This is the status it renders.
+ *
+ * READ FROM THE STREAM, NOT FROM THE WORKSPACE
+ * -------------------------------------------
+ * Asking `getWorkspaceProvider` whether the subject still exists was tried
+ * first and is wrong twice over. The graph is rebuilt on a flusher and the
+ * result is cached, so a deletion -- which reached GENESIS through no event at
+ * all until `project_deleted` and `note_deleted` were translated -- triggered
+ * no rebuild and the status stayed Active. And the rebuild that does run
+ * happens while the store action is still in flight: measured, a note read as
+ * deleted at the moment its own fragment was built, because the note was not in
+ * the workspace yet. A live lookup at build time answers about a moment that is
+ * not the one being described.
+ *
+ * A deletion memory is a fact in the append-only stream. It is there or it is
+ * not, whatever order events arrived in, and it survives a reload -- so live and
+ * replay agree without a second mechanism.
+ *
+ * Nothing is erased. The memories a project produced stay exactly as they were;
+ * only the claim that the work is current is withdrawn.
+ */
+function projectWasDeleted(memories: Memory[], projectId: string): boolean {
+  return memories.some(
+    (m) => m.eventType === "project_deleted" && m.relatedProjectId === projectId,
+  );
+}
+
+/**
+ * True when every note that evidenced a knowledge area has been deleted.
+ *
+ * A knowledge understanding is keyed on a note's title rather than a note id and
+ * aggregates every note sharing that title, so it is archived only when all of
+ * them are gone. Supporting memories carrying no `relatedNoteId` cannot answer
+ * the question; if none of them carries one this returns false rather than
+ * guessing, because a knowledge area evidenced by something other than a note is
+ * not deleted merely because no note is attached to it.
+ */
+function everySourceNoteWasDeleted(memories: Memory[], supportingMemoryIds: string[]): boolean {
+  const supporting = new Set(supportingMemoryIds);
+  const noteIds = memories
+    .filter((m) => supporting.has(m.id))
+    .map((m) => m.relatedNoteId)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+  if (noteIds.length === 0) return false;
+
+  const deleted = new Set(
+    memories
+      .filter((m) => m.eventType === "note_deleted" && m.relatedNoteId)
+      .map((m) => m.relatedNoteId as string),
+  );
+  return noteIds.every((id) => deleted.has(id));
+}
+
 // Helper to determine status based on linked stories or memories
 function determineStatus(stories: Story[], relatedStoryIds: string[]): UnderstandingStatus {
   const linkedStories = stories.filter((s) => relatedStoryIds.includes(s.id));
@@ -172,7 +234,9 @@ export const projectRule: UnderstandingRule = {
         label: refs.name,
         category: "Project",
         confidence: calculateConfidence(refs.memories.length, refs.stories.length),
-        status: determineStatus(stories, refs.stories),
+        status: projectWasDeleted(memories, projectId)
+          ? "Archived"
+          : determineStatus(stories, refs.stories),
         supportingMemoryIds: refs.memories,
         supportingStoryIds: refs.stories,
       });
@@ -379,7 +443,9 @@ export const knowledgeRule: UnderstandingRule = {
         canonicalKey: `knowledge:${knowledgeId}`,
         category: "Knowledge",
         confidence: calculateConfidence(refs.memories.length, refs.stories.length),
-        status: determineStatus(stories, refs.stories),
+        status: everySourceNoteWasDeleted(memories, refs.memories)
+          ? "Archived"
+          : determineStatus(stories, refs.stories),
         supportingMemoryIds: refs.memories,
         supportingStoryIds: refs.stories,
       });

@@ -32,6 +32,11 @@ export interface TranslatedEvent {
   relatedNoteId: string | null;
 }
 
+/** Every deletion `akira-store` publishes carries the id and nothing else. */
+interface DeletionPayload {
+  id: string;
+}
+
 interface ProjectPayload {
   id: string;
   name: string;
@@ -104,6 +109,26 @@ const TRANSLATORS: Record<string, (payload: never) => TranslatedEvent> = {
     description: `Started new project: ${payload.name}`,
     relatedProjectId: payload.id,
     relatedNoteId: null,
+  }),
+
+  // Deletion carries only an id -- `akira-store` publishes `{ id }` and the
+  // name is already gone from the workspace by the time anything reads it. The
+  // id is what cognition needs: it is how a fragment finds out that its subject
+  // no longer exists.
+  [Events.PROJECT_DELETED]: (payload: DeletionPayload): TranslatedEvent => ({
+    eventType: "project_deleted",
+    title: "Project Deleted",
+    description: "Deleted a project",
+    relatedProjectId: payload.id,
+    relatedNoteId: null,
+  }),
+
+  [Events.NOTE_DELETED]: (payload: DeletionPayload): TranslatedEvent => ({
+    eventType: "note_deleted",
+    title: "Note Deleted",
+    description: "Deleted a note",
+    relatedProjectId: null,
+    relatedNoteId: payload.id,
   }),
 
   [Events.PROJECT_UPDATED]: (payload: ProjectPayload): TranslatedEvent => ({

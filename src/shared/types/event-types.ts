@@ -7,6 +7,21 @@ export type MemoryEvent = {
     | "project_created"
     | "project_continued"
     | "project_updated"
+    /**
+     * The user deleted a project, or a note.
+     *
+     * Recorded rather than acted on. The memories a project produced are
+     * history and stay exactly as they are; what this event carries is the
+     * later fact that the thing they describe is gone, so cognition can stop
+     * claiming it is current without anything being erased.
+     *
+     * A deletion has to be in the durable stream to survive a reload. Identity
+     * and understanding are re-derived from that stream on every boot, so a
+     * deletion held only in memory would be forgotten and the archived
+     * understanding would come back Active.
+     */
+    | "project_deleted"
+    | "note_deleted"
     | "note_created"
     | "note_edited"
     | "task_completed"
