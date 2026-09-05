@@ -96,7 +96,9 @@ export const contextBuilder = {
     const identityObservations = contextRules.filterIdentityObservations(rawIdentity);
 
     const currentGoals = contextRules.extractGoals(rawStories);
-    const userPreferences = contextRules.extractUserPreferences(rawIdentity);
+    // Given what the traits block already selected, so the two do not print
+    // the same observation under two headings. See `extractUserPreferences`.
+    const userPreferences = contextRules.extractUserPreferences(rawIdentity, identityObservations);
     const importantConstraints = contextRules.extractConstraints(rawIdentity);
     const recentActivitySummary = contextRules.compileRecentActivity(rawCandidates);
 

@@ -53,11 +53,29 @@ export const importanceRules: ImportanceRule[] = [
     evaluate(memory) {
       const rels = relationshipService.getRelationshipsForMemory(memory.id);
       if (rels.length > 0) {
-        const strength = Math.min(1.0, 0.4 + rels.length * 0.15);
+        // A stated link and a guessed one are not the same evidence.
+        //
+        // Every relationship counted the same here, at 0.15 each. Since
+        // relationships carry a `basis`, "these two memories belong to the same
+        // project" -- an id matching an id -- was worth exactly as much as
+        // "these two look related", and a memory could be ranked into the
+        // prompt on inferences alone.
+        //
+        // Inference counts at half. It is evidence, not proof: the simplest
+        // expression of "less", chosen rather than derived, and the one number
+        // here worth revisiting if ranking ever looks wrong. What matters is
+        // the ordering it enforces -- a memory linked by fact outranks one
+        // linked by the same number of inferences, and no quantity of guesses
+        // reaches the strength of a stated link.
+        const facts = rels.filter((r) => r.basis === "Fact").length;
+        const inferences = rels.length - facts;
+        const strength = Math.min(1.0, 0.4 + facts * 0.15 + inferences * 0.075);
         return {
           type: "Relationships",
           strength,
-          explanation: `Memory is semantically connected to ${rels.length} other context nodes.`,
+          explanation:
+            `Memory is connected to ${rels.length} other context nodes ` +
+            `(${facts} stated, ${inferences} inferred).`,
         };
       }
       return null;

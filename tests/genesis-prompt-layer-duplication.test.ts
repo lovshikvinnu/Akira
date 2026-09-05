@@ -45,6 +45,8 @@ const { contextRelevanceSelector } =
   await import("../src/genesis/context/context-relevance-selector");
 const { promptBuilder } = await import("../src/genesis/context/ai/prompt-builder");
 const { recallBuilder } = await import("../src/genesis/recall/recall-builder");
+const { contextRules } = await import("../src/genesis/context/context-rules");
+const { getRetentionPolicy } = await import("../src/genesis/retention/policy");
 
 const QUERY = "what should I focus on next";
 
@@ -192,6 +194,79 @@ describe("internal machinery does not reach the model", () => {
     const text = prompt();
     for (const marker of ["Multi-factor recall", "SemanticMatch:", "Stability:", "Score:"]) {
       expect(text, `"${marker}" reached the model`).not.toContain(marker);
+    }
+  });
+});
+
+describe("one observation, one heading", () => {
+  /**
+   * A WorkStyle or LearningStyle observation was emitted by both
+   * `extractUserPreferences` and `filterIdentityObservations`, so the prompt
+   * carried it twice under two headings with two different explanations:
+   *
+   *     User Preferences:          - Deep Work Focus: Active (Reason: Identity Evidence)
+   *     Emergent Identity Traits:  - Deep Work Focus: Active (Inferred from
+   *                                  activity (confidence 0.65))
+   *
+   * The traits line is the better of the two -- it carries the basis and the
+   * strength of the evidence, where the other carries a fixed label that says
+   * nothing about either and, since the basis work, misdescribes an inference
+   * as "Identity Evidence".
+   */
+  const observation = (name: string, category: string) => ({
+    id: `obs-${name}`,
+    category,
+    name,
+    value: "Active",
+    confidence: 0.9,
+    basis: "Inferred" as const,
+    supportingStoryIds: [],
+    supportingMemoryIds: [],
+    provenance: "test",
+    confidenceHistory: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+
+  it("does not print the same observation under both headings", () => {
+    const observations = [observation("Deep Work Focus", "WorkStyle")] as never[];
+    const traits = contextRules.filterIdentityObservations(observations);
+    expect(
+      traits.map((t) => t.data.name),
+      "the traits block dropped it",
+    ).toContain("Deep Work Focus");
+
+    const prefs = contextRules.extractUserPreferences(observations, traits);
+    expect(
+      prefs.map((p) => p.data),
+      "the same observation appears under both headings",
+    ).not.toContain("Deep Work Focus: Active");
+  });
+
+  it("still shows one the traits block had no room for", () => {
+    // The coverage the subtraction must not cost. Traits are capped at
+    // `maxIdentityObservations`; preferences are not, so an observation cut by
+    // that cap used to survive there and still does.
+    const cap = getRetentionPolicy().context.maxIdentityObservations;
+    const observations = Array.from({ length: cap + 3 }, (_, i) =>
+      observation(`Style ${i}`, "WorkStyle"),
+    ) as never[];
+
+    const traits = contextRules.filterIdentityObservations(observations);
+    expect(traits.length, "the cap did not bite, so nothing is being tested").toBe(cap);
+
+    const prefs = contextRules.extractUserPreferences(observations, traits);
+    const shown = new Set(traits.map((t) => t.data.name));
+    const dropped = (observations as unknown as { name: string }[])
+      .map((o) => o.name)
+      .filter((n) => !shown.has(n));
+
+    expect(dropped.length, "nothing was cut by the cap").toBe(3);
+    for (const name of dropped) {
+      expect(
+        prefs.map((p) => p.data),
+        `"${name}" was cut from traits and never surfaced anywhere`,
+      ).toContain(`${name}: Active`);
     }
   });
 });

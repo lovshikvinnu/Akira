@@ -418,13 +418,40 @@ export const contextRules = {
   /**
    * Extract active learning, work, and communication preferences.
    */
-  extractUserPreferences(observations: IdentityObservation[]): ContextItem<string>[] {
+  extractUserPreferences(
+    observations: IdentityObservation[],
+    alreadyShown: ContextItem<IdentityObservation>[] = [],
+  ): ContextItem<string>[] {
     const prefs: string[] = [];
 
+    // Only what the Emergent Identity Traits block did not already say.
+    //
+    // A WorkStyle or LearningStyle observation was emitted by both this and
+    // `filterIdentityObservations`, so the prompt carried it twice under two
+    // headings with two different explanations:
+    //
+    //     User Preferences:          - Deep Work Focus: Active (Reason: Identity Evidence)
+    //     Emergent Identity Traits:  - Deep Work Focus: Active (Inferred from
+    //                                  activity (confidence 0.65))
+    //
+    // The traits line is strictly the better of the two -- it carries the basis
+    // and the strength of the evidence, where this one carries a fixed label
+    // that says nothing about either, and since the basis work that label is
+    // also misleading: "Identity Evidence" for something GENESIS inferred.
+    //
+    // Dropping the duplicate outright would have cost coverage, which is why
+    // this subtracts rather than deletes. The traits block is capped at
+    // `maxIdentityObservations`; this one is not. An observation cut by that cap
+    // used to survive here, and still does -- it is emitted precisely when the
+    // richer block has no room for it, so nothing the user told AKIRA about how
+    // they work disappears because twelve other things outranked it.
+    const shown = new Set(alreadyShown.map((item) => item.data.id));
     observations
       .filter(
         (o) =>
-          (o.category === "LearningStyle" || o.category === "WorkStyle") && o.confidence >= 0.5,
+          (o.category === "LearningStyle" || o.category === "WorkStyle") &&
+          o.confidence >= 0.5 &&
+          !shown.has(o.id),
       )
       .forEach((o) => {
         prefs.push(`${o.name}: ${o.value}`);

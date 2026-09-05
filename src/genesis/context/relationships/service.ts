@@ -40,12 +40,23 @@ const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
  * ambiguous matching" line -- so the caller owes a classification, not just a
  * name.
  */
+/**
+ * An explicit @mention of a person, and nothing else.
+ *
+ * Declared once at module scope rather than rebuilt per message: a `g` regex
+ * carries `lastIndex` between calls, so a shared instance has to be reset
+ * before each scan, which is what the loop below does.
+ */
+const MENTION_PATTERN = /@([A-Z][a-zA-Z0-9_]+)/g;
+
 class RelationshipService {
   private relationships: PersonRelationship[] = [];
   private evidenceLog: RelationshipEvidence[] = [];
   private currentContext: RelationshipContext | null = null;
   private storeUnsubscribe: (() => void) | null = null;
   private lastProcessedChatTime = 0;
+  /** Messages already scanned, so a shared millisecond cannot hide one. */
+  private processedChatKeys = new Set<string>();
 
   /**
    * Initializes the Relationship Engine.
@@ -183,27 +194,54 @@ class RelationshipService {
     let hasChanges = false;
 
     chat.forEach((msg) => {
+      // Keyed on the message, not on the clock.
+      //
+      // This was `msgTime > this.lastProcessedChatTime`, which silently skipped
+      // every message sharing the last processed millisecond -- so a burst of
+      // messages, or any batch replayed together, was scanned once and the rest
+      // dropped. It faked a good result during this investigation: a corpus of
+      // ten sentences appeared to record only two people, until it turned out
+      // eight had never been read.
+      //
+      // The timestamp is still tracked, because other code reads it.
       const msgTime = new Date(msg.createdAt).getTime();
-      if (msgTime > this.lastProcessedChatTime) {
-        this.lastProcessedChatTime = msgTime;
+      const messageKey = `${msg.createdAt}|${msg.text}`;
+      if (!this.processedChatKeys.has(messageKey)) {
+        this.processedChatKeys.add(messageKey);
+        this.lastProcessedChatTime = Math.max(this.lastProcessedChatTime, msgTime);
 
-        // Parse mentions of people
-        // Matches "@Name" or phrases like "talked to Bob", "with Alice"
-        const patterns = [
-          /@([A-Z][a-zA-Z0-9_]+)/g,
-          /\b(?:with|to|told|asked|met)\s+([A-Z][a-z]+)\b/g,
-        ];
-
-        patterns.forEach((regex) => {
-          let match;
-          while ((match = regex.exec(msg.text)) !== null) {
-            const name = match[1];
-            if (name) {
-              this.recordObservation(name);
-              hasChanges = true;
-            }
+        // Only an explicit @mention.
+        //
+        // There was a second pattern -- `\b(?:with|to|told|asked|met)\s+([A-Z][a-z]+)\b`
+        // -- which recorded any capitalised word after one of five common
+        // prepositions as a person the user knows. Measured over twenty
+        // ordinary work sentences, five of which named a real person:
+        //
+        //     @Name mention                100% precision, 0 non-people
+        //     preposition + Capitalised     21% precision, 15 non-people
+        //
+        // The fifteen were Marketing, Claude, London, Slack, Python, Done,
+        // Gmail, Option, Main, Vitest, Production, Learn, Finance, Friday and
+        // Spotify. Three of every four "contacts" were not people, and one of
+        // them was AKIRA -- "asked Claude to summarise the doc" recorded Claude
+        // as someone the user has a relationship with. They reach the model as
+        // `• Contact: Marketing (Unspecified)`.
+        //
+        // Writing "@Sarah" is the user naming a person on purpose. Following a
+        // preposition with a capital letter is grammar, and grammar is not
+        // evidence of anything. The recall lost with it is real -- "met Daniel"
+        // no longer records Daniel -- and that is the correct trade: a contact
+        // list that is three-quarters wrong is worse than a shorter one that is
+        // right, because the model cannot tell which quarter to believe.
+        let match;
+        MENTION_PATTERN.lastIndex = 0;
+        while ((match = MENTION_PATTERN.exec(msg.text)) !== null) {
+          const name = match[1];
+          if (name) {
+            this.recordObservation(name);
+            hasChanges = true;
           }
-        });
+        }
       }
     });
 

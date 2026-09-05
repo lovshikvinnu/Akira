@@ -75,8 +75,25 @@ export const contextRelevanceSelector = {
         }),
         // Exclude active goals related to projects/tasks
         activeGoals: [],
-        // Exclude social relationships relevant only to projects
-        importantRelationships: [],
+        // Relationships are NOT stripped here, unlike the project context around
+        // them.
+        //
+        // They used to be, on the reasoning in the old comment -- "social
+        // relationships relevant only to projects". They are not: they come
+        // from the user @mentioning someone in conversation, which has nothing
+        // to do with whether the current question is about a project. The
+        // filter therefore ran exactly backwards. Measured before this change:
+        //
+        //     "how is Pilot Licence going"   workspaceRelevant=true   2 kept
+        //     "who did I meet recently"      workspaceRelevant=false  0 kept
+        //
+        // The one question where knowing the user's contacts matters was the
+        // one that removed them, while a question about a project kept them.
+        //
+        // Safe to keep only because the producer now records an explicit
+        // @mention and nothing else. While it also recorded any capitalised
+        // word after "with"/"to"/"met", widening this gate would have spread a
+        // signal that was three-quarters wrong.
         // Exclude habit routines relevant only to projects
         relevantHabits: [],
         // Exclude active project focus details
