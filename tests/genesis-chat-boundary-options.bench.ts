@@ -261,6 +261,166 @@ describe("chat boundary options", () => {
     log("  -- chat.tsx passes currentProjectId, so attached is the companion-session case");
   });
 
+  it("O9: is chat's score real, or does my fixture share vocabulary with the query", () => {
+    resetRetentionPolicy();
+
+    // O8 gave every chat message the text `question N`, so they all share
+    // vocabulary with the live query -- which is itself one of them. That is a
+    // fixture artefact of exactly the kind I challenged elsewhere, so this arm
+    // varies the text and re-asks.
+    const VARIED = [
+      "how do I wire the uart on this board",
+      "remind me what the deploy step needs",
+      "is the invoice for March paid yet",
+      "what did we decide about the schema migration",
+      "can you summarise yesterday",
+      "which flight school is nearest",
+      "what is the capital of Peru",
+      "explain monads again",
+      "should I refactor the parser now",
+      "did the tests pass",
+      "what time is the standup",
+      "help me name this function",
+      "is there milk left",
+      "what does ETIMEDOUT mean",
+      "book a table for two",
+      "why is the build slow",
+      "who wrote this module",
+      "what is my next task",
+      "how long until the release",
+      "draft a reply to Sam",
+    ];
+
+    const arm = (label: string, texts: string[]) => {
+      freshWorkspace();
+      akira.addProject({ name: "Vocab Arm" });
+      const pid = akira.getState().lastProjectId as string;
+      for (let i = 0; i < 30; i++) completeTask(pid, `va-${i}`);
+      akira.addNote("A written reflection that is not chat.");
+      for (const t of texts) chatTurn(t, pid);
+
+      const byId = new Map(memoryService.getMemories().map((m) => [m.id, m]));
+      recallBuilder.rebuildRecallCandidates();
+      const cache = recallService.getRecallCandidates();
+      const prompt = contextRules.filterActiveRecallCandidates(cache);
+      const chatIds = new Set(
+        memoryService.getMemories().filter((m) => isChat(m.description)).map((m) => m.id),
+      );
+      const scoreOf = (c: unknown) => (c as { recallScore?: number }).recallScore ?? -1;
+      const chatScores = cache.filter((c) => chatIds.has(c.memoryId)).map(scoreOf);
+      const taskScores = cache
+        .filter((c) => {
+          const m = byId.get(c.memoryId);
+          return m && m.eventType === "task_completed";
+        })
+        .map(scoreOf);
+
+      log(
+        `  ${label.padEnd(22)} chat slots ${String(prompt.filter((i) => chatIds.has(i.data.memoryId)).length).padStart(2)}/${prompt.length}` +
+          `  chat score ${Math.min(...chatScores).toFixed(2)}..${Math.max(...chatScores).toFixed(2)}` +
+          `  task score ${Math.min(...taskScores).toFixed(2)}..${Math.max(...taskScores).toFixed(2)}`,
+      );
+    };
+
+    log("");
+    log("=== O9  vocabulary overlap, controlled ===");
+    log(`last user message drives semantic relevance; it is itself a chat memory`);
+    arm("uniform 'question N'", Array.from({ length: 20 }, (_, i) => `question ${i}`));
+    arm("varied real questions", VARIED);
+  });
+
+  it("O8: what is actually in the twelve slots, itemised", () => {
+    resetRetentionPolicy();
+    freshWorkspace();
+
+    akira.addProject({ name: "Itemised" });
+    const pid = akira.getState().lastProjectId as string;
+    for (let i = 0; i < 30; i++) completeTask(pid, `it-${i}`);
+    akira.addNote("A written reflection that is not chat.");
+    for (let i = 0; i < 20; i++) chatTurn(`question ${i}`, pid);
+
+    recallBuilder.rebuildRecallCandidates();
+    const cache = recallService.getRecallCandidates();
+    const prompt = contextRules.filterActiveRecallCandidates(cache);
+    const byId = new Map(memoryService.getMemories().map((m) => [m.id, m]));
+
+    log("");
+    log("=== O8  the twelve slots, itemised ===");
+    log(`context ${recallBuilder.resolveCurrentContext()}`);
+    log(`memories ${memoryService.getMemories().length}, candidates ${cache.length}, active ${cache.filter((c) => c.status === "Active").length}`);
+    for (const item of prompt) {
+      const m = byId.get(item.data.memoryId);
+      const kind = !m ? "?" : isChat(m.description) ? "CHAT" : m.relatedNoteId ? "note" : m.eventType;
+      const sc = (item.data as { recallScore?: number }).recallScore;
+      const au = (item.data as { userAuthored?: boolean }).userAuthored;
+      log(`  ${String(kind).padEnd(14)} score ${sc?.toFixed(2) ?? "n/a"}  authored ${au}  ${item.inclusionReason}`);
+    }
+
+    // And the score distribution across all active candidates, by kind.
+    const scoreOf = (c: unknown) => (c as { recallScore?: number }).recallScore ?? -1;
+    const active = cache.filter((c) => c.status === "Active");
+    const kinds = new Map<string, number[]>();
+    for (const c of active) {
+      const m = byId.get(c.memoryId);
+      const kind = !m ? "?" : isChat(m.description) ? "CHAT" : m.relatedNoteId ? "note" : m.eventType;
+      if (!kinds.has(kind)) kinds.set(kind, []);
+      kinds.get(kind)!.push(scoreOf(c));
+    }
+    log("  score range by kind across all active candidates:");
+    for (const [kind, scores] of kinds) {
+      log(`    ${kind.padEnd(14)} n=${String(scores.length).padStart(3)}  ${Math.min(...scores).toFixed(2)}..${Math.max(...scores).toFixed(2)}`);
+    }
+  });
+
+  it("O7: how chat's share of the prompt varies with how much real work exists", () => {
+    resetRetentionPolicy();
+
+    // Two of my own earlier arms disagreed -- one reported 1 of 12 slots taken
+    // by chat, another 12 of 12 -- and I quoted the worse without reconciling
+    // them. This varies the one thing that differed.
+    const arm = (tasks: number, notes: number, chats: number) => {
+      freshWorkspace();
+      akira.addProject({ name: "Share Arm" });
+      const pid = akira.getState().lastProjectId as string;
+      for (let i = 0; i < tasks; i++) completeTask(pid, `sh-${i}`);
+      for (let i = 0; i < notes; i++) akira.addNote(`A written reflection ${i}.`);
+      for (let i = 0; i < chats; i++) chatTurn(`question ${i}`, pid);
+
+      const chatIds = new Set(
+        memoryService.getMemories().filter((m) => isChat(m.description)).map((m) => m.id),
+      );
+      recallBuilder.rebuildRecallCandidates();
+      const cache = recallService.getRecallCandidates();
+      const prompt = contextRules.filterActiveRecallCandidates(cache);
+      const chatSlots = prompt.filter((i) => chatIds.has(i.data.memoryId)).length;
+      const scores = prompt.map((i) => (i.data as { recallScore?: number }).recallScore ?? -1);
+      return {
+        prompt: prompt.length,
+        chatSlots,
+        topScore: Math.max(...scores),
+        lowScore: Math.min(...scores),
+      };
+    };
+
+    log("");
+    log("=== O7  chat's share of the prompt vs how much real work exists ===");
+    for (const [tasks, notes, chats] of [
+      [0, 0, 20],
+      [10, 0, 20],
+      [10, 1, 20],
+      [30, 1, 20],
+      [100, 1, 20],
+    ] as Array<[number, number, number]>) {
+      const r = arm(tasks, notes, chats);
+      log(
+        `  tasks ${String(tasks).padStart(3)}  notes ${notes}  chat ${chats}  ->` +
+          ` chat holds ${String(r.chatSlots).padStart(2)} of ${r.prompt} slots` +
+          `  (scores ${r.lowScore.toFixed(2)}..${r.topScore.toFixed(2)})`,
+      );
+    }
+    log("  -- chat floods the prompt in proportion to how little real work outranks it");
+  });
+
   it("O6: does a memory keep Story Influence after the arc evicts it", () => {
     resetRetentionPolicy();
     freshWorkspace();
