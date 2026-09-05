@@ -187,16 +187,38 @@ export const intentResolver = {
     }
 
     if (words.length === 1 && !isTrivial) {
+      // Unfamiliar is not the same as ambiguous, and this branch treated it as
+      // if it were.
+      //
+      // `isTrivial` is an exact-match list of ten words, so "hi" passed and
+      // "hii", "helloo", "yo", "sup" and "thx" all landed here: confidence
+      // 0.25, `clarificationRequired`, and three candidates. Meanwhile
+      // "how ae you dng" -- four words, three of them misspelled -- reached the
+      // default below and was answered normally. Length decided it, not
+      // comprehensibility.
+      //
+      // The candidates were the worse half. "general concept", "project term"
+      // and "something else" are not readings of anything; they were emitted
+      // for every unknown word regardless of input, and `prompt-builder` prints
+      // them to the model as "Possible Interpretations" under an instruction to
+      // ask about them and assume none. So AKIRA asked the user to choose
+      // between three possibilities it had invented.
+      //
+      // Ambiguity means a word has several known meanings, which is what
+      // `AMBIGUOUS_DICTIONARY` records and why the branch above still clarifies:
+      // "pilot" really does resolve to a career, a project or a test, and those
+      // candidates come from evidence. An unfamiliar word has no competing
+      // readings to choose between, so there is nothing to ask about -- and a
+      // greeting the parser does not recognise is still answerable.
+      //
+      // The confidence stays low because the input genuinely is not understood.
+      // What changes is that low confidence no longer compels a question.
       return {
-        intent: null,
-        confidence: 0.25,
-        ambiguous: true,
-        clarificationRequired: true,
-        candidates: [
-          { name: "general concept" },
-          { name: "project term" },
-          { name: "something else" },
-        ],
+        intent: { type: "General" },
+        confidence: 0.4,
+        ambiguous: false,
+        clarificationRequired: false,
+        candidates: [],
       };
     }
 

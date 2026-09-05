@@ -31,6 +31,7 @@ import { Shell, PageHeader } from "@/app/shell/Shell";
 import { GhostButton } from "@/app/ui/primitives";
 import { useAkira, akira, type ChatMessage } from "@/akira-os";
 import { eventService } from "@/genesis";
+import { describeProviderFailure } from "@/genesis/context/ai/provider-error";
 import { candidateService } from "@/genesis";
 import { memoryService } from "@/genesis";
 import { companionStateService } from "@/genesis";
@@ -787,23 +788,21 @@ function CompanionWorkspacePage() {
       if (error.name === "AbortError" || error.message?.includes("abort")) {
         // Already handled in handleCancel
       } else {
+        // The whole error, to the console, where a developer looks for it.
         console.error("AI engine stream query failed:", err);
-        let errorMessage = `I encountered an issue connecting to my cognitive core: ${error.message || String(error)}. Please verify your network or retry.`;
 
         const activeProvider = providerState.activeProvider;
         const apiKey =
           activeProvider === "OpenRouter" ? providerState.openRouterKey : providerState.geminiKey;
-        if (!apiKey) {
-          errorMessage = `I'm running in Local Companion Mode. To connect me to live cognitive services via ${activeProvider}, please configure an API key in settings.`;
-        } else if (error.message?.includes("API key") || error.message?.includes("key")) {
-          errorMessage = `My ${activeProvider} API key appears to be invalid. Please verify the API key configured in settings.`;
-        } else if (
-          error.message?.includes("timeout") ||
-          error.message?.includes("Failed to fetch")
-        ) {
-          errorMessage =
-            "The connection timed out while awaiting a response. Let's try again in a moment when your network stabilizes.";
-        }
+        // What the failure means is decided in `provider-error`, not here. A
+        // rate limit used to match none of these branches and fall through to a
+        // default that pasted the provider's own text into the conversation and
+        // blamed the user's network.
+        const errorMessage = describeProviderFailure(
+          error,
+          activeProvider,
+          Boolean(apiKey),
+        ).message;
 
         akira.updateChatMessage(aiMessage.id, `⚠️ **System Note:** ${errorMessage}`);
 
