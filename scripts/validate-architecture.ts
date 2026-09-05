@@ -1157,7 +1157,14 @@ async function runTests() {
           )
             continue;
           scanTimelineWrites(fullPath);
-        } else if (item.endsWith(".ts") || item.endsWith(".tsx")) {
+        } else if (
+          (item.endsWith(".ts") || item.endsWith(".tsx")) &&
+          !item.endsWith(".test.ts") &&
+          !item.endsWith(".test.tsx")
+        ) {
+          // Test files excluded the way test directories already were, for the
+          // same reason as the Event Bus scan above: a test writing timeline SQL
+          // is not a business module reaching past the boundary.
           const content = fs.readFileSync(fullPath, "utf8");
           if (
             content.includes("timeline_events") &&
@@ -1286,13 +1293,21 @@ async function runTests() {
             scanBusinessImports(fullPath);
           } else if (item.endsWith(".ts") || item.endsWith(".tsx")) {
             const content = fs.readFileSync(fullPath, "utf8");
+            // Matched on the path segment, not on a literal "src/..." prefix.
+            //
+            // These read `content.includes("src/analytics/engine")` and so on.
+            // Nothing in this repository writes an import that way -- they are
+            // relative (`../analytics/analytics-api`) or aliased (`@/analytics/...`)
+            // -- so the literal appeared nowhere in `src/` and the check could
+            // not fire for any violation, real or planted. It passed because of
+            // how imports are spelled, not because the boundary held.
+            //
+            // `analytics/analytics-api` is the public entry point and is
+            // deliberately not in this list.
             if (
-              content.includes("src/analytics/engine") ||
-              content.includes("src/analytics/repository") ||
-              content.includes("src/analytics/metrics") ||
-              content.includes("src/analytics/service") ||
-              content.includes("src/analytics/dashboard") ||
-              content.includes("src/analytics/validation")
+              /["'@./]analytics\/(engine|repository|metrics|service|dashboard|validation)(?![A-Za-z0-9-])/.test(
+                content,
+              )
             ) {
               internalImportErrors.push(fullPath);
             }
