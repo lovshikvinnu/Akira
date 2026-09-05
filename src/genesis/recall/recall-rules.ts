@@ -385,6 +385,15 @@ function computeSemanticRelevance(
   return matches / queryStems.length;
 }
 
+/**
+ * The stability floor for a memory the user explicitly authored.
+ *
+ * Set to the "Project" / "Knowledge" tier deliberately: the claim being made is
+ * parity, not privilege. A captured thought should be judged the way a memory
+ * about a project is judged, whether or not it was filed under one.
+ */
+const USER_AUTHORED_STABILITY = 0.8;
+
 export const recallRules: RecallRule[] = [
   {
     name: "Active Story Recall Rule",
@@ -426,6 +435,33 @@ export const recallRules: RecallRule[] = [
       else if (category === "Reflection") stabilityScore = 0.4;
       else if (category === "Preference") stabilityScore = 0.2;
 
+      // A memory the user typed is at least as durable as one the system wrote
+      // about a project.
+      //
+      // `classifyMemory` reads keywords out of the text and, failing all of
+      // them, lands an explicit note on "Reflection" -- the second-lowest tier.
+      // The exception was `memory.relatedProjectId`, which routes the same
+      // memory down the "Project" branch at 0.8. So which tier a captured
+      // thought received depended on whether the user happened to file it under
+      // a project, and nothing else: identical words, 0.4 free-standing against
+      // 0.8 attached. At BOOTSTRAP, where stability carries 0.6 of the weight,
+      // that gap is the difference between 0.46 and 0.70 against a 0.60
+      // threshold, so the attached note was recalled and the free-standing one
+      // produced no candidate at all.
+      //
+      // Filing is not a statement about how durable a thought is. Authorship
+      // is, and it is available as a structured fact rather than as a keyword:
+      // `relatedNoteId` is set by the event translator for exactly the two
+      // events the user originates, `note_created` and `note_edited`. Nothing
+      // else in the system sets it.
+      //
+      // This is a floor, not an assignment. A note whose text classifies higher
+      // -- "Goal" at 1.0, say -- keeps the higher tier, and an attached note is
+      // already at 0.8, so this changes nothing for it. What it removes is the
+      // demotion that applied only to free-standing captures.
+      if (memory.relatedNoteId) {
+        stabilityScore = Math.max(stabilityScore, USER_AUTHORED_STABILITY);
+      }
 
       // 3. Calculate Semantic Relevance Score
       const relevance = computeSemanticRelevance(memory, evaluationContext.queryStems);
@@ -511,6 +547,7 @@ export const recallRules: RecallRule[] = [
           `Context: ${resolvedContext}`,
           `Score: ${compositeScore.toFixed(2)}`,
           `Category: ${category}`,
+          `Stability: ${stabilityScore.toFixed(1)}`,
           `SemanticMatch: ${semanticScore > 0 ? "Yes" : "No"}`,
           `Recency: ${recencyStrength.toFixed(1)}`,
           `Intent: ${scoreIntent.toFixed(1)}`,
