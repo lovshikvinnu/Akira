@@ -10,6 +10,32 @@ import {
   projectArcTitleRemainder,
 } from "../stories/story-identity";
 
+/**
+ * The active candidates the prompt can afford, strongest first.
+ *
+ * `recallCache` is built by walking `memoryService.getMemories()` in insertion
+ * order, so taking the head of it took the OLDEST active candidates. At the
+ * retention ceiling that is a hard rule with an unpleasant consequence: a
+ * memory created today is candidate ~500, and no score it earns can move it
+ * into a twelve-slot budget filled by whatever happened to be recorded first.
+ * Recall could decide a thought mattered and the decision could not reach the
+ * prompt.
+ *
+ * Ranking is the whole change. The bound, the budget and which candidates are
+ * eligible are all untouched -- this decides which twelve of them get spent,
+ * using the score recall already computed instead of using array position.
+ *
+ * `sort` is stable, so candidates that genuinely tie keep insertion order and
+ * the previous behaviour survives wherever there was nothing to rank by.
+ */
+function rankedActive(candidates: RecallCandidate[], limit: number): RecallCandidate[] {
+  return candidates
+    .filter((c) => c.status === "Active")
+    .slice()
+    .sort((a, b) => b.recallScore - a.recallScore)
+    .slice(0, limit);
+}
+
 export const contextRules = {
   /**
    * Filter out inactive recall candidates to reduce prompt window noise.
@@ -17,10 +43,7 @@ export const contextRules = {
   filterActiveRecallCandidates(candidates: RecallCandidate[]): ContextItem<RecallCandidate>[] {
     // Capped independently of memory retention: what GENESIS may reason over
     // and what is worth spending prompt tokens on are different budgets.
-    // recallCache holds active candidates first, so the head is the useful end.
-    return candidates
-      .filter((c) => c.status === "Active")
-      .slice(0, getRetentionPolicy().context.maxRecallCandidates)
+    return rankedActive(candidates, getRetentionPolicy().context.maxRecallCandidates)
       .map((c) => {
         let reason = "Recent Recall";
         if (c.recallReasons.some((r) => r.toLowerCase().includes("user intent"))) {
@@ -154,11 +177,12 @@ export const contextRules = {
    * Generate human-readable recent activity logs from recalled memory tags.
    */
   compileRecentActivity(candidates: RecallCandidate[]): string[] {
-    return candidates
-      .filter((c) => c.status === "Active")
-      .slice(0, getRetentionPolicy().context.maxRecentActivity)
-      .map((c) => {
-        return `Recall active memory node (${c.memoryId}) because: ${c.recallReasons.join(" | ")}`;
-      });
+    // Same ranking as the candidate list above, and for the same reason: this
+    // is the second place a twelve-item budget was spent on whatever came
+    // first. The two lists are drawn from one pool and should not disagree
+    // about which of it matters.
+    return rankedActive(candidates, getRetentionPolicy().context.maxRecentActivity).map((c) => {
+      return `Recall active memory node (${c.memoryId}) because: ${c.recallReasons.join(" | ")}`;
+    });
   },
 };

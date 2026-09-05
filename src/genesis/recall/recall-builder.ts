@@ -158,6 +158,7 @@ export const recallBuilder = {
       const supportingStoryIds = parentStory ? [parentStory.id] : [];
 
       const reasons: string[] = [];
+      let score = 0;
 
       for (const rule of recallRules) {
         const result = rule.evaluate(
@@ -169,6 +170,12 @@ export const recallBuilder = {
         );
         if (result.shouldRecall && result.reason) {
           reasons.push(result.reason);
+          // The strongest opinion wins. Rules that recall on a categorical
+          // fact report no score and leave this at 0, which is what a memory
+          // recalled only for belonging to an active story should carry.
+          if (result.score !== undefined && result.score > score) {
+            score = result.score;
+          }
         }
       }
 
@@ -178,6 +185,7 @@ export const recallBuilder = {
           supportingStoryIds,
           importanceSignals: importance?.signals || [],
           recallReasons: reasons,
+          recallScore: score,
           recallTimestamp,
         });
       }

@@ -52,6 +52,14 @@ export interface RecallRule {
   ): {
     shouldRecall: boolean;
     reason?: string;
+    /**
+     * How strongly this rule wanted the memory, if it can say.
+     *
+     * Optional: a rule that recalls on a categorical fact has no degree to
+     * report, and an externally registered rule written before this field
+     * existed keeps working. See {@link RecallCandidate.recallScore}.
+     */
+    score?: number;
   };
 }
 
@@ -556,6 +564,7 @@ export const recallRules: RecallRule[] = [
         return {
           shouldRecall: true,
           reason: `Multi-factor recall [${factors.join(" | ")}]`,
+          score: compositeScore,
         };
       }
 
