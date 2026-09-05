@@ -49,6 +49,29 @@ const uid = () =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2) + Date.now().toString(36);
 
+/**
+ * DORMANT. Complete, coherent, and wired to nothing.
+ *
+ * `Plan -> Milestone -> Task`, with repositories, validation and dependency
+ * tracking. Traced end to end: no call site anywhere outside this directory and
+ * its tests. `genesis/index.ts` re-exports it, which is what makes it look
+ * connected in a search; a re-export is not a consumer. It is never
+ * initialized, and `__root.tsx` does not start it.
+ *
+ * Preserved rather than removed. It is internally consistent and it models a
+ * level the product's hierarchy names -- Aspiration -> Objective -> Project ->
+ * Mission -> Task -- which the live workspace only covers at Project and Task.
+ *
+ * ACTIVATION BOUNDARY: something must create a `Plan`. Until a caller exists,
+ * every method here is reachable only from a test.
+ *
+ * A caution for whoever activates it: the live workspace already has its own
+ * `Project` and `Task` in `store-types.ts`, and this module's `Task` belongs to
+ * a `Milestone` rather than a project. Two entities called Task with different
+ * parents is exactly the conflation the hierarchy decision forbids, so
+ * activating this means deciding which one the product means, not just calling
+ * `createPlan`.
+ */
 export class PlanningService {
   private planRepo!: PlanRepository;
   private blockerRepo!: BlockerRepository;

@@ -351,12 +351,25 @@ export const knowledgeRule: UnderstandingRule = {
         story.title.toLowerCase().includes("knowledge") ||
         story.summary.toLowerCase().includes("knowledge");
       if (isKnowledgeStory) {
-        let knowledgeId = "general_knowledge";
+        // Only a story that names a subject contributes one.
+        //
+        // This defaulted to the literal "general_knowledge", which is the same
+        // shape as the goal bucket removed above: a constant key collects
+        // everything that reaches it into one fragment, and a fragment keyed on
+        // a constant makes the same claim whatever the user does -- here it
+        // would reach the model as "The user is actively learning General
+        // Knowledge."
+        //
+        // Both routes into it are closed today rather than one. `Knowledge ID:`
+        // has this reader and no writer anywhere, and no story this system
+        // produces contains the word "knowledge", so nothing currently arrives.
+        // The default is removed anyway, because "unreachable" is a fact about
+        // today's story titles and not a property anyone maintains: the next
+        // story called "Knowledge Review" would have restored the claim.
         const idMatch = story.summary.match(/Knowledge ID:\s*([a-zA-Z0-9-]+)/i);
         if (idMatch) {
-          knowledgeId = idMatch[1];
+          addRef(idMatch[1], "stories", story.id);
         }
-        addRef(knowledgeId, "stories", story.id);
       }
     }
 

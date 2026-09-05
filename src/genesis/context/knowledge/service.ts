@@ -15,6 +15,31 @@ import { eventService } from "../../events/event-service";
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
+/**
+ * ORPHANED. Started at boot, read by the resolver, and permanently empty.
+ *
+ * Unlike a dormant module this one is fully wired at both ends: `__root.tsx`
+ * calls `initialize()`, and `context-resolution/service.ts` reads
+ * `getContext()`. What is missing is in the middle -- `addNode` is the only way
+ * a `KnowledgeNode` comes into existence and nothing calls it. So `nodes` is
+ * always `[]`, and every derived figure is derived from nothing.
+ *
+ * That is not harmless. `builder.ts` computes the aggregate as
+ * `let confidence = 1.0; if (nodes.length > 0) { ...mean... }`, so an empty
+ * registry reports maximum confidence, and `resolveUnifiedContext` averages
+ * that in because the context object exists. Measured at boot with no user
+ * data: `knowledgeContext.confidence === 1`, and `overallConfidence === 1` with
+ * this engine as one of only two contributors.
+ *
+ * Not reconnected here. A producer needs an acquisition pipeline and an
+ * ontology for what counts as a Concept, a Skill and a Domain, which is a
+ * cognitive-model decision rather than a missing wire.
+ *
+ * ACTIVATION BOUNDARY: a caller for `addNode`. The empty-set default above
+ * should be settled at the same time -- an engine holding nothing is not
+ * certain of anything, and changing it moves `initiative/rules.ts`, so it is a
+ * decision rather than a repair.
+ */
 class KnowledgeService {
   private nodes: KnowledgeNode[] = [];
   private relationships: KnowledgeRelationship[] = [];

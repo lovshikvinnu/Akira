@@ -17,6 +17,29 @@ import { eventService } from "../../events/event-service";
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
+/**
+ * ORPHANED, and the same shape as `KnowledgeService` next door.
+ *
+ * `__root.tsx` initializes it and `context-resolution/service.ts` reads
+ * `getContext()`, but `recordObservation` -- the only way a person enters the
+ * registry -- has no caller outside this file and its tests. `correctRelationship`
+ * has none either. So the people list is always empty.
+ *
+ * It contributes an aggregate confidence to `resolveUnifiedContext` regardless,
+ * measured as `1` on a workspace with no data, for the same reason as knowledge:
+ * the context object exists, so it is counted.
+ *
+ * Note for anyone tracing a bug filed against "relationships": this is the
+ * contact engine, about people. `src/genesis/memory/relationships/` is a
+ * different subsystem about links between memories, and that one is live --
+ * it feeds importance, stories and retention. Similar names, opposite liveness.
+ *
+ * ACTIVATION BOUNDARY: a caller for `recordObservation`. Whatever calls it will
+ * be deciding that a name mentioned in conversation is a person worth
+ * remembering, which is precisely the "never create a relationship from
+ * ambiguous matching" line -- so the caller owes a classification, not just a
+ * name.
+ */
 class RelationshipService {
   private relationships: PersonRelationship[] = [];
   private evidenceLog: RelationshipEvidence[] = [];
