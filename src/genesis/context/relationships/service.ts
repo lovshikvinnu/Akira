@@ -18,27 +18,32 @@ import { eventService } from "../../events/event-service";
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 /**
- * ORPHANED, and the same shape as `KnowledgeService` next door.
+ * LIVE, on explicit @mentions only.
  *
- * `__root.tsx` initializes it and `context-resolution/service.ts` reads
- * `getContext()`, but `recordObservation` -- the only way a person enters the
- * registry -- has no caller outside this file and its tests. `correctRelationship`
- * has none either. So the people list is always empty.
+ * This said "ORPHANED ... the people list is always empty", which was true of
+ * the useful half: the scan below fed `recordObservation` from two patterns,
+ * and the second one -- any capitalised word after "with"/"to"/"told"/"asked"/
+ * "met" -- was 21% precise. Marketing, London, Slack, Python, Friday and Claude
+ * all became contacts. The engine had a producer; what it did not have was a
+ * trustworthy one.
  *
- * It contributes an aggregate confidence to `resolveUnifiedContext` regardless,
- * measured as `1` on a workspace with no data, for the same reason as knowledge:
- * the context object exists, so it is counted.
+ * The producer is now an @mention and nothing else, which the user writes on
+ * purpose. `correctRelationship` still has no production caller, so
+ * `sharedProjectIds` and the other corrected fields stay empty -- which matters
+ * downstream: `resolveUnifiedContext` narrows relationships to the active
+ * project by that field, and falls back to all of them when none carries a
+ * link, precisely because the link data does not exist yet.
  *
  * Note for anyone tracing a bug filed against "relationships": this is the
  * contact engine, about people. `src/genesis/memory/relationships/` is a
  * different subsystem about links between memories, and that one is live --
  * it feeds importance, stories and retention. Similar names, opposite liveness.
  *
- * ACTIVATION BOUNDARY: a caller for `recordObservation`. Whatever calls it will
- * be deciding that a name mentioned in conversation is a person worth
- * remembering, which is precisely the "never create a relationship from
- * ambiguous matching" line -- so the caller owes a classification, not just a
- * name.
+ * REMAINING BOUNDARY: a producer for `sharedProjectIds`. Associating a person
+ * with a project automatically would mean deciding that someone mentioned while
+ * a project was open belongs to it, which is the proximity inference the
+ * project/aspiration rule was removed for. It needs a deliberate act by the
+ * user, not a heuristic.
  */
 /**
  * An explicit @mention of a person, and nothing else.
@@ -205,7 +210,11 @@ class RelationshipService {
       //
       // The timestamp is still tracked, because other code reads it.
       const msgTime = new Date(msg.createdAt).getTime();
-      const messageKey = `${msg.createdAt}|${msg.text}`;
+      // The message's own id. Keying on `createdAt|text` instead was wrong in
+      // the same family as the bug it replaced: two messages with the same
+      // words in the same millisecond -- ordinary across a reset, or any replay
+      // of a conversation -- collided and the second was silently skipped.
+      const messageKey = msg.id;
       if (!this.processedChatKeys.has(messageKey)) {
         this.processedChatKeys.add(messageKey);
         this.lastProcessedChatTime = Math.max(this.lastProcessedChatTime, msgTime);

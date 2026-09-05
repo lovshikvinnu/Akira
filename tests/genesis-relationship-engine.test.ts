@@ -41,7 +41,6 @@ const { contextRelevanceSelector } =
   await import("../src/genesis/context/context-relevance-selector");
 const { contextService } = await import("../src/genesis/context/context-service");
 const { resolveUnifiedContext } = await import("../src/genesis/context/context-resolution/rules");
-const { companionStateService } = await import("../src/genesis/context/state/service");
 
 type Person = { name: string; sharedProjectIds: string[] };
 
@@ -171,43 +170,120 @@ describe("an inferred link is worth less than a stated one", () => {
   });
 });
 
-describe("a residual gate that this change does not reach", () => {
-  it("records no project link on a person, which is what empties them downstream", () => {
-    /**
-     * Pinned as it is, not as it should be.
-     *
-     * `resolveUnifiedContext` narrows `importantRelationships` to people whose
-     * `sharedProjectIds` contains the active project:
-     *
-     *     if (relationships && state && state.activeProject?.id) {
-     *       importantRelationships = relationships.importantPeople.filter((p) =>
-     *         p.sharedProjectIds.includes(state.activeProject!.id));
-     *     }
-     *
-     * Nothing populates that field. It is initialised to `[]` in
-     * `relationships/rules.ts` and written only by `correctRelationship`, a
-     * user-correction API with no production caller -- which this case pins by
-     * recording a person through the real path and finding the list empty.
-     *
-     * So whenever an active project is set -- automatically, from
-     * `lastProjectId`, as soon as the user touches a project -- the filter
-     * yields nothing and the selector fix above is bypassed in the common case.
-     *
-     * The repair belongs in `context-resolution/rules.ts`, which another
-     * session has open with a large edit in flight, so it is recorded here
-     * rather than changed underneath them. Give a person a project link, or
-     * stop the filter emptying the list when no one carries one, and this case
-     * should be revisited.
-     */
-    akira.addProject({ name: "Pilot Licence" });
-    akira.addChatMessage("user", "@Sarah reviewed Pilot Licence today");
+describe("an active project does not hide the user's contacts", () => {
+  /**
+   * `resolveUnifiedContext` narrows `importantRelationships` to people whose
+   * `sharedProjectIds` contains the active project. Nothing populates that
+   * field -- it is initialised to `[]` and written only by
+   * `correctRelationship`, which has no production caller -- so the moment an
+   * active project existed, and it is set automatically from `lastProjectId`
+   * as soon as the user touches a project, every contact disappeared from the
+   * resolved context and from the prompt.
+   *
+   * The narrowing is kept for the day the field is populated. What changed is
+   * the reading of an empty result: nobody linked to this project is evidence
+   * that the link data does not exist, not that nobody matters.
+   *
+   * These drive `resolveUnifiedContext` directly, with a real
+   * `RelationshipContext` built by the engine, because the defect lives in that
+   * function rather than in anything the engine does.
+   */
+  function resolvedWith(activeProject: { id: string; name: string } | null) {
+    const relationships = relationshipService.getContext();
+    return resolveUnifiedContext(
+      null,
+      { activeProject, evidence: { evidenceLog: [], snapshot: {} } } as never,
+      null,
+      null,
+      relationships as never,
+      null,
+      null,
+    ).importantRelationships;
+  }
 
-    const ctx = relationshipService.getContext() as { importantPeople?: Person[] } | null;
-    const sarah = (ctx?.importantPeople ?? []).find((p) => p.name === "Sarah");
-    expect(sarah, "the person was not recorded, so nothing is being pinned").toBeDefined();
+  function mention(name: string) {
+    akira.addChatMessage("user", `@${name} looked at it today`);
+  }
+
+  it("keeps a mentioned person while a project is active", () => {
+    akira.addProject({ name: "Pilot Licence" });
+    const projectId = akira.getState().lastProjectId as string;
+    mention("Sarah");
+    expect(recorded(), "nothing recorded, so nothing is being tested").toContain("Sarah");
+
     expect(
-      sarah!.sharedProjectIds,
-      "a project link now exists, so the downstream filter may no longer empty the list",
+      resolvedWith({ id: projectId, name: "Pilot Licence" }).length,
+      "an active project hid every contact",
+    ).toBe(1);
+  });
+
+  it("keeps them when no project is active", () => {
+    mention("Sarah");
+    expect(resolvedWith(null).length).toBe(1);
+  });
+
+  it("keeps them across several projects, whichever is active", () => {
+    akira.addProject({ name: "Pilot Licence" });
+    const first = akira.getState().lastProjectId as string;
+    akira.addProject({ name: "Kitchen Remodel" });
+    const second = akira.getState().lastProjectId as string;
+    mention("Sarah");
+    mention("Daniel");
+
+    expect(resolvedWith({ id: first, name: "Pilot Licence" }).length).toBe(2);
+    expect(resolvedWith({ id: second, name: "Kitchen Remodel" }).length).toBe(2);
+  });
+
+  it("keeps a person who has no project association at all", () => {
+    akira.addProject({ name: "Pilot Licence" });
+    const projectId = akira.getState().lastProjectId as string;
+    mention("Sarah");
+
+    const person = relationshipService
+      .getContext()!
+      .importantPeople.find((p) => p.name === "Sarah")!;
+    expect(
+      person.sharedProjectIds,
+      "the fixture already has a link, so this proves nothing",
     ).toEqual([]);
+    expect(resolvedWith({ id: projectId, name: "Pilot Licence" }).length).toBe(1);
+  });
+
+  it("does narrow once someone is explicitly associated with the project", () => {
+    // The positive control, and the reason the filter is kept rather than
+    // deleted. `correctRelationship` is the deliberate act -- the only way a
+    // person gains a project link -- and when one exists the narrowing is
+    // meaningful again and the unlinked person drops out.
+    akira.addProject({ name: "Pilot Licence" });
+    const projectId = akira.getState().lastProjectId as string;
+    mention("Sarah");
+    mention("Daniel");
+    expect(resolvedWith({ id: projectId, name: "Pilot Licence" }).length).toBe(2);
+
+    const sarah = relationshipService
+      .getContext()!
+      .importantPeople.find((p) => p.name === "Sarah")!;
+    relationshipService.correctRelationship(
+      sarah.id,
+      "sharedProjectIds",
+      JSON.stringify([projectId]),
+    );
+
+    const narrowed = resolvedWith({ id: projectId, name: "Pilot Licence" });
+    expect(narrowed.length, "an explicit association did not narrow anything").toBe(1);
+    expect(narrowed[0].name).toBe("Sarah");
+  });
+
+  it("associates nobody with a project on its own", () => {
+    // The boundary that stays. Deciding a person mentioned while a project is
+    // open belongs to it is the proximity inference the project/aspiration rule
+    // was removed for.
+    akira.addProject({ name: "Pilot Licence" });
+    mention("Sarah");
+
+    const person = relationshipService
+      .getContext()!
+      .importantPeople.find((p) => p.name === "Sarah")!;
+    expect(person.sharedProjectIds, "a project association was invented").toEqual([]);
   });
 });

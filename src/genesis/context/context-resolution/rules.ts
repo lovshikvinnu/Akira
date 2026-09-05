@@ -127,9 +127,32 @@ export function resolveUnifiedContext(
   // Ingest Social Relationship Context
   let importantRelationships = relationships ? [...relationships.importantPeople] : [];
   if (relationships && state && state.activeProject?.id) {
-    importantRelationships = relationships.importantPeople.filter((p) =>
-      p.sharedProjectIds.includes(state.activeProject!.id),
+    // Narrow to the people connected to this project, but only if any are.
+    //
+    // This filtered unconditionally, and `sharedProjectIds` has no producer:
+    // it is initialised to `[]` in `relationships/rules.ts` and written only by
+    // `correctRelationship`, a user-correction API with no production caller.
+    // So the moment an active project existed -- which happens automatically
+    // from `lastProjectId` as soon as the user touches a project -- every
+    // relationship disappeared from the resolved context, and with it from the
+    // prompt. Not a narrowing: a blackout wearing a narrowing's clothes.
+    //
+    // The intent is sound and is kept for the day the field is populated. What
+    // changes is the reading of an empty result. Nobody being linked to this
+    // project is evidence that the link data does not exist, not evidence that
+    // nobody matters -- so the fallback is everyone, which is what the user
+    // would see with no project open.
+    //
+    // Deliberately no automatic association. Deciding that a person mentioned
+    // while a project is active belongs to that project is exactly the
+    // proximity inference the project/aspiration rule was removed for, and it
+    // would manufacture the very links this filter is then trusted to read.
+    const activeProjectId = state.activeProject.id;
+    const linkedToProject = relationships.importantPeople.filter((p) =>
+      p.sharedProjectIds.includes(activeProjectId),
     );
+    importantRelationships =
+      linkedToProject.length > 0 ? linkedToProject : [...relationships.importantPeople];
 
     relationships.evidence.evidenceLog.forEach((ev) => {
       supportingEvidence.push(`[RelationshipEngine] ${ev.description}`);
