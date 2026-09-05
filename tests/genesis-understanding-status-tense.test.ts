@@ -64,10 +64,10 @@ const PROJECT = "Kitchen Renovation";
 const USER_PROMPT = "how is Kitchen Renovation going";
 
 /** The real system instruction, built the way `executeRequestStream` builds it. */
-function systemInstruction(): string {
-  const intent = intentResolver.resolveIntent(USER_PROMPT, undefined);
-  const selection = contextRelevanceSelector.selectContext(USER_PROMPT, undefined, null, intent);
-  return promptBuilder.buildSystemInstruction(USER_PROMPT, selection, intent, undefined);
+function systemInstruction(prompt: string = USER_PROMPT): string {
+  const intent = intentResolver.resolveIntent(prompt, undefined);
+  const selection = contextRelevanceSelector.selectContext(prompt, undefined, null, intent);
+  return promptBuilder.buildSystemInstruction(prompt, selection, intent, undefined);
 }
 
 const projectUnderstanding = (): Understanding | undefined =>
@@ -195,5 +195,56 @@ describe("a note the user deleted", () => {
     // And the subject is still named rather than erased: a deleted note is
     // still something that happened.
     expect(block).toContain("Risc V Pipeline Hazards");
+  });
+});
+
+describe("a project the user deleted, with another still running", () => {
+  it("is retired without retiring the one that is still going", () => {
+    // U1's project half, end to end, and an integration of three separate
+    // changes: the `project_deleted` translator that puts deletion in the
+    // stream, the context-rules filter that keeps a deleted project out of the
+    // stories and goals blocks, and the serializer reading status here.
+    //
+    // The second project is the point. With only the deleted one, the prompt
+    // looks clean for the wrong reason -- `classifyWorkspaceIntent` matches
+    // against *current* project names, so a deleted project cannot make the
+    // prompt workspace-relevant and `filterUnderstandings` drops it before the
+    // serializer is ever asked. A surviving project restores relevance and the
+    // deleted one comes back into scope, which is where the claim used to be
+    // "The user is actively building Kitchen Renovation."
+    const gone = akira.getState().projects.find((p) => p.name === PROJECT);
+    expect(gone, "the seeded project is missing").toBeDefined();
+
+    akira.addProject({ name: "Garden Beds" });
+    akira.deleteProject(gone!.id);
+
+    const deleted = understandingEngine.getUnderstandings().find((u) => u.label === PROJECT);
+    const surviving = understandingEngine
+      .getUnderstandings()
+      .find((u) => u.label === "Garden Beds");
+
+    // Guards: both understandings must exist, or the assertions below are
+    // about nothing. The deleted one must genuinely have left Active.
+    expect(deleted, "the deleted project's understanding vanished").toBeDefined();
+    expect(surviving, "the surviving project has no understanding").toBeDefined();
+    expect(deleted!.status).not.toBe("Active");
+    expect(surviving!.status).toBe("Active");
+
+    // Named after the *surviving* project on purpose. Asking about the deleted
+    // one makes the prompt non-workspace-relevant, `filterUnderstandings` drops
+    // every Project understanding, and the assertions below would pass because
+    // nothing was rendered at all rather than because the claim was retired.
+    const instruction = systemInstruction("how is Garden Beds going");
+    expect(instruction).toContain(
+      `The user's project ${PROJECT} is archived and no longer active.`,
+    );
+    expect(instruction).not.toContain(`The user is actively building ${PROJECT}`);
+
+    // The still-running project keeps its present tense: this retires one
+    // claim, not the category.
+    expect(instruction).toContain("The user is actively building Garden Beds.");
+
+    // And the deleted project is still named. It happened; it is simply over.
+    expect(instruction).toContain(PROJECT);
   });
 });
