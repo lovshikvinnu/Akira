@@ -1223,15 +1223,36 @@ registerStoreProvider({
       // `settings.updateMemories` replaces the whole blob, so what it writes is
       // whatever `s.memories` holds at the time. `__root.tsx` hydrates in an
       // async effect and calls `companionStateService.bootstrap()` from a
-      // synchronous one below it, so on a cold start a `note_created` event is
-      // recorded while this array is still empty -- and the write puts
-      // `[bootstrapEvent]` over the user's history.
+      // synchronous one below it, so a durable event recorded on a cold start
+      // lands while this array is still empty -- and the write puts that one
+      // event over the user's history.
       //
       // Reproduced end to end against the real repository: seven events on
       // disk, hydration withheld, one bootstrap event recorded, disk 7 -> 1
       // holding only "Companion State Bootstrapped". The same bootstrap with
       // the store hydrated first leaves 7 -> 8, so the cause is the empty
       // array rather than anything about bootstrap.
+      //
+      // THAT PRODUCER IS GONE, AND THIS GUARD IS STILL WANTED
+      //
+      // The reproduction above used `bootstrap()`, which published its handoff
+      // as `note_created`. Since 7cb6994 it publishes `companion_bootstrapped`,
+      // which is Transient and never reaches `saveMemory` at all -- so the
+      // event that produced those numbers can no longer produce them.
+      //
+      // Measured after that change, running `__root.tsx`'s second effect
+      // verbatim and in order against an unhydrated store with seven events on
+      // disk: disk unchanged at 7, and the health component still `undefined`,
+      // which distinguishes "nothing called `persist()`" from "`persist()` was
+      // called and declined". Nothing in the boot sequence reaches the write.
+      // A deliberate durable event in the same state does register the
+      // component, so that is a property of the sequence and not of the probe.
+      //
+      // So this is now an invariant guard rather than a live fix: the window is
+      // empty in production, and the cost of keeping it that way is one `if`.
+      // The next durable event added to a boot path would otherwise reopen the
+      // whole class silently, and `__root.tsx:287` -- `{hydrated ? <Outlet/> :
+      // null}` -- only stops writes that a *user* originates.
       //
       // Whether it self-heals is a race, and nothing orders that race.
       // `getInitialState()` and `persistUpdateMemories` are both
