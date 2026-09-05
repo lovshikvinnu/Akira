@@ -81,7 +81,12 @@ export const promptBuilder = {
   },
 
   serializeContextPackage(pkg: ContextPackage): string {
-    let block = `Session ID: ${pkg.contextSessionId}\n`;
+    // No `Session ID:` line. `contextSessionId` is a uid minted per rebuild in
+    // `context-builder`, and it was the first thing the model read. Nothing can
+    // be done with it in a reply: it names a structure the model cannot query,
+    // it changes on every rebuild, and no consumer reads it back out of a
+    // response. The field stays on `ContextPackage` for the runtime.
+    let block = "";
 
     if (pkg.activeCandidates.length > 0) {
       block += `\nRelevant Long-Term Memories:\n`;
@@ -89,7 +94,11 @@ export const promptBuilder = {
         const candidate = item.data;
         const memory = memoryService.getMemories().find((m) => m.id === candidate.memoryId);
         if (memory) {
-          block += `- ${memory.description} (Reason: ${item.inclusionReason} | ID: ${memory.id})\n`;
+          // The reason, not the id. `inclusionReason` is why this memory was
+          // selected -- "User Intent", "Recent Recall" -- which the model can
+          // act on. `memory.id` was bookkeeping: seven uuids in a seven-memory
+          // prompt, none of them referable to.
+          block += `- ${memory.description} (Reason: ${item.inclusionReason})\n`;
         }
       }
     }
@@ -141,19 +150,28 @@ export const promptBuilder = {
     if (pkg.recentActivitySummary.length > 0) {
       block += `\nRecent Activity History:\n`;
       for (const summary of pkg.recentActivitySummary) {
-        let resolvedSummary = summary;
         const idMatch = summary.match(/Recall active memory node \(([^)]+)\)/);
-        if (idMatch && idMatch[1]) {
-          const memoryId = idMatch[1];
-          const memory = memoryService.getMemories().find((m) => m.id === memoryId);
-          if (memory) {
-            resolvedSummary = summary.replace(
-              `Recall active memory node (${memoryId})`,
-              `Recall active memory node [${memory.description}]`,
-            );
-          }
+        if (!idMatch || !idMatch[1]) {
+          // Nothing id-shaped to resolve, so there is nothing to leak.
+          block += `- ${summary}\n`;
+          continue;
         }
-        block += `- ${resolvedSummary}\n`;
+
+        const memoryId = idMatch[1];
+        const memory = memoryService.getMemories().find((m) => m.id === memoryId);
+
+        // The line was emitted either way, so a memory that had aged out of the
+        // runtime set between the context rebuild and this call printed its raw
+        // uuid where its text should have been: the failure case leaked exactly
+        // what the success case hid. An entry naming a memory the prompt cannot
+        // show tells the model nothing, so it is dropped rather than half
+        // rendered.
+        if (!memory) continue;
+
+        block += `- ${summary.replace(
+          `Recall active memory node (${memoryId})`,
+          `Recall active memory node [${memory.description}]`,
+        )}\n`;
       }
     }
 
