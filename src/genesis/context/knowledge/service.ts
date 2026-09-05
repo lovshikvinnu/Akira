@@ -24,12 +24,18 @@ const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
  * a `KnowledgeNode` comes into existence and nothing calls it. So `nodes` is
  * always `[]`, and every derived figure is derived from nothing.
  *
- * That is not harmless. `builder.ts` computes the aggregate as
+ * It used to be worse than idle. `builder.ts` computes its aggregate as
  * `let confidence = 1.0; if (nodes.length > 0) { ...mean... }`, so an empty
- * registry reports maximum confidence, and `resolveUnifiedContext` averages
- * that in because the context object exists. Measured at boot with no user
- * data: `knowledgeContext.confidence === 1`, and `overallConfidence === 1` with
- * this engine as one of only two contributors.
+ * registry still reports 1.0 -- and `resolveUnifiedContext` averaged that in
+ * merely because the context object existed. Measured at boot with no user
+ * data, this engine and `context/relationships` were the only two contributors
+ * and the resolved certainty came out at 1: maximum confidence assembled
+ * entirely out of absence.
+ *
+ * That path is closed. The builder now also reports `basis`, the number of
+ * records its average was taken over, and every aggregate skips an engine whose
+ * basis is 0. The 1.0 above is still computed and is still meaningless; what
+ * changed is that nothing consumes it as a measurement.
  *
  * Not reconnected here. A producer needs an acquisition pipeline and an
  * ontology for what counts as a Concept, a Skill and a Domain, which is a

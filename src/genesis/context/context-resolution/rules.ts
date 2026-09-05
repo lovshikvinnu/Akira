@@ -79,8 +79,8 @@ export function resolveUnifiedContext(
     //   Reflection vs "Reflect on the year"  -> conflict
     //
     // A predicate with the same answer for every input carries no information,
-    // and this one was not inert. `conflictsExposed` costs `overallConfidence`
-    // 0.15 below, prints an "Exposed Conflicts" block into the prompt, and is a
+    // and this one was not inert. `conflictsExposed` costs `certainty.score`
+    // 0.15 below, when there is a score to deduct from, prints an "Exposed Conflicts" block into the prompt, and is a
     // branch `initiative/rules.ts` tests. Which harm followed depended on the
     // baseline, and both were reachable:
     //
