@@ -45,7 +45,7 @@ initializeDatabase();
 import type { AkiraState } from "../src/shared/types/store-types";
 import type { ResolvedContext } from "../src/genesis/context/context-resolution/types";
 
-await import("../src/genesis/index");
+const genesis = await import("../src/genesis/index");
 const { akira } = await import("../src/persistence/akira-store");
 const { memoryService } = await import("../src/genesis/memory/memory-service");
 const { knowledgeService } = await import("../src/genesis/context/knowledge/service");
@@ -56,6 +56,7 @@ const { promptBuilder } = await import("../src/genesis/context/ai/prompt-builder
 const { evaluateInitiative } = await import("../src/genesis/context/initiative/rules");
 const { buildKnowledgeContext } = await import("../src/genesis/context/knowledge/builder");
 const { synthesizeReflectionReport } = await import("../src/genesis/insights/reflection/rules");
+const { presenceService } = await import("../src/akira-os");
 
 function freshWorkspace(): void {
   const s = akira.getState() as AkiraState;
@@ -203,5 +204,49 @@ describe("the second aggregate, in the reflection engine", () => {
 
     expect(report.confidence).not.toBe(0.8);
     expect(report.confidence).toBe(0);
+  });
+});
+
+describe("a workspace where engines do have something", () => {
+  // The inverse risk of the redesign. Excluding zero-basis engines is correct,
+  // but if every engine were excluded the certainty would be permanently null
+  // and initiative permanently Silent -- a working system that never speaks.
+  // Three of the seven contributors are orphaned (`context/goals`,
+  // `context/knowledge`, `context/relationships` all have no producer), so this
+  // pins that the remaining ones still carry it.
+
+  it("produces a measured certainty once real engines have content", () => {
+    freshWorkspace();
+
+    // Booted the way `__root.tsx` boots them. No optional chaining: a renamed
+    // export must fail here rather than silently skip an engine and leave this
+    // asserting against a system that never started.
+    presenceService.initialize();
+    genesis.goalService.initialize();
+    genesis.knowledgeService.initialize();
+    genesis.relationshipService.initialize();
+    genesis.habitService.initialize();
+    genesis.reflectionService.initialize();
+    genesis.companionStateService.bootstrap();
+    contextResolutionService.initialize();
+
+    akira.addProject({ name: "Kitchen Renovation" });
+    const pid = akira.getState().lastProjectId as string;
+    akira.addTaskDetails({ title: "Replace the sink", projectId: pid });
+    const task = akira.getState().tasks.find((t) => t.title === "Replace the sink");
+    if (task) akira.toggleTask(task.id);
+
+    contextResolutionService.initialize();
+    const resolved = contextResolutionService.getContext();
+    expect(resolved).not.toBeNull();
+
+    // At least one engine contributed, so a score exists and is a number.
+    expect(resolved!.certainty.basis).toBeGreaterThan(0);
+    expect(resolved!.certainty.score).not.toBeNull();
+    expect(typeof resolved!.certainty.score).toBe("number");
+
+    // And the no-basis branch is not the one that answered.
+    const decision = evaluateInitiative(resolved!);
+    expect(decision.interventionNecessity).not.toContain("nothing to act on");
   });
 });

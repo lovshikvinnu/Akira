@@ -7,6 +7,36 @@ import { eventService } from "../../events/event-service";
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
+/**
+ * ORPHANED, and the third engine in this shape.
+ *
+ * `__root.tsx` calls `initialize()` and `context-resolution/service.ts` reads
+ * `getContext()`, so it is wired at both ends. What is missing is the middle:
+ * `addGoal` is the only way a Goal enters this registry and nothing outside
+ * this module calls it. Measured on a workspace with a live project, two
+ * completed tasks and a stated aspiration, `goalContext.basis` was still 0.
+ *
+ * The user does not lose goals to this. The prompt's Goals block is built by
+ * `contextRules.extractGoals` from project arcs and identity aspirations, a
+ * different path entirely -- on that same workspace it printed
+ * "Complete Project Arc: Kitchen Renovation (Reason: Active project)" and
+ * "become a commercial pilot (Reason: Stated aspiration)". So this is duplicate
+ * architecture rather than a hole: two goal models, one of them fed.
+ *
+ * It no longer manufactures certainty. `buildGoalContext` still computes 1.0 as
+ * the mean of an empty set, but it reports `basis: activeGoals.length` beside
+ * it and every aggregate skips a zero-basis engine, so an empty registry
+ * contributes nothing rather than maximum confidence.
+ *
+ * ACTIVATION BOUNDARY: a caller for `addGoal`. Whoever writes one is deciding
+ * which goal model the product means -- this registry, the identity graph's
+ * aspirations, or the story-derived arcs `extractGoals` already reads. That is
+ * a cognitive-model decision, not a missing wire, which is why it is recorded
+ * here rather than resolved.
+ *
+ * See `context/knowledge/service.ts` and `context/relationships/service.ts` for
+ * the same finding in the other two.
+ */
 class GoalService {
   private goals: Goal[] = [];
   private evidenceLog: GoalEvidence[] = [];
