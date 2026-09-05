@@ -238,15 +238,37 @@ export function trimNewestFirst<T>(items: T[], max: number): T[] {
  * therefore decided by a property the event already carries at intake: what
  * kind of occurrence it is.
  *
- *   Core      a milestone, or something the user authored. Rare, and the
- *             answer to "what has this person been doing with their life".
- *   Episodic  routine activity. Individually unremarkable, valuable in
- *             aggregate and only while recent.
+ *   Core       a milestone, or something the user authored. Rare, and the
+ *              answer to "what has this person been doing with their life".
+ *   Episodic   routine activity. Individually unremarkable, valuable in
+ *              aggregate and only while recent.
+ *   Transient  informs cognition as it happens and is never stored here at
+ *              all, because something else already stores it.
  *
- * Each class is bounded independently and evicts by recency *within* its class,
- * so high-volume Episodic traffic can never displace a Core event.
+ * Core and Episodic are bounded independently and evict by recency *within*
+ * their class, so high-volume Episodic traffic can never displace a Core
+ * event. Transient is bounded at zero.
+ *
+ * WHY A THIRD CLASS RATHER THAN A SECOND MECHANISM
+ * ------------------------------------------------
+ * Chat needed to be in neither of the first two. Measured on the previous
+ * design, where a chat turn was published as `note_created` and therefore
+ * inherited Core: 200 chat messages took 98.5% of the protected class, and at
+ * the cap they evicted the founding project and the founding note from disk.
+ * Reclassifying to Episodic only relocates that -- Episodic is capped at 500
+ * against Core's 2000, so chat saturates it four times faster, and what it
+ * displaces there is the task history relationships and project arcs are built
+ * from.
+ *
+ * The alternative was a separate "these types are not persisted" set beside
+ * this table. That would have been a second source of truth for durability,
+ * which is the defect class this module exists to prevent: one table answers
+ * "what happens to this event type", and "nothing" is a legitimate answer.
+ *
+ * A Transient event is still published to every subscriber. It is not ignored;
+ * it is not *kept*.
  */
-export type DurabilityClass = "Core" | "Episodic";
+export type DurabilityClass = "Core" | "Episodic" | "Transient";
 
 /**
  * The durability of each intake event type.
@@ -265,6 +287,13 @@ export type DurabilityClass = "Core" | "Episodic";
  * services record. Both are deliberate user acts, so both are Core -- though
  * those services sharing an event type with real notes is a modelling smell
  * worth separating later.
+ *
+ * It used to cover a third thing: every turn the user typed into the chat.
+ * That premise was about deliberateness while the cap is about volume, and
+ * chat is the one caller where those two come apart -- a chat turn is as
+ * deliberate as a note and arrives hundreds of times more often. `chat_message`
+ * now carries its own identity and its own durability, and `chat.tsx` no
+ * longer borrows a note's.
  */
 const DURABILITY_BY_EVENT_TYPE: Readonly<Record<string, DurabilityClass>> = Object.freeze({
   project_created: "Core",
@@ -276,6 +305,21 @@ const DURABILITY_BY_EVENT_TYPE: Readonly<Record<string, DurabilityClass>> = Obje
   project_continued: "Episodic",
   mission_completed: "Episodic",
   presence_updated: "Episodic",
+
+  // A declaration the user made in conversation, promoted because
+  // `parseDeclaration` confirmed it asserts something about them. Core for the
+  // same reason a note is: rare, deliberate, and part of the answer to "who is
+  // this person". Its volume is bounded by how often someone actually declares
+  // something, not by how often they talk.
+  declaration_captured: "Core",
+
+  // The raw conversation turn. Never stored here, because
+  // `settingsService.updateChat` already persists the conversation and a
+  // second copy in the cognitive stream is the duplicate channel that made
+  // chat displace everything else. Listed explicitly rather than left to the
+  // unknown-type default below: the default is a safety net for types nobody
+  // has considered, and this one has been considered.
+  chat_message: "Transient",
 });
 
 /**
@@ -305,9 +349,13 @@ export function applyDurableRetention<T extends { eventType: string }>(
   const limits: Record<DurabilityClass, number> = {
     Core: policy.maxCoreMemoryEvents,
     Episodic: policy.maxMemoryEvents,
+    // Not a tunable. A Transient event is never kept, and expressing that as a
+    // limit rather than as a branch means the loop below needs no special case
+    // and cannot forget one.
+    Transient: 0,
   };
   const kept: T[] = [];
-  const counts: Record<DurabilityClass, number> = { Core: 0, Episodic: 0 };
+  const counts: Record<DurabilityClass, number> = { Core: 0, Episodic: 0, Transient: 0 };
 
   for (const event of newestFirst) {
     const durability = classifyDurability(event.eventType);
@@ -345,8 +393,13 @@ export function applyRuntimeRetention<T extends { eventType: string }>(oldestFir
   const limits: Record<DurabilityClass, number> = {
     Core: policy.maxCoreMemories,
     Episodic: policy.maxMemories,
+    // See the note in `applyDurableRetention`. Nothing should reach here as
+    // Transient -- no candidate rule matches one, so no memory is built from
+    // one -- and a zero limit means that if anything ever does, it is dropped
+    // rather than silently retained under a class that was never sized for it.
+    Transient: 0,
   };
-  const counts: Record<DurabilityClass, number> = { Core: 0, Episodic: 0 };
+  const counts: Record<DurabilityClass, number> = { Core: 0, Episodic: 0, Transient: 0 };
   const doomed = new Set<number>();
 
   // Newest first, so what survives is the newest N of each class.

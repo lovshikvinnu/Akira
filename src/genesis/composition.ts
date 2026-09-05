@@ -43,6 +43,7 @@ import { identityBuilder } from "./understanding/identity-builder";
 import { understandingEngine } from "./understanding/engine";
 import { insightEngine } from "./insights/insight-engine";
 import { contextBuilder } from "./context/context-builder";
+import { chatDeclarationPromoter } from "./events/chat-declaration-promoter";
 import { genesisRealityAdapter } from "./events/reality-adapter";
 import { retentionService } from "./retention/retention-service";
 
@@ -64,6 +65,14 @@ export interface GenesisProcessor {
  * race — but it is the ordering that stays correct if that ever changes.
  */
 export const GENESIS_COGNITIVE_PROCESSORS: readonly GenesisProcessor[] = [
+  // chat turn -> declaration event, for the turns that assert something
+  //
+  // Ahead of the candidate service because it records an event of its own and
+  // that event must find the candidate pipeline already subscribed. Composition
+  // is synchronous and nothing publishes during it, so this is ordering
+  // discipline rather than a live race -- the same reason the reality adapter
+  // is last.
+  { name: "chatDeclarationPromoter", initialize: () => chatDeclarationPromoter.initialize() },
   // event -> candidate
   { name: "candidateService", initialize: () => candidateService.initialize() },
   // candidate -> validated memory

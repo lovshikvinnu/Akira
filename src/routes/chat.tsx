@@ -677,13 +677,26 @@ function CompanionWorkspacePage() {
       }
     }
 
-    // Record interaction event in Brain Pipeline (which could trigger Candidates)
-    eventService.record(
-      "note_created",
-      "Workspace Interaction",
-      `User query submitted to AKIRA: "${userText}"`,
-      currentProjectId,
-    );
+    // Tell GENESIS the user said something. What it does with that is its
+    // decision, not this route's.
+    //
+    // This used to publish `note_created` with the turn wrapped in
+    // `User query submitted to AKIRA: "..."`. Durability is decided by event
+    // type, so borrowing a note's type gave every chat turn a note's
+    // durability: measured, 200 turns took 98.5% of the Core class and at the
+    // cap evicted the founding project and the founding note from disk. It also
+    // made each turn a memory that scanned every other memory for
+    // relationships, found none, and then competed for the prompt against the
+    // work it was asking about.
+    //
+    // `chat_message` is Transient. The conversation is already persisted by
+    // `settingsService.updateChat` above; GENESIS keeps only what
+    // `chatDeclarationPromoter` finds worth promoting. The turn is still fully
+    // available to cognition -- recall reads it live through `getChat()`.
+    //
+    // `description` is the user's words verbatim, so the parser and anything
+    // downstream of it read what was typed rather than a label built around it.
+    eventService.record("chat_message", "Chat Message", userText, currentProjectId);
 
     setIsLoading(true);
     setCompanionState("preparing");

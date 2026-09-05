@@ -1,6 +1,7 @@
 import { MemoryEvent } from "../../shared/types/event-types";
 import { saveMemory } from "../../shared/genesis-provider";
 import { runBatched } from "../batch";
+import { classifyDurability } from "../retention/policy";
 
 const uid = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -82,9 +83,26 @@ export const eventService = {
     // Synchronous throughout, so cognition is complete when this returns.
     // Nesting is safe: a subscriber that records its own event joins this
     // transaction instead of settling inside it.
+    // Whether this kind of occurrence is kept at all.
+    //
+    // Every event used to be written to the durable stream, because until
+    // `chat_message` existed every event type was worth keeping. A Transient
+    // type is published to subscribers exactly like any other -- cognition
+    // still sees it as it happens -- and is simply never stored, because
+    // something else already stores it. For chat that something is
+    // `settingsService.updateChat`; a second copy in the cognitive stream was
+    // the duplicate channel that let conversation displace everything else.
+    //
+    // Read from `classifyDurability` rather than from a list kept here, so
+    // there is one table answering "what happens to this event type" instead
+    // of two that can disagree.
+    const isDurable = classifyDurability(event.eventType) !== "Transient";
+
     runBatched(() => {
       // 1. Persist the event first if a handler exists (e.g. via local handler or shared saveMemory provider)
-      if (localPersistHandler) {
+      if (!isDurable) {
+        // nothing to store
+      } else if (localPersistHandler) {
         try {
           localPersistHandler(event);
         } catch (err) {

@@ -129,7 +129,11 @@ function BrainInspectorPage() {
       setEvents((prev) => [evt, ...prev]);
       setActiveSession(akira.getState().activeSession);
       triggerHighlight("Events");
-      if (evt.eventType === "note_created" && evt.description.includes("submitted to AKIRA")) {
+      // Chat has its own event type now, so this asks what the event is
+      // instead of searching the sentence GENESIS happened to build for it.
+      // The old test was `note_created` plus `description.includes("submitted
+      // to AKIRA")`, which stopped being true the moment that wrapper changed.
+      if (evt.eventType === "chat_message") {
         triggerHighlight("Conversation");
       }
     });

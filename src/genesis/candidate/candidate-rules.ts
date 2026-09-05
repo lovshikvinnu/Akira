@@ -80,6 +80,33 @@ export const rules: CandidateRule[] = [
     },
   },
   {
+    /**
+     * A declaration the user made in conversation, already confirmed.
+     *
+     * The gate is upstream, in `chatDeclarationPromoter`: a raw `chat_message`
+     * matches no rule in this file and therefore becomes no memory, and only a
+     * turn that `parseDeclaration` recognised is re-recorded as
+     * `declaration_captured`. So this rule does not decide whether the turn
+     * mattered -- it records that something already decided it did.
+     *
+     * `reason` is "Reflection Worthy" rather than a new `CandidateReason`.
+     * A declaration is a reflection about oneself, so the reflections arc is
+     * where it belongs, and the structured thing that distinguishes it from a
+     * written note is `eventType`, which the candidate carries unchanged.
+     */
+    name: "Declaration Captured",
+    evaluate(event) {
+      if (event.eventType === "declaration_captured") {
+        return {
+          shouldGenerate: true,
+          reason: "Reflection Worthy",
+          explanation: `Declaration made in conversation: "${event.description}".`,
+        };
+      }
+      return { shouldGenerate: false };
+    },
+  },
+  {
     name: "Brain Dump / Note Created",
     evaluate(event) {
       if (event.eventType === "note_created") {
