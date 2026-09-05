@@ -237,12 +237,17 @@ export const relationshipService = {
 
       for (const rule of relationshipRules) {
         const result = rule.evaluate(newMemory, existing);
-        if (result.detected && result.type && result.evidence) {
+        // `basis` is required alongside the rest. A rule that detects a link
+        // without saying where it came from is not recorded at all, so an
+        // unclassified relationship cannot reach the cache and be counted as
+        // though the user had established it.
+        if (result.detected && result.type && result.basis && result.evidence) {
           const relationship: MemoryRelationship = {
             id: uid(),
             sourceMemoryId: newMemory.id,
             targetMemoryId: existing.id,
             type: result.type,
+            basis: result.basis,
             evidence: result.evidence,
             timestamp: new Date().toISOString(),
           };
