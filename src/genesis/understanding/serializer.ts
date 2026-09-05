@@ -61,9 +61,13 @@ function formatConfidence(confidence: UnderstandingConfidence): string {
  * Serializes a single Understanding object into a deterministic natural-language summary block.
  */
 export function serializeUnderstanding(u: Understanding): string {
+  // The label when the rule supplied one, because a key is not always words.
+  // `project:<uuid>` is a correct identifier and an unreadable name; splitting
+  // it here is what put "actively building 95880953 4989 45db 8a3f" in front of
+  // the model. Keys that are already words are unaffected.
   const rawConcept = u.canonicalKey.includes(":") ? u.canonicalKey.split(":")[1] : u.canonicalKey;
-  const displayTitle = getConceptTitle(rawConcept);
-  const sentenceConcept = formatSentenceConcept(u.category, rawConcept);
+  const displayTitle = u.label ? u.label : getConceptTitle(rawConcept);
+  const sentenceConcept = u.label ? u.label : formatSentenceConcept(u.category, rawConcept);
 
   let sentence = "";
   switch (u.category) {

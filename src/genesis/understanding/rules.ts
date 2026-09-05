@@ -57,7 +57,10 @@ function calculateConfidence(memoryCount: number, storyCount: number): Understan
 export const projectRule: UnderstandingRule = {
   name: "Project Understanding Rule",
   evaluate(memories, stories) {
-    const projectMap = new Map<string, { memories: string[]; stories: string[] }>();
+    const projectMap = new Map<
+      string,
+      { memories: string[]; stories: string[]; name?: string; nameAt?: string }
+    >();
 
     // 1. Scan memories for project links
     for (const memory of memories) {
@@ -66,7 +69,40 @@ export const projectRule: UnderstandingRule = {
         if (!projectMap.has(id)) {
           projectMap.set(id, { memories: [], stories: [] });
         }
-        projectMap.get(id)!.memories.push(memory.id);
+        const entry = projectMap.get(id)!;
+        entry.memories.push(memory.id);
+
+        // The project's name, for display. `reality-adapter.buildMetadata`
+        // spreads the platform payload across the event's metadata and
+        // `ProjectPayload` is `{ id, name }`, so the name is already here and
+        // nothing new has to be recorded to read it. A `task_completed` memory
+        // links to the same project and carries no name, which is why this
+        // takes whichever memory has one rather than the first one seen.
+        //
+        // Read from the memory, not from the workspace store. The rule runs
+        // while the event that produced it is still being recorded, so a store
+        // lookup can miss the very project it is describing; the event stream
+        // is also what reconstruction replays, so this survives a reload.
+        //
+        // A rename does not reach here today, and that is a promotion boundary
+        // rather than something this rule can fix. `updateProject` publishes
+        // `PROJECT_UPDATED` carrying the new name and it lands in the durable
+        // stream -- measured -- but it is not promoted to a validated Memory,
+        // and these rules read `memoryService.getMemories()`. Of the project
+        // events only `project_created` becomes a Memory, so the name shown is
+        // the one the project was created with.
+        //
+        // Newest-wins is by timestamp rather than by position, because the two
+        // are not the same order: the store holds events newest-first. Should
+        // `project_updated` ever be promoted, this picks up the rename with no
+        // further change; until then it simply picks the only candidate.
+        const name = (memory.metadata as Record<string, unknown> | undefined)?.name;
+        if (typeof name === "string" && name.trim()) {
+          if (!entry.nameAt || memory.timestamp > entry.nameAt) {
+            entry.name = name.trim();
+            entry.nameAt = memory.timestamp;
+          }
+        }
       }
     }
 
@@ -125,6 +161,9 @@ export const projectRule: UnderstandingRule = {
     for (const [projectId, refs] of projectMap.entries()) {
       fragments.push({
         canonicalKey: `project:${projectId}`,
+        // Undefined when no memory carried a name -- the serializer then falls
+        // back to the key, which is the previous behaviour rather than a blank.
+        label: refs.name,
         category: "Project",
         confidence: calculateConfidence(refs.memories.length, refs.stories.length),
         status: determineStatus(stories, refs.stories),

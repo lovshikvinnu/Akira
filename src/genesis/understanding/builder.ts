@@ -34,6 +34,7 @@ export function buildUnderstandingGraph(
     if (!mergedMap.has(key)) {
       mergedMap.set(key, {
         canonicalKey: fragment.canonicalKey,
+        label: fragment.label,
         category: fragment.category,
         confidence: fragment.confidence,
         status: fragment.status,
@@ -55,6 +56,13 @@ export function buildUnderstandingGraph(
         if (!merged.supportingStoryIds.includes(storyId)) {
           merged.supportingStoryIds.push(storyId);
         }
+      }
+
+      // Keep the first label offered. Fragments sharing a key describe one
+      // subject, so a later one cannot rename it -- and a rule that supplies
+      // no label must not blank a label another fragment already provided.
+      if (!merged.label && fragment.label) {
+        merged.label = fragment.label;
       }
 
       // Reconcile status: Active takes precedence
@@ -129,11 +137,21 @@ export function buildUnderstandingGraph(
       const storyIdsChanged = !arraysEqual(existing.supportingStoryIds, merged.supportingStoryIds);
       const statusChanged = existing.status !== merged.status;
       const confidenceChanged = existing.confidence !== merged.confidence;
+      // A rename changes nothing else about the understanding, so without this
+      // the graph would keep showing the project's old name indefinitely.
+      const labelChanged = existing.label !== merged.label;
 
-      if (memoryIdsChanged || storyIdsChanged || statusChanged || confidenceChanged) {
+      if (
+        memoryIdsChanged ||
+        storyIdsChanged ||
+        statusChanged ||
+        confidenceChanged ||
+        labelChanged
+      ) {
         // Something changed: return updated object reference with refreshed timestamp
         newGraph.push({
           ...existing,
+          label: merged.label,
           confidence: merged.confidence,
           status: merged.status,
           supportingMemoryIds: merged.supportingMemoryIds,
@@ -149,6 +167,7 @@ export function buildUnderstandingGraph(
       newGraph.push({
         id: uid(),
         canonicalKey: merged.canonicalKey,
+        label: merged.label,
         category: merged.category,
         confidence: merged.confidence,
         status: merged.status,
