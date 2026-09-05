@@ -186,6 +186,7 @@ export const recallBuilder = {
           importanceSignals: importance?.signals || [],
           recallReasons: reasons,
           recallScore: score,
+          userAuthored: memory.relatedNoteId != null,
           recallTimestamp,
         });
       }

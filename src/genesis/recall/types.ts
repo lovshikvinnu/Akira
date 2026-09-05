@@ -20,6 +20,20 @@ export type RecallCandidate = {
    * position.
    */
   recallScore: number;
+  /**
+   * Whether the user wrote this memory themselves.
+   *
+   * Read from `memory.relatedNoteId`, which the event translator sets for
+   * exactly the two events the user originates. Carried on the candidate
+   * because the prompt budget has to reserve room for these and only sees
+   * candidates, never memories.
+   *
+   * Deliberately not inferred from the `User Intent` importance signal, which
+   * is the same fact arrived at through a rule that also inspects the memory's
+   * title text. Two consumers of one fact should not disagree because one of
+   * them went via a string.
+   */
+  userAuthored: boolean;
   status: "Active" | "Inactive";
   recallTimestamp: string;
 };

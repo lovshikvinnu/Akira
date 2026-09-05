@@ -60,13 +60,14 @@ const { akira } = await import("../src/persistence/akira-store");
 const { memoryService } = await import("../src/genesis/memory/memory-service");
 const { storyService } = await import("../src/genesis/stories/story-service");
 const { importanceService } = await import("../src/genesis/importance/importance-service");
-const { relationshipService } = await import(
-  "../src/genesis/memory/relationships/relationship-service"
-);
+const { relationshipService } =
+  await import("../src/genesis/memory/relationships/relationship-service");
 const { recallService } = await import("../src/genesis/recall/recall-service");
 const { recallBuilder } = await import("../src/genesis/recall/recall-builder");
 const { recallRules } = await import("../src/genesis/recall/recall-rules");
 const { isReflectionsArc } = await import("../src/genesis/stories/story-identity");
+const { contextRules } = await import("../src/genesis/context/context-rules");
+const { getRetentionPolicy } = await import("../src/genesis/retention/policy");
 
 const SENTENCE = "I want to become a pilot and build an aviation company.";
 
@@ -242,7 +243,9 @@ describe("the behaviour survives reconstruction", () => {
         .map((c) => c.memoryId),
     );
     for (const m of after) {
-      expect(active.has(m.id), `note memory not recalled after replay: ${m.description}`).toBe(true);
+      expect(active.has(m.id), `note memory not recalled after replay: ${m.description}`).toBe(
+        true,
+      );
     }
   });
 
@@ -255,5 +258,67 @@ describe("the behaviour survives reconstruction", () => {
     const arc = storyService.getStories().find(isReflectionsArc);
     expect(arc, "the reflections arc did not survive replay").toBeDefined();
     expect(arc!.kind, "replay produced an arc with no structured kind").toBe("Reflections");
+  });
+});
+
+describe("a captured thought reaches the prompt, not just the candidate list", () => {
+  /**
+   * "Recalled" and "in the prompt" are two different claims, and only the
+   * second one is what the user experiences.
+   *
+   * `filterActiveRecallCandidates` spends a twelve-slot budget. Recall making
+   * the note a candidate achieves nothing if the budget is already full of
+   * completed-task memories -- and it is, because they score higher. Measured
+   * at the retention ceiling: 500 task memories at 0.85 against the note at
+   * 0.70. This drives the whole pipeline rather than hand-building candidates,
+   * so it fails if any stage between `addNote` and the context package drops
+   * the memory.
+   */
+  it("puts a freshly captured note in the prompt despite higher-scoring activity", () => {
+    akira.addProject({ name: "Busy" });
+    const projectId = akira.getState().lastProjectId as string;
+    akira.addTaskDetails({ title: "keep-pending", projectId });
+    for (let i = 0; i < 30; i++) {
+      const title = `busy-${i}`;
+      akira.addTaskDetails({ title, projectId });
+      const task = akira.getState().tasks.find((t) => t.title === title);
+      if (task) akira.toggleTask(task.id);
+    }
+
+    const noteId = akira.addNote({ content: SENTENCE });
+    const memory = memoryForNote(noteId)!;
+
+    recallBuilder.rebuildRecallCandidates("BOOTSTRAP");
+    const candidates = recallService.getRecallCandidates();
+
+    const mine = candidates.find((c) => c.memoryId === memory.id)!;
+    const rivals = candidates.filter(
+      (c) => c.status === "Active" && c.recallScore > mine.recallScore,
+    );
+    // The precondition. Without it this test would pass for the wrong reason.
+    expect(
+      rivals.length,
+      "workload did not produce enough higher-scoring activity to be a real test",
+    ).toBeGreaterThan(getRetentionPolicy().context.maxRecallCandidates);
+
+    const selected = contextRules.filterActiveRecallCandidates(candidates);
+    expect(selected.length).toBe(getRetentionPolicy().context.maxRecallCandidates);
+    expect(
+      selected.some((s) => s.data.memoryId === memory.id),
+      "the note was recalled but never reached the prompt",
+    ).toBe(true);
+  });
+
+  it("labels it as User Intent where the model can read it", () => {
+    const noteId = akira.addNote({ content: SENTENCE });
+    const memory = memoryForNote(noteId)!;
+
+    recallBuilder.rebuildRecallCandidates("BOOTSTRAP");
+    const item = contextRules
+      .filterActiveRecallCandidates(recallService.getRecallCandidates())
+      .find((s) => s.data.memoryId === memory.id);
+
+    expect(item).toBeDefined();
+    expect(item!.inclusionReason).toBe("User Intent");
   });
 });

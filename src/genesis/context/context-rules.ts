@@ -49,19 +49,56 @@ function inclusionReasonFor(candidate: RecallCandidate): string {
  * Recall could decide a thought mattered and the decision could not reach the
  * prompt.
  *
- * Ranking is the whole change. The bound, the budget and which candidates are
- * eligible are all untouched -- this decides which twelve of them get spent,
- * using the score recall already computed instead of using array position.
+ * Score decides, with one reservation. `maxAuthoredRecallCandidates` of the
+ * budget is held for memories the user wrote, and is a floor rather than a
+ * cap: authored candidates that rank on merit are selected by score like
+ * anything else, and the reservation only tops up when fewer than that many
+ * made it. Set the policy value to 0 and this is pure ranking.
  *
- * `sort` is stable, so candidates that genuinely tie keep insertion order and
- * the previous behaviour survives wherever there was nothing to rank by.
+ * The reservation exists because scores go degenerate, which ranking alone
+ * cannot fix. Measured at the retention ceiling on a task-dominated history:
+ * 500 completed-task memories all score 0.85, because stability 1.0 and a
+ * saturated relationship signal are the same for every one of them, and a
+ * freshly captured note scores 0.70. Sorting is correct and still spends the
+ * entire budget on copies of one fact. What distinguishes the note is not that
+ * it scores higher -- it does not -- but that it is unique by construction.
+ *
+ * `sort` is stable throughout, so candidates that genuinely tie keep insertion
+ * order and nothing reshuffles between rebuilds for no reason.
  */
 function rankedActive(candidates: RecallCandidate[], limit: number): RecallCandidate[] {
-  return candidates
+  const byScore = candidates
     .filter((c) => c.status === "Active")
     .slice()
-    .sort((a, b) => b.recallScore - a.recallScore)
-    .slice(0, limit);
+    .sort((a, b) => b.recallScore - a.recallScore);
+
+  const reserved = Math.min(getRetentionPolicy().context.maxAuthoredRecallCandidates, limit);
+
+  const chosen: RecallCandidate[] = [];
+  const taken = new Set<string>();
+
+  // The reserved slots, strongest authored first. Fewer are used when there
+  // are fewer authored candidates than the reservation allows for; none are
+  // used when the user has written nothing.
+  for (const candidate of byScore) {
+    if (chosen.length >= reserved) break;
+    if (!candidate.userAuthored) continue;
+    chosen.push(candidate);
+    taken.add(candidate.memoryId);
+  }
+
+  // The rest of the budget by score, authored or not.
+  for (const candidate of byScore) {
+    if (chosen.length >= limit) break;
+    if (taken.has(candidate.memoryId)) continue;
+    chosen.push(candidate);
+    taken.add(candidate.memoryId);
+  }
+
+  // Presented in score order regardless of which pass selected them, so the
+  // reservation changes which candidates are spent and never implies a ranking
+  // the scores do not support.
+  return chosen.sort((a, b) => b.recallScore - a.recallScore);
 }
 
 export const contextRules = {
@@ -71,11 +108,10 @@ export const contextRules = {
   filterActiveRecallCandidates(candidates: RecallCandidate[]): ContextItem<RecallCandidate>[] {
     // Capped independently of memory retention: what GENESIS may reason over
     // and what is worth spending prompt tokens on are different budgets.
-    return rankedActive(candidates, getRetentionPolicy().context.maxRecallCandidates)
-      .map((c) => ({
-        data: c,
-        inclusionReason: inclusionReasonFor(c),
-      }));
+    return rankedActive(candidates, getRetentionPolicy().context.maxRecallCandidates).map((c) => ({
+      data: c,
+      inclusionReason: inclusionReasonFor(c),
+    }));
   },
 
   /**

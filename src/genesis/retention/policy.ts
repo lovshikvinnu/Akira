@@ -121,6 +121,21 @@ export interface GenesisRetentionPolicy {
   readonly context: {
     readonly maxStories: number;
     readonly maxRecallCandidates: number;
+    /**
+     * Of `maxRecallCandidates`, how many are held for memories the user wrote.
+     *
+     * A floor, not a cap: explicitly authored memories that rank on their own
+     * merit are selected by score like anything else, and this only tops up
+     * when fewer than this many made it. Set to 0 to rank purely by score.
+     *
+     * It exists because scores go degenerate. A history dominated by one event
+     * type produces hundreds of candidates carrying the same score -- 500
+     * completed-task memories on an active project all score 0.85 -- and a
+     * budget filled with copies of one fact is not more informative for having
+     * been sorted correctly. This reserves a little room for the memories that
+     * are unique by construction, because the user typed them.
+     */
+    readonly maxAuthoredRecallCandidates: number;
     readonly maxIdentityObservations: number;
     readonly maxGoals: number;
     readonly maxRecentActivity: number;
@@ -154,6 +169,10 @@ export const DEFAULT_RETENTION_POLICY: GenesisRetentionPolicy = {
   context: {
     maxStories: 12,
     maxRecallCandidates: 12,
+    // A quarter of the budget. Enough that a captured thought is never entirely
+    // crowded out by routine activity, small enough that the other nine slots
+    // still describe what the user has actually been doing.
+    maxAuthoredRecallCandidates: 3,
     maxIdentityObservations: 12,
     maxGoals: 8,
     maxRecentActivity: 12,

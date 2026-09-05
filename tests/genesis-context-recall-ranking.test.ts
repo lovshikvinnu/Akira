@@ -26,9 +26,8 @@ import type { RecallCandidate } from "../src/genesis/recall/types";
 import type { ImportanceSignal } from "../src/genesis/importance/types";
 
 const { contextRules } = await import("../src/genesis/context/context-rules");
-const { getRetentionPolicy, setRetentionPolicy, resetRetentionPolicy } = await import(
-  "../src/genesis/retention/policy"
-);
+const { getRetentionPolicy, setRetentionPolicy, resetRetentionPolicy } =
+  await import("../src/genesis/retention/policy");
 
 function candidate(
   memoryId: string,
@@ -41,9 +40,22 @@ function candidate(
     importanceSignals: signals,
     recallReasons: [`Multi-factor recall [Score: ${recallScore.toFixed(2)}]`],
     recallScore,
+    userAuthored: false,
     status: "Active",
     recallTimestamp: "2026-01-01T00:00:00.000Z",
   };
+}
+
+/** A candidate the user wrote: a captured note rather than a logged action. */
+function authored(memoryId: string, recallScore: number): RecallCandidate {
+  return { ...candidate(memoryId, recallScore), userAuthored: true };
+}
+
+/** Turn the reservation off, to assert what the ranking does on its own. */
+function withoutReservation(): void {
+  setRetentionPolicy({
+    context: { ...getRetentionPolicy().context, maxAuthoredRecallCandidates: 0 },
+  });
 }
 
 beforeEach(() => resetRetentionPolicy());
@@ -83,11 +95,7 @@ describe("the prompt spends its recall budget on the strongest candidates", () =
     // Stability matters here beyond tidiness: with a task-dominated history
     // most candidates carry the same score, and an unstable sort would reorder
     // the prompt on every rebuild for no reason.
-    const candidates = [
-      candidate("first", 0.8),
-      candidate("second", 0.8),
-      candidate("third", 0.8),
-    ];
+    const candidates = [candidate("first", 0.8), candidate("second", 0.8), candidate("third", 0.8)];
     expect(
       contextRules.filterActiveRecallCandidates(candidates).map((s) => s.data.memoryId),
     ).toEqual(["first", "second", "third"]);
@@ -139,7 +147,10 @@ describe("the recent activity summary uses the same ranking", () => {
     expect(activityLines.length).toBe(selectedIds.length);
     expect(activityLines[0]).toContain("the-note");
     for (const id of selectedIds) {
-      expect(activityLines.some((line) => line.includes(id)), `missing ${id}`).toBe(true);
+      expect(
+        activityLines.some((line) => line.includes(id)),
+        `missing ${id}`,
+      ).toBe(true);
     }
   });
 
@@ -206,5 +217,110 @@ describe("the prompt says why a memory is there", () => {
     };
     const [item] = contextRules.filterActiveRecallCandidates([trap]);
     expect(item.inclusionReason).toBe("Recent Recall");
+  });
+});
+
+describe("the budget reserves room for what the user wrote", () => {
+  /**
+   * Ranking alone does not solve this, and the numbers are why.
+   *
+   * Measured at the retention ceiling on a task-dominated history: 500
+   * completed-task memories all score 0.85 -- identical, because stability 1.0
+   * and a saturated relationship signal are the same for every one of them --
+   * and a freshly captured note scores 0.70. Sorting is then correct and still
+   * spends all twelve slots on copies of one fact. The note is not more
+   * important by score; it is unique by construction, and that is the property
+   * the reservation protects.
+   */
+  const DEGENERATE = 0.85;
+  const NOTE = 0.7;
+
+  function saturated(count: number): RecallCandidate[] {
+    return Array.from({ length: count }, (_, i) => candidate(`task-${i}`, DEGENERATE));
+  }
+
+  it("includes a lower-scoring note that the ranking alone would exclude", () => {
+    const limit = getRetentionPolicy().context.maxRecallCandidates;
+    const candidates = [...saturated(limit + 50), authored("the-note", NOTE)];
+
+    const selected = contextRules.filterActiveRecallCandidates(candidates);
+    expect(selected.length).toBe(limit);
+    expect(selected.map((s) => s.data.memoryId)).toContain("the-note");
+  });
+
+  it("and would exclude it with the reservation turned off", () => {
+    // The control. Without this the test above would pass on a build where the
+    // note simply scored well enough, and would prove nothing.
+    withoutReservation();
+    const limit = getRetentionPolicy().context.maxRecallCandidates;
+    const candidates = [...saturated(limit + 50), authored("the-note", NOTE)];
+
+    expect(
+      contextRules.filterActiveRecallCandidates(candidates).map((s) => s.data.memoryId),
+    ).not.toContain("the-note");
+  });
+
+  it("holds no more than the reserved number of slots", () => {
+    const limit = getRetentionPolicy().context.maxRecallCandidates;
+    const reserved = getRetentionPolicy().context.maxAuthoredRecallCandidates;
+    expect(reserved).toBeLessThan(limit);
+
+    // Twenty weak notes must not evict the entire account of recent activity.
+    const notes = Array.from({ length: 20 }, (_, i) => authored(`note-${i}`, 0.1));
+    const selected = contextRules.filterActiveRecallCandidates([...saturated(limit), ...notes]);
+
+    expect(selected.filter((s) => s.data.userAuthored).length).toBe(reserved);
+    expect(selected.length).toBe(limit);
+  });
+
+  it("is a floor and not a cap, so strong notes are not held back to it", () => {
+    const limit = getRetentionPolicy().context.maxRecallCandidates;
+    const reserved = getRetentionPolicy().context.maxAuthoredRecallCandidates;
+
+    // Every note outscores every task. All of them should be selected on
+    // merit; the reservation must not cap authored candidates at three.
+    const notes = Array.from({ length: reserved + 4 }, (_, i) => authored(`note-${i}`, 0.99));
+    const selected = contextRules.filterActiveRecallCandidates([...saturated(limit), ...notes]);
+
+    expect(selected.filter((s) => s.data.userAuthored).length).toBe(reserved + 4);
+  });
+
+  it("uses no reserved slots when the user has written nothing", () => {
+    const limit = getRetentionPolicy().context.maxRecallCandidates;
+    const selected = contextRules.filterActiveRecallCandidates(saturated(limit + 10));
+    expect(selected.length).toBe(limit);
+    expect(selected.every((s) => s.data.memoryId.startsWith("task-"))).toBe(true);
+  });
+
+  it("still presents the selection in score order", () => {
+    // The reservation decides which candidates are spent. It must not imply a
+    // ranking the scores do not support.
+    const limit = getRetentionPolicy().context.maxRecallCandidates;
+    const selected = contextRules.filterActiveRecallCandidates([
+      ...saturated(limit),
+      authored("weak-note", NOTE),
+    ]);
+    const scores = selected.map((s) => s.data.recallScore);
+    expect(scores).toEqual([...scores].sort((a, b) => b - a));
+    expect(selected[selected.length - 1].data.memoryId).toBe("weak-note");
+  });
+
+  it("never selects an inactive note into a reserved slot", () => {
+    const limit = getRetentionPolicy().context.maxRecallCandidates;
+    const selected = contextRules.filterActiveRecallCandidates([
+      ...saturated(limit + 5),
+      { ...authored("gone", 0.99), status: "Inactive" },
+    ]);
+    expect(selected.map((s) => s.data.memoryId)).not.toContain("gone");
+  });
+
+  it("applies the same reservation to the recent activity summary", () => {
+    const limit = getRetentionPolicy().context.maxRecentActivity;
+    const lines = contextRules.compileRecentActivity([
+      ...saturated(limit + 50),
+      authored("the-note", NOTE),
+    ]);
+    expect(lines.length).toBe(limit);
+    expect(lines.some((l) => l.includes("the-note"))).toBe(true);
   });
 });
