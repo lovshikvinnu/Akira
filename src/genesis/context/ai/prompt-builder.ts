@@ -84,8 +84,8 @@ export const promptBuilder = {
     // No `Session ID:` line. `contextSessionId` is a uid minted per rebuild in
     // `context-builder`, and it was the first thing the model read. Nothing can
     // be done with it in a reply: it names a structure the model cannot query,
-    // it changes on every rebuild, and no consumer reads it back out of a
-    // response. The field stays on `ContextPackage` for the runtime.
+    // it changes on every rebuild, and no consumer was found that reads it back
+    // out of a response. The field stays on `ContextPackage` for the runtime.
     let block = "";
 
     if (pkg.activeCandidates.length > 0) {
