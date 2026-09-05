@@ -36,7 +36,7 @@ import {
   IdentityCompleteness,
 } from "../types";
 import { IdentityRepository } from "../repositories/IdentityRepository";
-import { InMemoryIdentityRepository } from "../repositories/InMemoryIdentityRepository";
+import { defaultIdentityRepository } from "../repositories/InMemoryIdentityRepository";
 import { identityGraphService } from "./IdentityGraphService";
 import { identityEvidenceService } from "./IdentityEvidenceService";
 import { identityConfidenceService } from "./IdentityConfidenceService";
@@ -63,7 +63,7 @@ export class IdentityService {
   private repository: IdentityRepository;
 
   constructor(repository?: IdentityRepository) {
-    this.repository = repository || new InMemoryIdentityRepository();
+    this.repository = repository || defaultIdentityRepository;
   }
 
   /**

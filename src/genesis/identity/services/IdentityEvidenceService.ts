@@ -1,6 +1,6 @@
 import { IdentityEvidence, EvidenceSourceType, EvidenceMetadata } from "../types";
 import { IdentityRepository } from "../repositories/IdentityRepository";
-import { InMemoryIdentityRepository } from "../repositories/InMemoryIdentityRepository";
+import { defaultIdentityRepository } from "../repositories/InMemoryIdentityRepository";
 import { eventService } from "../../events/event-service";
 import { Events } from "../../../contracts/events";
 
@@ -13,7 +13,7 @@ export class IdentityEvidenceService {
   private repository: IdentityRepository;
 
   constructor(repository?: IdentityRepository) {
-    this.repository = repository || new InMemoryIdentityRepository();
+    this.repository = repository || defaultIdentityRepository;
   }
 
   /**

@@ -6,7 +6,7 @@ import {
   IdentityEdgeType,
 } from "../types";
 import { IdentityRepository } from "../repositories/IdentityRepository";
-import { InMemoryIdentityRepository } from "../repositories/InMemoryIdentityRepository";
+import { defaultIdentityRepository } from "../repositories/InMemoryIdentityRepository";
 import { identityConfidenceService } from "./IdentityConfidenceService";
 import { eventService } from "../../events/event-service";
 import { Events } from "../../../contracts/events";
@@ -21,7 +21,7 @@ export class IdentityGraphService {
   private graphVersion = 1;
 
   constructor(repository?: IdentityRepository) {
-    this.repository = repository || new InMemoryIdentityRepository();
+    this.repository = repository || defaultIdentityRepository;
   }
 
   /**

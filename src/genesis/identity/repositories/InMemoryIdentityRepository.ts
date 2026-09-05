@@ -419,3 +419,27 @@ export class InMemoryIdentityRepository implements IdentityRepository {
 
   public rebuildPersonalityProfile(identityId: string): void {}
 }
+
+/**
+ * The repository every identity service uses until one is handed to it.
+ *
+ * Each service used to construct its own `new InMemoryIdentityRepository()` in
+ * its constructor, and they only came to agree on a single store when
+ * `identityService.initialize()` ran and pushed one into all fourteen of them.
+ * That call lives inside `contextStateService.bootstrap()`, so anything that
+ * reached an identity service before bootstrap wrote into one store and read
+ * from another.
+ *
+ * The failure was not subtle once it could happen: `createGoal` adds a node
+ * through `identityGraphService` and immediately asks
+ * `identityConfidenceService` to score it, which threw
+ * `aspect node "<id>" does not exist` because it was looking in its own empty
+ * store. It could not happen while `PersonalDeclarationRule` had no input to
+ * parse. Ingesting note content gave it one, and the rule began throwing on
+ * every declaration the user wrote.
+ *
+ * Sharing the default removes the ordering requirement rather than documenting
+ * it. `initialize` and `setRepository` still replace it, so a caller that wants
+ * an isolated store gets one by asking, not by being first.
+ */
+export const defaultIdentityRepository = new InMemoryIdentityRepository();

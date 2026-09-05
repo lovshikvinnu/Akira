@@ -7,7 +7,7 @@ import {
   IdentityEvidence,
 } from "../types";
 import { IdentityRepository } from "../repositories/IdentityRepository";
-import { InMemoryIdentityRepository } from "../repositories/InMemoryIdentityRepository";
+import { defaultIdentityRepository } from "../repositories/InMemoryIdentityRepository";
 import { identityGraphService } from "./IdentityGraphService";
 import { identityEvidenceService } from "./IdentityEvidenceService";
 import { identityConfidenceService } from "./IdentityConfidenceService";
@@ -24,7 +24,7 @@ export class IdentityHabitService {
   private repository: IdentityRepository;
 
   constructor(repository?: IdentityRepository) {
-    this.repository = repository || new InMemoryIdentityRepository();
+    this.repository = repository || defaultIdentityRepository;
   }
 
   public initialize(repository?: IdentityRepository): void {

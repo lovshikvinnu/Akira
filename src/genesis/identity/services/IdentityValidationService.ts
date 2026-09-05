@@ -1,11 +1,11 @@
 import { IdentityRepository } from "../repositories/IdentityRepository";
-import { InMemoryIdentityRepository } from "../repositories/InMemoryIdentityRepository";
+import { defaultIdentityRepository } from "../repositories/InMemoryIdentityRepository";
 
 export class IdentityValidationService {
   private repository: IdentityRepository;
 
   constructor(repository?: IdentityRepository) {
-    this.repository = repository || new InMemoryIdentityRepository();
+    this.repository = repository || defaultIdentityRepository;
   }
 
   public initialize(repository?: IdentityRepository): void {

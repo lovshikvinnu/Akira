@@ -13,7 +13,7 @@ import {
   IdentityPersonality,
 } from "../types";
 import { IdentityRepository } from "../repositories/IdentityRepository";
-import { InMemoryIdentityRepository } from "../repositories/InMemoryIdentityRepository";
+import { defaultIdentityRepository } from "../repositories/InMemoryIdentityRepository";
 import { identityInterestService } from "./IdentityInterestService";
 import { identitySkillService } from "./IdentitySkillService";
 import { identityGoalService } from "./IdentityGoalService";
@@ -28,7 +28,7 @@ export class IdentityContextProvider {
   private repository: IdentityRepository;
 
   constructor(repository?: IdentityRepository) {
-    this.repository = repository || new InMemoryIdentityRepository();
+    this.repository = repository || defaultIdentityRepository;
   }
 
   public initialize(repository?: IdentityRepository): void {
