@@ -68,9 +68,14 @@ CREATE INDEX IF NOT EXISTS idx_notes_project_id ON notes (project_id);
 CREATE INDEX IF NOT EXISTS idx_notes_pinned_favorite ON notes (pinned, favorite);
 CREATE INDEX IF NOT EXISTS idx_notes_updated_at ON notes (updated_at DESC);
 
+-- A session outlives its project: deleting the project nulls `project_id` and
+-- stamps `project_deleted_at`, and the session stays in history for the window
+-- in `SESSION_HISTORY_RETENTION_DAYS` (SqliteSessionRepository). Existing
+-- databases are rebuilt to this shape by the initializer -- a foreign key
+-- cannot be altered in place.
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL,
+  project_id TEXT,
   task TEXT NOT NULL,
   started_at TEXT NOT NULL,
   ended_at TEXT NOT NULL,
@@ -78,8 +83,9 @@ CREATE TABLE IF NOT EXISTS sessions (
   notes TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
+  project_deleted_at TEXT,
   CHECK (duration >= 0),
-  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_project_id ON sessions (project_id);

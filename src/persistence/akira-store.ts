@@ -444,7 +444,7 @@ export const akira = {
         tasks: s.tasks.map((t) => (t.projectId === id ? { ...t, projectId: null } : t)),
         notes: s.notes.map((n) => (n.projectId === id ? { ...n, projectId: null } : n)),
         sessions: (s.sessions || []).map((sess) =>
-          sess.projectId === id ? { ...sess, projectId: "" } : sess,
+          sess.projectId === id ? { ...sess, projectId: "", projectDeletedAt: nowISO() } : sess,
         ),
         activeSession: s.activeSession?.projectId === id ? null : s.activeSession,
         memories: s.memories.map((m) =>

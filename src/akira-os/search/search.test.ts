@@ -89,7 +89,8 @@ test("Database Triggers - Delete and Cascading trigger synchronization", async (
     tag: "Sandbox",
   });
 
-  // Insert session belonging to this project (sessions has ON DELETE CASCADE)
+  // Insert session belonging to this project. Sessions outlive their project
+  // (ON DELETE SET NULL, retained for SESSION_HISTORY_RETENTION_DAYS).
   const sId = crypto.randomUUID();
   const now = new Date().toISOString();
   const db = getDatabaseConnection();
@@ -104,15 +105,19 @@ test("Database Triggers - Delete and Cascading trigger synchronization", async (
   let projResults = searchRepository.search({ query: "Sandbox" });
   assertEquals(projResults.length, 2, "Both project and session should be indexed");
 
-  // Delete project (triggers ON DELETE CASCADE on sessions in DB)
   projectRepository.delete(pId);
 
-  // Assert FTS index is completely cleaned up (no project, no orphaned sessions)
+  // The project's entry is gone. The session's stays, because the session
+  // does -- an entry is stale only when its row is.
   projResults = searchRepository.search({ query: "Sandbox" });
+  assertEquals(projResults.length, 1, "Only the retained session should remain indexed");
+  assertEquals(projResults[0].id, sId, "The remaining entry should be the session");
+  const row = db.prepare("SELECT project_id FROM sessions WHERE id = ?").get(sId) as
+    { project_id: string | null } | undefined;
   assertEquals(
-    projResults.length,
-    0,
-    "No stale search records should remain after parent deletion",
+    row?.project_id,
+    null,
+    "The indexed session should exist, detached from the project",
   );
 });
 

@@ -8,14 +8,24 @@ import { WorkSession } from "../../shared/types/store-types";
 import { SessionRepository } from "../../contracts/repositories/SessionRepository";
 import { getDatabaseConnection } from "../connection";
 
+/**
+ * How long a session stays in history after its project is deleted. After
+ * this it is no longer returned, and may be permanently purged -- nothing
+ * purges it yet; the rows stay on disk, out of every read, until something
+ * does.
+ */
+export const SESSION_HISTORY_RETENTION_DAYS = 30;
+const RETENTION_MS = SESSION_HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
 interface SessionRow {
   id: string;
-  project_id: string;
+  project_id: string | null;
   task: string;
   started_at: string;
   ended_at: string;
   duration: number;
   notes: string | null;
+  project_deleted_at: string | null;
 }
 
 interface SettingRow {
@@ -32,19 +42,26 @@ export class SqliteSessionRepository implements SessionRepository {
   private mapRowToSession(row: SessionRow): WorkSession {
     return {
       id: row.id,
-      projectId: row.project_id,
+      // "" for a deleted project, the value the store gives it on delete, so
+      // a session reads the same before and after a restart.
+      projectId: row.project_id ?? "",
       task: row.task,
       startedAt: row.started_at,
       endedAt: row.ended_at,
       duration: row.duration,
       notes: row.notes || undefined,
+      projectDeletedAt: row.project_deleted_at ?? undefined,
     };
   }
 
   getAll(): WorkSession[] {
     const rows = this.getDb()
-      .prepare("SELECT * FROM sessions ORDER BY started_at DESC")
-      .all() as SessionRow[];
+      .prepare(
+        `SELECT * FROM sessions
+         WHERE project_deleted_at IS NULL OR project_deleted_at > ?
+         ORDER BY started_at DESC`,
+      )
+      .all(new Date(Date.now() - RETENTION_MS).toISOString()) as SessionRow[];
     return rows.map((row) => this.mapRowToSession(row));
   }
 

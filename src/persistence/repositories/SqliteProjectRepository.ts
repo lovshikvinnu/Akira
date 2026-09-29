@@ -137,6 +137,12 @@ export class SqliteProjectRepository implements ProjectRepository {
       db.prepare(
         "DELETE FROM settings WHERE key = 'active_session' AND json_extract(value, '$.projectId') = ?",
       ).run(id);
+      // Finished sessions stay in history; this starts their retention window.
+      // `updated_at` is left alone -- losing the project is not editing the
+      // session. The FK then nulls `project_id`.
+      db.prepare(
+        "UPDATE sessions SET project_deleted_at = ? WHERE project_id = ? AND project_deleted_at IS NULL",
+      ).run(new Date().toISOString(), id);
       db.prepare("DELETE FROM projects WHERE id = ?").run(id);
     })();
   }

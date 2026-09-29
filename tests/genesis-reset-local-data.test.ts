@@ -38,7 +38,7 @@ await import("../src/genesis/index");
 
 const { akira, settlePendingPersistence } = await import("../src/persistence/akira-store");
 const { getDatabaseConnection } = await import("../src/persistence/connection");
-const { projectRepository, taskRepository, noteRepository, settingsRepository } =
+const { projectRepository, taskRepository, noteRepository, settingsRepository, sessionRepository } =
   await import("../src/persistence/repositories");
 
 const db = getDatabaseConnection();
@@ -82,6 +82,7 @@ beforeEach(async () => {
   // DELETEs.
   await settlePendingPersistence();
 
+  db.prepare("DELETE FROM sessions").run();
   db.prepare("DELETE FROM tasks").run();
   db.prepare("DELETE FROM notes").run();
   db.prepare("DELETE FROM projects").run();
@@ -103,6 +104,7 @@ beforeEach(async () => {
   // now -- see `genesis-persistence-ordering`. Both cleanups below are still
   // correct on their own terms and stay.
   await settlePendingPersistence();
+  db.prepare("DELETE FROM sessions").run();
   db.prepare("DELETE FROM tasks").run();
   db.prepare("DELETE FROM notes").run();
   db.prepare("DELETE FROM projects").run();
@@ -180,6 +182,27 @@ describe("reset deletes what the dialog promises", () => {
     expect(noteRepository.getAll().length).toBe(0);
     expect(settingsRepository.get("chat")).toBeFalsy();
     expect(settingsRepository.get("genesis_memories")).toBeFalsy();
+  });
+
+  it("empties session history and the running session, as it always has", async () => {
+    // Sessions no longer cascade from a deleted project, so this is now the
+    // reset's own statement rather than a side effect of deleting projects.
+    await createUserData();
+    const projectId = akira.getState().lastProjectId as string;
+    akira.startSession(projectId, "finished");
+    akira.endSession("done");
+    akira.startSession(projectId, "running");
+    await settlePendingPersistence();
+    expect(sessionRepository.getAll().length, "no session to delete").toBe(1);
+    expect(settingsRepository.get("active_session"), "no running session").toBeTruthy();
+
+    akira.reset();
+    await settlePendingPersistence();
+
+    expect(sessionRepository.getAll()).toEqual([]);
+    expect(settingsRepository.get("active_session")).toBeFalsy();
+    expect(akira.getState().sessions).toEqual([]);
+    expect(akira.getState().activeSession).toBeNull();
   });
 });
 

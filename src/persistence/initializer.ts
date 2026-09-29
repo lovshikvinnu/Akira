@@ -464,4 +464,68 @@ export const initializeDatabase = (): void => {
     })();
     console.log("SQLite Database migration completed: File Vault tables created.");
   }
+
+  // Dynamic Migration: sessions outlive their project. The original table
+  // cascaded a project delete onto its sessions, while the store kept them --
+  // so session history was visible until the next restart and then gone.
+  // SQLite cannot alter a foreign key, so the table is rebuilt: `project_id`
+  // becomes nullable with ON DELETE SET NULL, and `project_deleted_at` carries
+  // the retention metadata. Last in this function so every trigger that
+  // targets `sessions` already exists; they are dropped with the table and
+  // replayed verbatim from sqlite_master.
+  const sessionColumns = db.prepare(`PRAGMA table_info(sessions)`).all() as { name: string }[];
+  if (!sessionColumns.some((column) => column.name === "project_deleted_at")) {
+    const dependents = db
+      .prepare(
+        `SELECT sql FROM sqlite_master
+         WHERE tbl_name = 'sessions' AND type IN ('index', 'trigger') AND sql IS NOT NULL`,
+      )
+      .all() as { sql: string }[];
+
+    // Must be set outside a transaction; the rebuild would otherwise fire the
+    // old CASCADE/SET NULL actions against the rows being copied.
+    db.pragma("foreign_keys = OFF");
+    // `trg_projects_delete` -- a trigger on *projects* -- names `sessions`.
+    // Between the DROP and the RENAME that table does not exist, and a modern
+    // RENAME re-validates every trigger in the schema, so it fails with "no
+    // such table: main.sessions" on every real database. Legacy mode renames
+    // without that check; the trigger resolves by name again once it is done.
+    db.pragma("legacy_alter_table = ON");
+    try {
+      db.transaction(() => {
+        db.exec(`
+          CREATE TABLE sessions_new (
+            id TEXT PRIMARY KEY,
+            project_id TEXT,
+            task TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            ended_at TEXT NOT NULL,
+            duration INTEGER NOT NULL,
+            notes TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            project_deleted_at TEXT,
+            CHECK (duration >= 0),
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+          );
+          INSERT INTO sessions_new
+            (id, project_id, task, started_at, ended_at, duration, notes, created_at, updated_at)
+            SELECT id, project_id, task, started_at, ended_at, duration, notes, created_at, updated_at
+            FROM sessions;
+          DROP TABLE sessions;
+          ALTER TABLE sessions_new RENAME TO sessions;
+        `);
+        for (const { sql } of dependents) db.exec(sql);
+
+        const violations = db.pragma("foreign_key_check(sessions)") as unknown[];
+        if (violations.length > 0) {
+          throw new Error(`sessions rebuild left ${violations.length} foreign key violations`);
+        }
+      })();
+    } finally {
+      db.pragma("legacy_alter_table = OFF");
+      db.pragma("foreign_keys = ON");
+    }
+    console.log("SQLite Database migration completed: sessions survive project deletion.");
+  }
 };

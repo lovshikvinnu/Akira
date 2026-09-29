@@ -71,6 +71,8 @@ export type WorkSession = {
   endedAt: string;
   duration: number;
   notes?: string;
+  /** Set when the project was deleted; starts the history retention window. */
+  projectDeletedAt?: string;
 };
 
 export type VaultFolder = {
