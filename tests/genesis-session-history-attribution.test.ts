@@ -16,6 +16,24 @@
  * These cases pin the direction of the failure rather than only its absence:
  * the reinforced story must still be in the session it was created in, AND must
  * not appear in the later one.
+ *
+ * ATTRIBUTION IS BY EVIDENCE, NOT BY A STAMP ON THE ARTIFACT
+ * ----------------------------------------------------------
+ * `createdAt` was the first answer and it is not durable either. Stories and
+ * identity observations are derived: they are re-built from the memory stream
+ * on every startup, and the rebuild stamps them afresh, so after one restart
+ * `createdAt` is a replay instant and every past session reports nothing.
+ * Measured on the real services: stories `createdAt`-in-window went 1/2 before a
+ * restart and 0/2 after.
+ *
+ * What survives is the evidence each artifact cites -- `relatedMemoryIds` on a
+ * story, `supportingMemoryIds` on an observation -- because those memories carry
+ * a durable `timestamp` that replay reproduces exactly.
+ *
+ * The fixtures below therefore carry those links. They previously did not, and
+ * the real `Story` and `IdentityObservation` types both require them, so the
+ * old fixture held constant the one production variable the attribution now
+ * turns on. Every assertion in this file is unchanged.
  */
 process.env.NODE_ENV = "test";
 
@@ -32,6 +50,8 @@ const reinforcedStory = {
   title: "Personal Growth Reflections",
   createdAt: "2026-03-01T10:00:00.000Z",
   updatedAt: "2026-09-06T10:00:00.000Z",
+  // The work it rests on, which happened in March and cannot move.
+  relatedMemoryIds: ["evt-march"],
 };
 
 /** Same shape, for an identity observation. */
@@ -40,6 +60,7 @@ const reinforcedObservation = {
   name: "Reflective",
   createdAt: "2026-03-01T10:30:00.000Z",
   updatedAt: "2026-09-06T10:30:00.000Z",
+  supportingMemoryIds: ["evt-march"],
 };
 
 const eventInMarch = { id: "evt-march", timestamp: "2026-03-01T09:30:00.000Z" };
@@ -61,6 +82,9 @@ describe("a session from months ago", () => {
     // and mutated later, or the assertions below prove nothing.
     expect(reinforcedStory.createdAt < MARCH.endedAt).toBe(true);
     expect(reinforcedStory.updatedAt > MARCH.endedAt).toBe(true);
+    // And that it cites March work, which is what the attribution now reads.
+    // Without this the fixture would pass by citing nothing at all.
+    expect(reinforcedStory.relatedMemoryIds).toContain(eventInMarch.id);
 
     expect(outcomes.stories.map((s) => s.id)).toEqual(["story-march"]);
     expect(outcomes.identity.map((o) => o.id)).toEqual(["obs-march"]);
@@ -99,6 +123,7 @@ describe("an outcome created and never touched again", () => {
       title: "Project Arc: Kitchen Renovation",
       createdAt: "2026-03-01T10:15:00.000Z",
       updatedAt: "2026-03-01T10:15:00.000Z",
+      relatedMemoryIds: ["evt-march"],
     };
 
     const outcomes = selectSessionOutcomes(MARCH, { ...sources, stories: [stable] });
