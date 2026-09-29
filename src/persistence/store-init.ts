@@ -102,6 +102,9 @@ export const getInitialState = createServerFn({ method: "GET" }).handler(async (
     sessions,
     activeSession,
     profile,
+    // The row exists only once the profile has been saved; the fallback above
+    // is for display and must not be mistaken for who the user is.
+    profileSaved: profileRaw != null,
     lastProjectId,
     chat,
     streaks,

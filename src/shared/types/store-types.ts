@@ -128,6 +128,12 @@ export type AkiraState = {
   chat: ChatMessage[];
   streaks: HabitStreak[];
   profile: Profile;
+  /**
+   * Whether `profile` was saved by the user, rather than being the display
+   * fallback `getInitialState` and `seed()` supply when nothing is stored.
+   * Only a saved profile is identity; absent means not saved.
+   */
+  profileSaved?: boolean;
   lastProjectId: string | null;
   memories: MemoryEvent[];
   sessions: WorkSession[];

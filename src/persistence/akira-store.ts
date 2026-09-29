@@ -907,7 +907,7 @@ export const akira = {
         payload: { patch },
         version: 1,
       });
-      return { ...s, profile: updatedProfile };
+      return { ...s, profile: updatedProfile, profileSaved: true };
     });
   },
 

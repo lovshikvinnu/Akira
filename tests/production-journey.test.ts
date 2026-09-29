@@ -68,6 +68,7 @@ async function boot() {
   const { contextService } = await import("../src/genesis/context/context-service");
   const { providerRegistry } = await import("../src/genesis/context/ai/provider-registry");
   const { aiContextEngine } = await import("../src/genesis/context/ai/context-engine");
+  const { eventService } = await import("../src/genesis/events/event-service");
 
   const writeErrors: string[] = [];
   const errorSpy = vi.spyOn(console, "error").mockImplementation((...a: unknown[]) => {
@@ -98,6 +99,10 @@ async function boot() {
     sessions: repos.sessionRepository.getAll(),
     activeSession: json("active_session"),
     lastProjectId: json("last_project_id"),
+    // store-init: the saved profile, else the display fallback -- and only a
+    // saved row is identity.
+    profile: json("profile") ?? akira.getState().profile,
+    profileSaved: repos.settingsRepository.get("profile") != null,
     chat: json("chat") ?? [],
     memories: json("genesis_memories") ?? [],
   });
@@ -126,7 +131,17 @@ async function boot() {
     db,
     repos,
     writeErrors,
-    /** The system instruction the model receives for `question`, as chat.tsx sends it. */
+    /** A user turn, recorded as chat.tsx records it (routes/chat.tsx, the send path). */
+    say(text: string) {
+      akira.addChatMessage("user", text);
+      eventService.record("chat_message", "Chat Message", text, akira.getState().lastProjectId);
+    },
+    /**
+     * The system instruction the model receives for `question`, as chat.tsx
+     * sends it. No history is passed: every call is the first turn of a new
+     * conversation, so anything the model is told came from memory, not from
+     * earlier turns.
+     */
     async promptFor(question: string): Promise<string> {
       await aiContextEngine.executeRequestStream(
         question,
@@ -264,7 +279,11 @@ describe.sequential("a user's journey through AKIRA", { timeout: 60_000 }, () =>
     expect(before.understandings).toContain(`project:${kitchenId}:Active`);
     expect(before.memories.length, "no cognition was generated").toBeGreaterThan(0);
     expect(before.stories.length).toBeGreaterThan(0);
-    expect(await app.promptFor("How is my kitchen project going?")).toContain("Kitchen Renovation");
+    const dayOne = await app.promptFor("How is my kitchen project going?");
+    expect(dayOne).toContain("Kitchen Renovation");
+    // Never saved a profile: the display fallback must not become a name.
+    expect(dayOne).not.toContain("[USER]");
+    expect(dayOne).not.toContain("Lovshik");
     expect(app.writeErrors).toEqual([]);
     await app.exit();
   });
@@ -282,9 +301,31 @@ describe.sequential("a user's journey through AKIRA", { timeout: 60_000 }, () =>
     expect(sessionTasks(app.akira.getState().sessions)).toEqual(["Demolition"]);
     expect(app.cognition()).toEqual(before);
     expect(app.focusSwitches(), "the boot fabricated a focus switch").toEqual([]);
+    const afterRestart = await app.promptFor("What is my name?");
+    expect(afterRestart, "a name no one saved").not.toContain("[USER]");
+    expect(afterRestart).not.toContain("Lovshik");
     expect(app.companion()?.currentFocus, "no session is running").not.toBe("Building");
     expect(app.writeErrors).toEqual([]);
     await app.exit();
+  });
+
+  it("a new conversation knows the name saved in Settings, and the goal stated in chat", async () => {
+    vi.setSystemTime(T0 + 1 * DAY + 60 * 60 * 1000);
+    const first = await boot();
+    first.akira.updateProfile({ name: "Vishnu", role: "Engineer", motto: "Ship it" }); // settings.tsx
+    first.say("My goal is to learn Verilog");
+    // A new chat opened straight after saving, before any restart.
+    expect(await first.promptFor("What is my name?")).toContain("The user's name is Vishnu.");
+    await first.exit();
+
+    const app = await boot();
+    const prompt = await app.promptFor("What is my name?");
+
+    expect(prompt).toContain("[USER]\nThe user's name is Vishnu.");
+    // Control: identity the chat path does carry. If this fails too, the
+    // harness is not seeing memory at all, and the name assertion proves nothing.
+    expect(prompt).toContain("learn Verilog");
+    expect(prompt).not.toContain("Lovshik");
   });
 
   it("deleting the project retracts it and keeps its session history", async () => {

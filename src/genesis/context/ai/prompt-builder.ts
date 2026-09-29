@@ -18,6 +18,21 @@ export const promptBuilder = {
     let structuredSystemInstruction =
       baseInstruction || "You are AKIRA, a helpful desktop AI companion.";
 
+    // Who the user is, from the profile they saved in Settings. Not gated on
+    // workspace relevance: a name is identity, and "what is my name?" is not a
+    // workspace question. Only a saved profile counts -- the unsaved fallback
+    // is a placeholder name, and stating it would tell the model something
+    // false about every user who never set one.
+    try {
+      const state = getWorkspaceProvider().getState();
+      const name = state?.profileSaved ? state.profile?.name?.trim() : "";
+      if (name) {
+        structuredSystemInstruction += `\n\n[USER]\nThe user's name is ${name}.`;
+      }
+    } catch (e) {
+      console.warn("Failed to append the user's name to system instruction:", e);
+    }
+
     // Receive the Intent Resolution result as structured metadata
     if (intentResolution) {
       if (intentResolution.clarificationRequired) {
