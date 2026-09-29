@@ -21,6 +21,16 @@ import path from "path";
 import type { AkiraState } from "../src/shared/types/store-types";
 
 const FOCUS_SWITCH = "Workspace Focus Switch";
+
+/**
+ * Each `boot()` builds a fresh module graph, which takes seconds. A test doing
+ * two of them brushes vitest's 5s default and fails as a timeout rather than on
+ * an assertion, and the aborted test then leaves the SQLite handle open so
+ * `afterEach` cannot remove the temp directory on Windows. Fixture cost, not
+ * behaviour, so the budget is stated rather than discovered.
+ */
+const BOOT_TIMEOUT_MS = 30_000;
+vi.setConfig({ testTimeout: BOOT_TIMEOUT_MS });
 let dbPath: string;
 
 /** One application process, booted in `__root.tsx`'s order. */
@@ -52,10 +62,22 @@ async function boot() {
   const focusSwitches = () =>
     (habitService.getContext()?.observedHabits ?? []).filter((h) => h.name === FOCUS_SWITCH);
 
+  /**
+   * Observations recorded, not habits held.
+   *
+   * `recordBehaviorObservation` MERGES into an existing habit when the name and
+   * `contextDependency.projectId` both match, so returning to a project already
+   * seen adds evidence without adding a habit. Counting habits cannot see a
+   * re-observation at all.
+   */
+  const focusObservations = () =>
+    focusSwitches().reduce((n, h) => n + (h.evidence?.length ?? 0), 0);
+
   return {
     akira,
     habitService,
     focusSwitches,
+    focusObservations,
     async exit() {
       await settlePendingPersistence();
       habitService.shutdown();
@@ -160,4 +182,28 @@ describe("a genuine focus switch is still observed", () => {
     expect(switches[0].evidence).toHaveLength(1);
     await app.exit();
   });
+});
+
+describe("observed habits are session-scoped", () => {
+  it(
+    "starts empty on a boot that follows real observed activity",
+    async () => {
+      // Pins Task A. This cannot pass vacuously: the first process asserts it
+      // actually recorded a focus switch, so the second process's empty result is
+      // the reset and not an inert fixture.
+      const first = await boot();
+      first.akira.addProject({ name: "Kitchen Renovation" });
+      const a = first.akira.getState().lastProjectId!;
+      first.akira.addProject({ name: "Tax Return" });
+      first.akira.touchProject(a);
+      expect(first.focusObservations(), "nothing was observed to lose").toBeGreaterThan(0);
+      await first.exit();
+
+      const second = await boot();
+      expect(second.focusSwitches()).toEqual([]);
+      expect(second.habitService.getContext()?.observedHabits ?? []).toEqual([]);
+      await second.exit();
+    },
+    BOOT_TIMEOUT_MS,
+  );
 });
