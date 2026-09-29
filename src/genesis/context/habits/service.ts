@@ -18,6 +18,8 @@ class HabitService {
   private currentContext: HabitContext | null = null;
   private storeUnsubscribe: (() => void) | null = null;
   private lastProjectId: string | null | undefined = undefined;
+  /** Whether `lastProjectId` reflects restored state rather than the seed. */
+  private baselineRestored = false;
 
   /**
    * Initializes the Habit Intelligence Engine.
@@ -36,6 +38,7 @@ class HabitService {
 
     const initialStoreState = getWorkspaceProvider().getState();
     this.lastProjectId = initialStoreState.lastProjectId;
+    this.baselineRestored = getWorkspaceProvider().isHydrated?.() ?? true;
 
     this.storeUnsubscribe = getWorkspaceProvider().subscribe(() => {
       this.processWorkspaceEvents();
@@ -163,8 +166,22 @@ class HabitService {
    * Analyzes state changes in the store to infer behavioral context dependencies.
    */
   private processWorkspaceEvents(): void {
-    const state = getWorkspaceProvider().getState();
+    const provider = getWorkspaceProvider();
+    const state = provider.getState();
     const activeProject = state.lastProjectId;
+
+    // Restoring persisted state is not the user switching focus. `__root.tsx`
+    // initializes this engine synchronously at boot, against the unhydrated
+    // seed (`lastProjectId: null`), and hydration then lands the persisted
+    // project in one emission -- which read as a switch and recorded a habit
+    // on every start. Until the provider has hydrated, and on the emission
+    // that hydrates it, the project is taken as the baseline instead. No user
+    // action can precede that: routes render only once the store is hydrated.
+    if (!this.baselineRestored) {
+      this.lastProjectId = activeProject;
+      this.baselineRestored = provider.isHydrated?.() ?? true;
+      return;
+    }
 
     // Detect project transitions (Workspace Focus Switch)
     if (activeProject !== this.lastProjectId) {
@@ -194,6 +211,7 @@ class HabitService {
     this.evidenceLog = [];
     this.currentContext = null;
     this.lastProjectId = undefined;
+    this.baselineRestored = false;
   }
 }
 

@@ -7,6 +7,12 @@ import type { AkiraState } from "../shared/types/store-types";
 export interface WorkspaceProvider {
   getState(): AkiraState;
   subscribe(listener: () => void): () => void;
+  /**
+   * Whether persisted state has been restored. Until it has, and on the
+   * emission that restores it, a change in state is the workspace being
+   * loaded, not something the user did. Absent means always hydrated.
+   */
+  isHydrated?(): boolean;
 }
 
 let activeWorkspaceProvider: WorkspaceProvider | null = null;
