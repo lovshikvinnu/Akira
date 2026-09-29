@@ -184,6 +184,99 @@ describe("a genuine focus switch is still observed", () => {
   });
 });
 
+describe("deleting a project", () => {
+  it(
+    "records no focus switch when the active project is deleted and another survives",
+    async () => {
+      const app = await boot();
+      app.akira.addProject({ name: "Kitchen Renovation" });
+      app.akira.addProject({ name: "Tax Return" });
+      const active = app.akira.getState().lastProjectId!;
+
+      // Guard: the fixture is the case under test -- an active project, and a
+      // survivor for the store to reassign to. Without both, a pass proves
+      // nothing because no reassignment would occur.
+      expect(active).toBeTruthy();
+      expect(app.akira.getState().projects.length).toBe(2);
+
+      const before = app.focusObservations();
+      app.akira.deleteProject(active);
+
+      expect(app.akira.getState().projects.length).toBe(1);
+      expect(app.akira.getState().lastProjectId, "the store did reassign").toBe(
+        app.akira.getState().projects[0].id,
+      );
+      expect(app.focusObservations(), "deletion recorded a focus switch").toBe(before);
+      await app.exit();
+    },
+    BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    "records no focus switch when a non-active project is deleted",
+    async () => {
+      const app = await boot();
+      app.akira.addProject({ name: "Kitchen Renovation" });
+      const first = app.akira.getState().lastProjectId!;
+      app.akira.addProject({ name: "Tax Return" });
+      const active = app.akira.getState().lastProjectId!;
+      expect(active).not.toBe(first);
+
+      const before = app.focusObservations();
+      app.akira.deleteProject(first);
+
+      // `lastProjectId` never moves here, so this case was already correct. It is
+      // pinned so a future rule keyed on deletion cannot start suppressing it.
+      expect(app.akira.getState().lastProjectId).toBe(active);
+      expect(app.focusObservations()).toBe(before);
+      await app.exit();
+    },
+    BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    "still records a real switch made after that deletion",
+    async () => {
+      const app = await boot();
+      app.akira.addProject({ name: "Kitchen Renovation" });
+      app.akira.addProject({ name: "Tax Return" });
+      const active = app.akira.getState().lastProjectId!;
+      app.akira.deleteProject(active);
+
+      const survivor = app.akira.getState().projects[0].id;
+      const before = app.focusObservations();
+
+      // The user now deliberately opens the surviving project. Suppression must
+      // not persist past the reassignment that caused it.
+      app.akira.addProject({ name: "Garden" });
+      app.akira.touchProject(survivor);
+
+      expect(app.focusObservations(), "a deliberate switch was suppressed").toBeGreaterThan(before);
+      await app.exit();
+    },
+    BOOT_TIMEOUT_MS,
+  );
+});
+
+describe("a deliberate switch", () => {
+  it(
+    "records exactly one observation",
+    async () => {
+      const app = await boot();
+      app.akira.addProject({ name: "Kitchen Renovation" });
+      const first = app.akira.getState().lastProjectId!;
+      app.akira.addProject({ name: "Tax Return" });
+
+      const before = app.focusObservations();
+      app.akira.touchProject(first);
+
+      expect(app.focusObservations()).toBe(before + 1);
+      await app.exit();
+    },
+    BOOT_TIMEOUT_MS,
+  );
+});
+
 describe("observed habits are session-scoped", () => {
   it(
     "starts empty on a boot that follows real observed activity",

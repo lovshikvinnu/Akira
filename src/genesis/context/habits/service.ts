@@ -228,9 +228,29 @@ class HabitService {
 
     // Detect project transitions (Workspace Focus Switch)
     if (activeProject !== this.lastProjectId) {
+      const previous = this.lastProjectId;
       this.lastProjectId = activeProject;
 
-      if (activeProject) {
+      // Reassignment after a delete is reconciliation, not behaviour.
+      //
+      // `akira.deleteProject` removes the project and, when it was the active
+      // one, picks a survivor as `lastProjectId` in the SAME emission. The
+      // engine saw only "active project changed" and recorded the user
+      // switching focus -- but the user deleted something, and the new project
+      // was chosen by the store, not by them. A habit built from that says the
+      // user works on a project they may never have opened.
+      //
+      // The signal is the deleted project itself: on that emission `previous`
+      // has already gone from `state.projects`, and on every deliberate switch
+      // it is still there. `touchProject` and `addProject` move
+      // `lastProjectId` while leaving the old project in place, so they are
+      // unaffected; boot is already handled by the baseline branch above.
+      //
+      // Keyed on the previous id rather than on the habit's name, so nothing
+      // here depends on how the observation happens to be labelled.
+      const previousWasDeleted = previous != null && !state.projects.some((p) => p.id === previous);
+
+      if (activeProject && !previousWasDeleted) {
         this.recordBehaviorObservation("Workspace Focus Switch", "state", {
           projectId: activeProject,
         });
