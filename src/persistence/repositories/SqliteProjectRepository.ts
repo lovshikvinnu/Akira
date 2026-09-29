@@ -127,7 +127,18 @@ export class SqliteProjectRepository implements ProjectRepository {
   }
 
   delete(id: string): void {
-    this.getDb().prepare("DELETE FROM projects WHERE id = ?").run(id);
+    const db = this.getDb();
+    db.transaction(() => {
+      // A running session on this project is discarded with it, as the store
+      // already does. Left behind, it names a project that no longer exists:
+      // hydration resurrects it, and `SqliteSessionRepository.end()` -- which
+      // `start()` calls first -- fails its FK insert and rolls back, so no
+      // session is ever saved again.
+      db.prepare(
+        "DELETE FROM settings WHERE key = 'active_session' AND json_extract(value, '$.projectId') = ?",
+      ).run(id);
+      db.prepare("DELETE FROM projects WHERE id = ?").run(id);
+    })();
   }
 
   touch(id: string): void {

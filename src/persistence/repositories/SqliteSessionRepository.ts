@@ -100,6 +100,14 @@ export class SqliteSessionRepository implements SessionRepository {
     const sessionId = crypto.randomUUID();
     const db = this.getDb();
 
+    // A session whose project was deleted before `projects.delete` cleared it
+    // is discarded, not recorded: its insert would fail the FK and roll back,
+    // leaving it in place to fail every later start/end the same way.
+    if (!db.prepare("SELECT 1 FROM projects WHERE id = ?").get(active.projectId)) {
+      db.prepare("DELETE FROM settings WHERE key = ?").run("active_session");
+      return;
+    }
+
     db.transaction(() => {
       // 1. Insert session record
       db.prepare(
