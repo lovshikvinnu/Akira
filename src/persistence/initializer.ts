@@ -6,6 +6,7 @@ if (typeof window !== "undefined") {
 import fs from "fs";
 import path from "path";
 import { getDatabaseConnection } from "./connection";
+import { sessionRepository } from "./repositories";
 
 /**
  * Bootstraps the SQLite database.
@@ -528,4 +529,18 @@ export const initializeDatabase = (): void => {
     }
     console.log("SQLite Database migration completed: sessions survive project deletion.");
   }
+
+  // Retention sweep, last of all.
+  //
+  // It has to follow the sessions rebuild directly above it, because before
+  // that rebuild the table has no `project_deleted_at` for the sweep to test.
+  // Keeping both in this function is what makes that ordering local and
+  // visible, instead of a coupling between two files that nothing enforces.
+  //
+  // Here rather than in `getInitialState` because this runs once per process,
+  // at server boot (`server.ts`), whereas `getInitialState` is an RPC handler
+  // that answers every hydration -- a delete sweep does not belong on a read
+  // path, and running it per request buys nothing: retention is measured in
+  // days, so a boundary crossed mid-process is collected at the next start.
+  sessionRepository.purgeExpired();
 };

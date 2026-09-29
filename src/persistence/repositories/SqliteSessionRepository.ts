@@ -10,12 +10,21 @@ import { getDatabaseConnection } from "../connection";
 
 /**
  * How long a session stays in history after its project is deleted. After
- * this it is no longer returned, and may be permanently purged -- nothing
- * purges it yet; the rows stay on disk, out of every read, until something
- * does.
+ * this it is no longer returned, and `purgeExpired` deletes it for good.
  */
 export const SESSION_HISTORY_RETENTION_DAYS = 30;
 const RETENTION_MS = SESSION_HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+/**
+ * The edge of the retention window, computed in one place on purpose.
+ *
+ * `getAll` keeps what is strictly newer than this and `purgeExpired` deletes
+ * everything else, so the two halves are complementary by construction: a
+ * session that is still readable is never deleted, and one that has stopped
+ * being readable is always deleted. Duplicating the arithmetic is how those
+ * two boundaries drift apart and history goes missing a day early.
+ */
+const retentionCutoff = (): string => new Date(Date.now() - RETENTION_MS).toISOString();
 
 interface SessionRow {
   id: string;
@@ -61,8 +70,30 @@ export class SqliteSessionRepository implements SessionRepository {
          WHERE project_deleted_at IS NULL OR project_deleted_at > ?
          ORDER BY started_at DESC`,
       )
-      .all(new Date(Date.now() - RETENTION_MS).toISOString()) as SessionRow[];
+      .all(retentionCutoff()) as SessionRow[];
     return rows.map((row) => this.mapRowToSession(row));
+  }
+
+  /**
+   * Permanently deletes the sessions whose retention window has closed.
+   *
+   * Deleting the row is the whole cleanup, and that is a property of the
+   * schema rather than an assumption: `trg_sessions_delete` drops the row's
+   * `fts_workspace` entry and `trg_vault_links_cleanup_sessions` its vault
+   * links, both AFTER DELETE on this table. Until something ran this, an
+   * expired session sat on disk and stayed in the search index -- `getAll`
+   * hid it while a search still returned it.
+   *
+   * Idempotent: a second call matches nothing. Sessions of a live project
+   * have `project_deleted_at IS NULL` and are never matched, at any age.
+   */
+  purgeExpired(): number {
+    return this.getDb()
+      .prepare(
+        `DELETE FROM sessions
+         WHERE project_deleted_at IS NOT NULL AND project_deleted_at <= ?`,
+      )
+      .run(retentionCutoff()).changes;
   }
 
   getActive(): { projectId: string; task: string; startedAt: string } | null {
