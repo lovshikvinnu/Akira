@@ -256,32 +256,56 @@ class CompanionStateService {
       this.storeUnsubscribe();
     }
 
+    // Driven by transitions in the workspace, in both directions. Reacting only
+    // when the store *establishes* a fact left every fact permanent: ending a
+    // session kept "Building", and deleting the last project (lastProjectId ->
+    // null) kept it as the Active Project -- both rendered to the model as
+    // present tense. Comparing against the previous store values rather than
+    // against this state also stops an unrelated store change re-asserting a
+    // fact over a user's `correctState`.
+    const initial = getWorkspaceProvider().getState();
+    const projectOf = (s: typeof initial) => s.projects.find((p) => p.id === s.lastProjectId);
+    let seenProject = projectOf(initial);
+    let seenSession = !!initial.activeSession;
+
     this.storeUnsubscribe = getWorkspaceProvider().subscribe(() => {
       if (!this.currentState) return;
       const store = getWorkspaceProvider().getState();
 
-      // Check if project changed
-      const lastProjId = store.lastProjectId;
-      const currentProjId = this.currentState.activeProject?.id;
-
-      if (lastProjId && lastProjId !== currentProjId) {
-        const proj = store.projects.find((p) => p.id === lastProjId);
+      const proj = projectOf(store);
+      if (proj?.id !== seenProject?.id) {
+        seenProject = proj;
         if (proj) {
           this.recordWorkspaceEvidence(
             "activeProject",
             { id: proj.id, name: proj.name },
             `Detected workspace project switch to "${proj.name}"`,
           );
+        } else if (this.currentState.activeProject) {
+          this.recordWorkspaceEvidence(
+            "activeProject",
+            null,
+            "Workspace no longer has an active project",
+          );
         }
       }
 
-      // Check if active focus changed
-      if (store.activeSession) {
-        if (this.currentState.currentFocus !== "Building") {
+      const hasSession = !!store.activeSession;
+      if (hasSession !== seenSession) {
+        seenSession = hasSession;
+        if (store.activeSession) {
           this.recordWorkspaceEvidence(
             "currentFocus",
             "Building",
             `Detected active project focus session started for task: "${store.activeSession.task || "Unspecified"}"`,
+          );
+        } else if (this.currentState.currentFocus === "Building") {
+          // "Unknown", the focus a snapshot without a session starts from:
+          // the session was the evidence, and nothing replaces it.
+          this.recordWorkspaceEvidence(
+            "currentFocus",
+            "Unknown",
+            "Focus session ended; no current focus evidence",
           );
         }
       }
