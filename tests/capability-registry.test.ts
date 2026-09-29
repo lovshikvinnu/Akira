@@ -235,25 +235,113 @@ describe("Platform Runtime - Capability Registry", () => {
     });
   });
 
-  describe("Stress Performance Tests", () => {
-    it("should handle registration and priority lookup for 1000 capabilities within 50ms", () => {
+  /**
+   * Registration and resolution do not scan the registry.
+   *
+   * This was two wall-clock thresholds -- 1000 registrations under 50 ms, one
+   * resolve under 5 ms. Both passed alone and flaked under full-suite load,
+   * which is what an absolute threshold does on a shared machine: it measures
+   * the machine, and `tests/support/perf-ab.ts` records that absolute latency
+   * here is not trustworthy to better than about 3x. The second was not
+   * measuring anything either -- `Date.now()` has millisecond resolution and a
+   * single Map lookup is orders of magnitude below it, so it read zero whatever
+   * the implementation did, and would have kept reading zero if `resolve` had
+   * been rewritten as a linear scan.
+   *
+   * The property actually meant is structural, so it is asserted structurally.
+   * ADR-020 specifies a registry keyed by capability id, with priority ranking
+   * and an alphabetical tie-break "among providers of that capability" -- so
+   * both operations may touch the providers of the id they are given, and must
+   * never touch anyone else. Counting reads of the capability objects states
+   * exactly that, is exact rather than statistical, and cannot flake under
+   * load.
+   */
+  describe("Registration and resolution do not scan", () => {
+    /**
+     * A capability that records every property read of it.
+     *
+     * The registry only ever reaches a capability through its properties --
+     * `status`, `priority`, `providerModule`, `version` -- so a read is the
+     * finest-grained evidence available that an operation touched it at all,
+     * and needs no change to the registry to obtain. Reading `target.id` inside
+     * the trap goes direct to the target, so it does not count itself.
+     */
+    const watched = (cap: Capability, reads: Map<string, number>): Capability =>
+      new Proxy(cap, {
+        get(target, prop, receiver) {
+          if (typeof prop === "string") {
+            reads.set(target.id, (reads.get(target.id) ?? 0) + 1);
+          }
+          return Reflect.get(target, prop, receiver);
+        },
+      });
+
+    /** A registry of `size` capabilities, each under its own id. */
+    const populate = (size: number) => {
+      const reads = new Map<string, number>();
       const registry = new CapabilityRegistry();
-
-      const startTime = Date.now();
-      for (let i = 0; i < 1000; i++) {
-        const cap = createMockCapability(`cap-${i}`, `provider-${i}`, i);
-        registry.register(cap, { instanceIndex: i });
+      for (let i = 0; i < size; i++) {
+        registry.register(watched(createMockCapability(`cap-${i}`, `provider-${i}`, i), reads), {
+          instanceIndex: i,
+        });
       }
-      const regTime = Date.now() - startTime;
-      expect(regTime).toBeLessThan(50); // Under 50ms for 1000 registrations
+      return { registry, reads };
+    };
 
-      const resolveStart = Date.now();
-      // O(1) Lookup of a specific capability
+    it("resolve touches only the providers of the id it was given", () => {
+      const { registry, reads } = populate(1000);
+
+      reads.clear();
       const res = registry.resolve("cap-500");
-      const lookupTime = Date.now() - resolveStart;
 
       expect(res.instanceIndex).toBe(500);
-      expect(lookupTime).toBeLessThan(5); // Under 5ms for O(1) lookup
+      // The behaviour is unchanged; what follows is about how it was reached.
+      expect(reads.get("cap-500")).toBeGreaterThan(0);
+      expect(
+        [...reads.keys()].filter((id) => id !== "cap-500"),
+        "resolve read capabilities other than the one it was asked for",
+      ).toEqual([]);
+    });
+
+    it("registering touches only the providers already under that id", () => {
+      const { registry, reads } = populate(1000);
+
+      reads.clear();
+      registry.register(watched(createMockCapability("cap-new", "provider-new", 1), reads), {
+        instanceIndex: -1,
+      });
+
+      expect(
+        [...reads.keys()].filter((id) => id !== "cap-new"),
+        "registering read capabilities unrelated to the one being registered",
+      ).toEqual([]);
+    });
+
+    it("costs the same in a large registry as in a small one", () => {
+      // The scaling statement. A tenfold registry must cost the same, not ten
+      // times as much -- and because these are exact counts rather than
+      // timings, "the same" can be asserted as equality.
+      const measure = (size: number) => {
+        const { registry, reads } = populate(size);
+
+        reads.clear();
+        registry.register(watched(createMockCapability("cap-new", "provider-new", 1), reads), {
+          instanceIndex: -1,
+        });
+        const toRegister = [...reads.values()].reduce((a, b) => a + b, 0);
+
+        reads.clear();
+        registry.resolve(`cap-${Math.floor(size / 2)}`);
+        const toResolve = [...reads.values()].reduce((a, b) => a + b, 0);
+
+        return { toRegister, toResolve };
+      };
+
+      const small = measure(100);
+      const large = measure(1000);
+
+      expect(large.toRegister, "registration cost grew with registry size").toBe(small.toRegister);
+      expect(large.toResolve, "resolution cost grew with registry size").toBe(small.toResolve);
     });
   });
 });
