@@ -12,6 +12,49 @@ import { eventService } from "../../events/event-service";
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
+/**
+ * Observed workspace patterns, for the current session only.
+ *
+ * `initialize()` clears `habits` and `evidenceLog`, nothing persists them, and
+ * that is the intended shape rather than a gap. Recorded here because the
+ * architecture documents say the opposite and the next reader will find them
+ * first.
+ *
+ * WHY SESSION-SCOPED IS RIGHT DESPITE THE DOCS
+ * --------------------------------------------
+ * Long-term habits already exist and already survive a restart -- in the
+ * identity tier, not here. A habit the user *declares* ("I run every morning",
+ * written as a note) reaches `PersonalDeclarationRule`, which calls
+ * `identityFoundationService.createHabit`. Identity is re-derived from the
+ * durable `genesis_memories` stream on every boot, so it comes back. Measured
+ * across a hydrate + clear-then-replay:
+ *
+ *     identity habits (declared)  ['run']                     -> ['run']
+ *     context habits  (observed)  ['Workspace Focus Switch']   -> []
+ *
+ * The two tiers are complementary, not duplicates: identity holds what the user
+ * says about themselves, this holds what the workspace did this session.
+ * Persisting this one would build a second long-term habit store beside a
+ * working one.
+ *
+ * `06-habit-intelligence.md` does describe a long-term engine -- "patterns
+ * spanning multiple weeks", "extended verification windows", a status ladder
+ * running to `HabitEstablished`. That half was never built, and two things in
+ * the same document say why it cannot be built here as written:
+ *
+ *   - §3 forbids it: "Create Memories: It does not log persistent history event
+ *     nodes." An engine prohibited from writing durable state cannot be rebuilt
+ *     from one.
+ *   - §5 sources its cross-session evidence from "Archived Reflection
+ *     Outcomes... from earlier sessions". Reflection has no production
+ *     producer -- only `initialize`, `getContext` and `shutdown` are ever
+ *     called -- so that input is empty. ADR-011, which says the same, is still
+ *     status `Proposed`.
+ *
+ * So the ladder above `BehaviorObserved` is unreachable today, and closing that
+ * gap is a product decision about where long-term habits should live rather
+ * than a persistence bug to fix here.
+ */
 class HabitService {
   private habits: ObservedHabit[] = [];
   private evidenceLog: HabitEvidence[] = [];
@@ -185,8 +228,29 @@ class HabitService {
 
     // Detect project transitions (Workspace Focus Switch)
     if (activeProject !== this.lastProjectId) {
+      const previous = this.lastProjectId;
       this.lastProjectId = activeProject;
-      if (activeProject) {
+
+      // Reassignment after a delete is reconciliation, not behaviour.
+      //
+      // `akira.deleteProject` removes the project and, when it was the active
+      // one, picks a survivor as `lastProjectId` in the SAME emission. The
+      // engine saw only "active project changed" and recorded the user
+      // switching focus -- but the user deleted something, and the new project
+      // was chosen by the store, not by them. A habit built from that says the
+      // user works on a project they may never have opened.
+      //
+      // The signal is the deleted project itself: on that emission `previous`
+      // has already gone from `state.projects`, and on every deliberate switch
+      // it is still there. `touchProject` and `addProject` move
+      // `lastProjectId` while leaving the old project in place, so they are
+      // unaffected; boot is already handled by the baseline branch above.
+      //
+      // Keyed on the previous id rather than on the habit's name, so nothing
+      // here depends on how the observation happens to be labelled.
+      const previousWasDeleted = previous != null && !state.projects.some((p) => p.id === previous);
+
+      if (activeProject && !previousWasDeleted) {
         this.recordBehaviorObservation("Workspace Focus Switch", "state", {
           projectId: activeProject,
         });

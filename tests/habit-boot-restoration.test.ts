@@ -21,6 +21,16 @@ import path from "path";
 import type { AkiraState } from "../src/shared/types/store-types";
 
 const FOCUS_SWITCH = "Workspace Focus Switch";
+
+/**
+ * Each `boot()` builds a fresh module graph, which takes seconds. A test doing
+ * two of them brushes vitest's 5s default and fails as a timeout rather than on
+ * an assertion, and the aborted test then leaves the SQLite handle open so
+ * `afterEach` cannot remove the temp directory on Windows. Fixture cost, not
+ * behaviour, so the budget is stated rather than discovered.
+ */
+const BOOT_TIMEOUT_MS = 30_000;
+vi.setConfig({ testTimeout: BOOT_TIMEOUT_MS });
 let dbPath: string;
 /** The process a test booted and has not exited; released even if the test fails. */
 let open: { exit(): Promise<void> } | null = null;
@@ -54,10 +64,22 @@ async function boot() {
   const focusSwitches = () =>
     (habitService.getContext()?.observedHabits ?? []).filter((h) => h.name === FOCUS_SWITCH);
 
+  /**
+   * Observations recorded, not habits held.
+   *
+   * `recordBehaviorObservation` MERGES into an existing habit when the name and
+   * `contextDependency.projectId` both match, so returning to a project already
+   * seen adds evidence without adding a habit. Counting habits cannot see a
+   * re-observation at all.
+   */
+  const focusObservations = () =>
+    focusSwitches().reduce((n, h) => n + (h.evidence?.length ?? 0), 0);
+
   const app = {
     akira,
     habitService,
     focusSwitches,
+    focusObservations,
     async exit() {
       open = null;
       await settlePendingPersistence();
@@ -82,10 +104,7 @@ afterEach(async () => {
   fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
 });
 
-// Each boot imports the whole module graph cold. The first took 5,049 ms in
-// isolation on a loaded machine -- over vitest's 5,000 ms default -- so the
-// default timed out on load, not on behaviour.
-describe("booting does not fabricate a focus switch", { timeout: 60_000 }, () => {
+describe("booting does not fabricate a focus switch", () => {
   it("on a first-ever start", async () => {
     const app = await boot();
 
@@ -120,7 +139,7 @@ describe("booting does not fabricate a focus switch", { timeout: 60_000 }, () =>
   });
 });
 
-describe("a genuine focus switch is still observed", { timeout: 60_000 }, () => {
+describe("a genuine focus switch is still observed", () => {
   it("when the user opens another project", async () => {
     const app = await boot();
     app.akira.addProject({ name: "First" });
@@ -173,4 +192,121 @@ describe("a genuine focus switch is still observed", { timeout: 60_000 }, () => 
     expect(switches[0].evidence).toHaveLength(1);
     await app.exit();
   });
+});
+
+describe("deleting a project", () => {
+  it(
+    "records no focus switch when the active project is deleted and another survives",
+    async () => {
+      const app = await boot();
+      app.akira.addProject({ name: "Kitchen Renovation" });
+      app.akira.addProject({ name: "Tax Return" });
+      const active = app.akira.getState().lastProjectId!;
+
+      // Guard: the fixture is the case under test -- an active project, and a
+      // survivor for the store to reassign to. Without both, a pass proves
+      // nothing because no reassignment would occur.
+      expect(active).toBeTruthy();
+      expect(app.akira.getState().projects.length).toBe(2);
+
+      const before = app.focusObservations();
+      app.akira.deleteProject(active);
+
+      expect(app.akira.getState().projects.length).toBe(1);
+      expect(app.akira.getState().lastProjectId, "the store did reassign").toBe(
+        app.akira.getState().projects[0].id,
+      );
+      expect(app.focusObservations(), "deletion recorded a focus switch").toBe(before);
+      await app.exit();
+    },
+    BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    "records no focus switch when a non-active project is deleted",
+    async () => {
+      const app = await boot();
+      app.akira.addProject({ name: "Kitchen Renovation" });
+      const first = app.akira.getState().lastProjectId!;
+      app.akira.addProject({ name: "Tax Return" });
+      const active = app.akira.getState().lastProjectId!;
+      expect(active).not.toBe(first);
+
+      const before = app.focusObservations();
+      app.akira.deleteProject(first);
+
+      // `lastProjectId` never moves here, so this case was already correct. It is
+      // pinned so a future rule keyed on deletion cannot start suppressing it.
+      expect(app.akira.getState().lastProjectId).toBe(active);
+      expect(app.focusObservations()).toBe(before);
+      await app.exit();
+    },
+    BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    "still records a real switch made after that deletion",
+    async () => {
+      const app = await boot();
+      app.akira.addProject({ name: "Kitchen Renovation" });
+      app.akira.addProject({ name: "Tax Return" });
+      const active = app.akira.getState().lastProjectId!;
+      app.akira.deleteProject(active);
+
+      const survivor = app.akira.getState().projects[0].id;
+      const before = app.focusObservations();
+
+      // The user now deliberately opens the surviving project. Suppression must
+      // not persist past the reassignment that caused it.
+      app.akira.addProject({ name: "Garden" });
+      app.akira.touchProject(survivor);
+
+      expect(app.focusObservations(), "a deliberate switch was suppressed").toBeGreaterThan(before);
+      await app.exit();
+    },
+    BOOT_TIMEOUT_MS,
+  );
+});
+
+describe("a deliberate switch", () => {
+  it(
+    "records exactly one observation",
+    async () => {
+      const app = await boot();
+      app.akira.addProject({ name: "Kitchen Renovation" });
+      const first = app.akira.getState().lastProjectId!;
+      app.akira.addProject({ name: "Tax Return" });
+
+      const before = app.focusObservations();
+      app.akira.touchProject(first);
+
+      expect(app.focusObservations()).toBe(before + 1);
+      await app.exit();
+    },
+    BOOT_TIMEOUT_MS,
+  );
+});
+
+describe("observed habits are session-scoped", () => {
+  it(
+    "starts empty on a boot that follows real observed activity",
+    async () => {
+      // Pins Task A. This cannot pass vacuously: the first process asserts it
+      // actually recorded a focus switch, so the second process's empty result is
+      // the reset and not an inert fixture.
+      const first = await boot();
+      first.akira.addProject({ name: "Kitchen Renovation" });
+      const a = first.akira.getState().lastProjectId!;
+      first.akira.addProject({ name: "Tax Return" });
+      first.akira.touchProject(a);
+      expect(first.focusObservations(), "nothing was observed to lose").toBeGreaterThan(0);
+      await first.exit();
+
+      const second = await boot();
+      expect(second.focusSwitches()).toEqual([]);
+      expect(second.habitService.getContext()?.observedHabits ?? []).toEqual([]);
+      await second.exit();
+    },
+    BOOT_TIMEOUT_MS,
+  );
 });
