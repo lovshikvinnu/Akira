@@ -18,6 +18,7 @@ interface TaskRow {
   done: number;
   completed: number;
   project_id: string | null;
+  position: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -45,7 +46,7 @@ export class SqliteTaskRepository implements TaskRepository {
 
   getAll(): Task[] {
     const rows = this.getDb()
-      .prepare("SELECT * FROM tasks ORDER BY created_at ASC")
+      .prepare("SELECT * FROM tasks ORDER BY position ASC, created_at ASC")
       .all() as TaskRow[];
     return rows.map((row) => this.mapRowToTask(row));
   }
@@ -77,8 +78,14 @@ export class SqliteTaskRepository implements TaskRepository {
       .prepare(
         `
         INSERT INTO tasks (
-          id, title, description, priority, estimated_duration, due_date, done, completed, project_id, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)
+          id, title, description, priority, estimated_duration, due_date, done, completed, project_id, position, created_at, updated_at
+        ) VALUES (
+          ?, ?, ?, ?, ?, ?, 0, 0, ?,
+          -- Appended to the end of the user's order rather than inserted into
+          -- it. A new task has no place in an order the user arranged.
+          (SELECT COALESCE(MAX(position), -1) + 1 FROM tasks),
+          ?, ?
+        )
       `,
       )
       .run(
@@ -135,6 +142,21 @@ export class SqliteTaskRepository implements TaskRepository {
     this.getDb()
       .prepare(query)
       .run(...params);
+  }
+
+  setOrder(ids: string[]): void {
+    // One transaction: a half-applied order is worse than the old one, because
+    // two tasks would share a position and sort arbitrarily between them.
+    //
+    // `updated_at` is deliberately untouched. Reordering is not a modification
+    // of the tasks being moved, and session history is attributed by timestamp
+    // -- rewriting them here would move finished work into the current session.
+    const db = this.getDb();
+    const statement = db.prepare("UPDATE tasks SET position = ? WHERE id = ?");
+
+    db.transaction(() => {
+      ids.forEach((id, index) => statement.run(index, id));
+    })();
   }
 
   delete(id: string): void {

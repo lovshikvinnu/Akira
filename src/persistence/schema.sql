@@ -32,6 +32,10 @@ CREATE TABLE IF NOT EXISTS tasks (
   done INTEGER DEFAULT 0,
   completed INTEGER DEFAULT 0,
   project_id TEXT,
+  -- User-defined list order. The task list is drag-reorderable and has no sort
+  -- control, so this is the only ordering the user has; without it the list
+  -- reverts to creation order on reload.
+  position INTEGER,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   CHECK (priority IN ('Low', 'Medium', 'High')),

@@ -91,6 +91,40 @@ export const initializeDatabase = (): void => {
   // is a random UUID, making the order of tied events arbitrary. `seq` restores
   // the order events were actually recorded in, and (timestamp, seq) becomes the
   // total order the Timeline sorts and paginates by.
+  // Task list order, added after the fact.
+  //
+  // The task list is drag-reorderable (`routes/tasks.tsx`) and has no sort
+  // control, so manual order is the only ordering the user has. It used to live
+  // only in the store's array: `reorderTasks` rearranged memory, nothing was
+  // written, and `getAll()` read `ORDER BY created_at ASC` -- so the reorder was
+  // visible until reload and then gone.
+  const taskColumns = db.prepare(`PRAGMA table_info(tasks)`).all() as {
+    name: string;
+  }[];
+
+  if (!taskColumns.some((column) => column.name === "position")) {
+    db.transaction(() => {
+      db.exec(`ALTER TABLE tasks ADD COLUMN position INTEGER`);
+
+      // Backfill from rowid for the same reason the timeline backfill does:
+      // it is monotonic and it is the only surviving record of insertion order,
+      // so existing rows keep a stable relative order instead of collapsing to
+      // NULL and sorting arbitrarily.
+      db.exec(`UPDATE tasks SET position = rowid WHERE position IS NULL`);
+    })();
+  }
+
+  // Outside the guard, and deliberately not in `schema.sql`.
+  //
+  // The bootstrap runs `schema.sql` whenever `schema_version` is missing, and
+  // its `CREATE TABLE IF NOT EXISTS tasks` silently skips a table that already
+  // exists without the column -- so an index declared there referenced a column
+  // that was not there yet and aborted the whole bootstrap with
+  // `no such column: position`. Here the column is guaranteed by the block
+  // above, on both the fresh and the migrated path, and `IF NOT EXISTS` makes
+  // it idempotent.
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_position ON tasks (position)`);
+
   const timelineColumns = db.prepare(`PRAGMA table_info(timeline_events)`).all() as {
     name: string;
   }[];

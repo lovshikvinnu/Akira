@@ -661,7 +661,27 @@ export const akira = {
     set((s) => {
       const ordered = ids.map((id) => s.tasks.find((t) => t.id === id)).filter(Boolean) as Task[];
       const remaining = s.tasks.filter((t) => !ids.includes(t.id));
-      return { ...s, tasks: [...ordered, ...remaining] };
+      const tasks = [...ordered, ...remaining];
+
+      // The order the user arranged, written down.
+      //
+      // This used to rearrange the array and stop there. The list is drag
+      // reorderable and has no sort control, so manual order is the only
+      // ordering there is -- and `getAll()` read `ORDER BY created_at ASC`, so
+      // dragging a task was visible until reload and then silently undone.
+      //
+      // The full list is sent rather than the dragged pair, because position is
+      // an index into the whole list: moving one task shifts every task between
+      // its old and new slot. `remaining` is included for the same reason --
+      // anything the caller did not name still has to keep a position, or it
+      // sorts ahead of everything on the next read.
+      persist("tasks.reorder", () =>
+        import("../akira-os/tasks").then(({ tasksService }) =>
+          tasksService.reorder(tasks.map((t) => t.id)),
+        ),
+      );
+
+      return { ...s, tasks };
     });
   },
 

@@ -30,3 +30,10 @@ export const persistDeleteTask = createServerFn({ method: "POST" })
     const { taskRepository } = await import("../../../persistence/repositories");
     taskRepository.delete(id);
   });
+
+export const persistReorderTasks = createServerFn({ method: "POST" })
+  .validator((ids: string[]) => ids)
+  .handler(async ({ data: ids }) => {
+    const { taskRepository } = await import("../../../persistence/repositories");
+    taskRepository.setOrder(ids);
+  });
