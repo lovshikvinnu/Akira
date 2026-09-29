@@ -59,7 +59,6 @@ class RelationshipService {
   private evidenceLog: RelationshipEvidence[] = [];
   private currentContext: RelationshipContext | null = null;
   private storeUnsubscribe: (() => void) | null = null;
-  private lastProcessedChatTime = 0;
   /** Messages already scanned, so a shared millisecond cannot hide one. */
   private processedChatKeys = new Set<string>();
 
@@ -69,7 +68,12 @@ class RelationshipService {
   public initialize(): RelationshipContext {
     this.relationships = [];
     this.evidenceLog = [];
-    this.lastProcessedChatTime = Date.now(); // only process new chat messages during this session
+    // Cleared with the contacts it guards. Keeping a read-ledger across a
+    // reset marks every message as already seen, so the contacts emptied on
+    // the line above can never be rebuilt -- silently, because the engine
+    // looks initialized. `__root.tsx` calls `shutdown()`/`initialize()` on
+    // every remount, so this is reachable in the shipped app.
+    this.processedChatKeys.clear();
 
     this.rebuildContext();
 
@@ -80,6 +84,13 @@ class RelationshipService {
     this.storeUnsubscribe = getWorkspaceProvider().subscribe(() => {
       this.processNewChatMessages();
     });
+
+    // The chat log outlives the process; the contacts derived from it do not.
+    // Reading what is already in the store makes this engine's state a
+    // function of the log rather than of when it started listening -- at boot
+    // it happens to be subscribed before hydration emits, but nothing here
+    // enforces that ordering and a remount has no emit after it at all.
+    this.processNewChatMessages();
 
     return this.currentContext!;
   }
@@ -208,8 +219,6 @@ class RelationshipService {
       // ten sentences appeared to record only two people, until it turned out
       // eight had never been read.
       //
-      // The timestamp is still tracked, because other code reads it.
-      const msgTime = new Date(msg.createdAt).getTime();
       // The message's own id. Keying on `createdAt|text` instead was wrong in
       // the same family as the bug it replaced: two messages with the same
       // words in the same millisecond -- ordinary across a reset, or any replay
@@ -217,7 +226,6 @@ class RelationshipService {
       const messageKey = msg.id;
       if (!this.processedChatKeys.has(messageKey)) {
         this.processedChatKeys.add(messageKey);
-        this.lastProcessedChatTime = Math.max(this.lastProcessedChatTime, msgTime);
 
         // Only an explicit @mention.
         //
