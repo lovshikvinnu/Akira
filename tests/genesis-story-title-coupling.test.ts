@@ -50,9 +50,8 @@ const { akira } = await import("../src/persistence/akira-store");
 const { memoryService } = await import("../src/genesis/memory/memory-service");
 const { storyService } = await import("../src/genesis/stories/story-service");
 const { importanceService } = await import("../src/genesis/importance/importance-service");
-const { relationshipService } = await import(
-  "../src/genesis/memory/relationships/relationship-service"
-);
+const { relationshipService } =
+  await import("../src/genesis/memory/relationships/relationship-service");
 const { identityService } = await import("../src/genesis/understanding/identity-service");
 const { identityBuilder } = await import("../src/genesis/understanding/identity-builder");
 const { understandingEngine } = await import("../src/genesis/understanding/engine");
@@ -159,7 +158,9 @@ describe("the producer and every consumer agree on the arc titles", () => {
     expect(arcGoals.some((g) => g.data === `Complete ${PROJECT_ARC_TITLE_PREFIX} ${name}`)).toBe(
       true,
     );
-    expect(projectArcTitleRemainder(arc)).toBe(arc.title.replace(PROJECT_ARC_TITLE_PREFIX, "").trim());
+    expect(projectArcTitleRemainder(arc)).toBe(
+      arc.title.replace(PROJECT_ARC_TITLE_PREFIX, "").trim(),
+    );
     expect(projectId).toBeTruthy();
   });
 
@@ -261,16 +262,14 @@ describe("recall keys on the structured kind", () => {
 
     const arcRule = recallRules.find((r) => r.name === "Active Story Recall Rule")!;
     const arc = reflectionsArc()!;
-    const member = memoryService
-      .getMemories()
-      .find((m) => arc.relatedMemoryIds.includes(m.id))!;
+    const member = memoryService.getMemories().find((m) => arc.relatedMemoryIds.includes(m.id))!;
 
     expect(arc.status).toBe("Active");
 
     // Suppressed at BOOTSTRAP -- the behaviour the literal used to encode.
-    expect(arcRule.evaluate(member, null, storyService.getStories(), "BOOTSTRAP").shouldRecall).toBe(
-      false,
-    );
+    expect(
+      arcRule.evaluate(member, null, storyService.getStories(), "BOOTSTRAP").shouldRecall,
+    ).toBe(false);
     // and not suppressed otherwise.
     expect(arcRule.evaluate(member, null, storyService.getStories(), "QUERY").shouldRecall).toBe(
       true,
@@ -282,9 +281,7 @@ describe("recall keys on the structured kind", () => {
 
     const arcRule = recallRules.find((r) => r.name === "Active Story Recall Rule")!;
     const arc = reflectionsArc()!;
-    const member = memoryService
-      .getMemories()
-      .find((m) => arc.relatedMemoryIds.includes(m.id))!;
+    const member = memoryService.getMemories().find((m) => arc.relatedMemoryIds.includes(m.id))!;
 
     storyService.updateStory(arc.id, { title: "Reflections" });
 
@@ -292,9 +289,9 @@ describe("recall keys on the structured kind", () => {
     // the suppression is keyed on what the story is rather than on how it
     // reads. Before `Story.kind` this assertion was `toBe(true)`: a cosmetic
     // rename silently changed what the bootstrap prompt contained.
-    expect(arcRule.evaluate(member, null, storyService.getStories(), "BOOTSTRAP").shouldRecall).toBe(
-      false,
-    );
+    expect(
+      arcRule.evaluate(member, null, storyService.getStories(), "BOOTSTRAP").shouldRecall,
+    ).toBe(false);
   });
 });
 
@@ -337,11 +334,17 @@ describe("arc identity survives reconstruction", () => {
   it("keeps identity agreeing with the replayed arcs", () => {
     buildBothArcs();
     identityBuilder.flushDirtyStories();
-    const before = identityService.getObservations().map((o) => o.name).sort();
+    const before = identityService
+      .getObservations()
+      .map((o) => o.name)
+      .sort();
 
     memoryService.reconstructRuntimeMemory();
     identityBuilder.flushDirtyStories();
-    const after = identityService.getObservations().map((o) => o.name).sort();
+    const after = identityService
+      .getObservations()
+      .map((o) => o.name)
+      .sort();
 
     expect(after).toEqual(before);
     expect(after).toContain("Reflective");

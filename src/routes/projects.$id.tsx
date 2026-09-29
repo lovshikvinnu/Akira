@@ -75,7 +75,6 @@ function ProjectDetail() {
         window.removeEventListener("beforeunload", handleBeforeUnload);
       };
     }
-
   }, [project?.id]);
 
   // Sync active task changes with current session context
@@ -83,7 +82,6 @@ function ProjectDetail() {
     if (project) {
       akira.updateSessionTask(nextTask);
     }
-
   }, [nextTask]);
 
   if (!project) throw notFound();

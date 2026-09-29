@@ -39,15 +39,13 @@ const log = (...parts: string[]) => appendFileSync(REPORT, parts.join(" ") + EOL
 import type { AkiraState } from "../src/shared/types/store-types";
 
 const genesis = await import("../src/genesis/index");
-const { akira, pendingPersistenceCount, settlePendingPersistence } = await import(
-  "../src/persistence/akira-store"
-);
+const { akira, pendingPersistenceCount, settlePendingPersistence } =
+  await import("../src/persistence/akira-store");
 const { memoryService } = await import("../src/genesis/memory/memory-service");
 const { storyService } = await import("../src/genesis/stories/story-service");
 const { importanceService } = await import("../src/genesis/importance/importance-service");
-const { relationshipService } = await import(
-  "../src/genesis/memory/relationships/relationship-service"
-);
+const { relationshipService } =
+  await import("../src/genesis/memory/relationships/relationship-service");
 
 function freshWorkspace(): void {
   const state = akira.getState() as AkiraState;

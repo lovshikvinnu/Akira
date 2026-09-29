@@ -48,9 +48,8 @@ const { akira } = await import("../src/persistence/akira-store");
 const { memoryService } = await import("../src/genesis/memory/memory-service");
 const { storyService } = await import("../src/genesis/stories/story-service");
 const { importanceService } = await import("../src/genesis/importance/importance-service");
-const { relationshipService } = await import(
-  "../src/genesis/memory/relationships/relationship-service"
-);
+const { relationshipService } =
+  await import("../src/genesis/memory/relationships/relationship-service");
 const { recallService } = await import("../src/genesis/recall/recall-service");
 const { understandingEngine } = await import("../src/genesis/understanding/engine");
 const { projectRule } = await import("../src/genesis/understanding/rules");
@@ -245,7 +244,9 @@ describe("text-keyed decisions", () => {
 
     log("");
     log("=== F5  reconstruction ===");
-    log(`arcs live ${before.length}, after replay ${once.length}, after replay twice ${twice.length}`);
+    log(
+      `arcs live ${before.length}, after replay ${once.length}, after replay twice ${twice.length}`,
+    );
     log(`live === replayed: ${JSON.stringify(before) === JSON.stringify(once)}`);
     log(`replayed idempotent: ${JSON.stringify(once) === JSON.stringify(twice)}`);
   });

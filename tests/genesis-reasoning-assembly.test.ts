@@ -44,10 +44,10 @@ describe("GENESIS v2.23 — Milestone 3: Reasoning Assembly & Consumption", () =
 
     it("should throw an error when collection parameter is null or undefined", () => {
       expect(() => assemblyService.assemble(null as any)).toThrow(
-        /ReasoningCollection is required/
+        /ReasoningCollection is required/,
       );
       expect(() => assemblyService.assemble(undefined as any)).toThrow(
-        /ReasoningCollection is required/
+        /ReasoningCollection is required/,
       );
     });
   });
@@ -68,10 +68,30 @@ describe("GENESIS v2.23 — Milestone 3: Reasoning Assembly & Consumption", () =
 
   describe("Exact Ordering Preservation", () => {
     it("should preserve exact ordering produced by ReasoningEngine (no sorting, filtering, or ranking)", () => {
-      const a1: Reasoning = Object.freeze({ id: "a1", strategyId: "strat-a", type: "Deduction", conclusion: "c-a1" });
-      const a2: Reasoning = Object.freeze({ id: "a2", strategyId: "strat-a", type: "Deduction", conclusion: "c-a2" });
-      const b1: Reasoning = Object.freeze({ id: "b1", strategyId: "strat-b", type: "Implication", conclusion: "c-b1" });
-      const c1: Reasoning = Object.freeze({ id: "c1", strategyId: "strat-c", type: "Synthesis", conclusion: "c-c1" });
+      const a1: Reasoning = Object.freeze({
+        id: "a1",
+        strategyId: "strat-a",
+        type: "Deduction",
+        conclusion: "c-a1",
+      });
+      const a2: Reasoning = Object.freeze({
+        id: "a2",
+        strategyId: "strat-a",
+        type: "Deduction",
+        conclusion: "c-a2",
+      });
+      const b1: Reasoning = Object.freeze({
+        id: "b1",
+        strategyId: "strat-b",
+        type: "Implication",
+        conclusion: "c-b1",
+      });
+      const c1: Reasoning = Object.freeze({
+        id: "c1",
+        strategyId: "strat-c",
+        type: "Synthesis",
+        conclusion: "c-c1",
+      });
 
       const collection: ReasoningCollection = Object.freeze({
         reasoning: Object.freeze([a1, a2, b1, c1]),

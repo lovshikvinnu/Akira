@@ -49,13 +49,12 @@ const { akira } = await import("../src/persistence/akira-store");
 const { memoryService } = await import("../src/genesis/memory/memory-service");
 const { storyService } = await import("../src/genesis/stories/story-service");
 const { importanceService } = await import("../src/genesis/importance/importance-service");
-const { relationshipService } = await import(
-  "../src/genesis/memory/relationships/relationship-service"
-);
-const { relationshipRules } = await import(
-  "../src/genesis/memory/relationships/relationship-rules"
-);
-const { getRetentionPolicy, resetRetentionPolicy } = await import("../src/genesis/retention/policy");
+const { relationshipService } =
+  await import("../src/genesis/memory/relationships/relationship-service");
+const { relationshipRules } =
+  await import("../src/genesis/memory/relationships/relationship-rules");
+const { getRetentionPolicy, resetRetentionPolicy } =
+  await import("../src/genesis/retention/policy");
 
 function freshWorkspace(): void {
   const state = akira.getState() as AkiraState;
@@ -219,9 +218,7 @@ function report(label: string) {
     else fired += 1;
   }
 
-  log(
-    `Caused By opportunities ${distances.length}: fired ${fired}, crowded out ${crowdedOut}`,
-  );
+  log(`Caused By opportunities ${distances.length}: fired ${fired}, crowded out ${crowdedOut}`);
   if (distances.length > 0) {
     distances.sort((a, b) => a - b);
     const median = distances[Math.floor(distances.length / 2)];
@@ -235,9 +232,7 @@ function report(label: string) {
     const sample = completions[completions.length - 1];
     const walk = simulateWalk(sample, memories, budget);
     log(`  sample completion spend: ${JSON.stringify(walk.spentByType)}`);
-    log(
-      `  budget exhausted after stepping ${walk.stoppedAt ?? "never"} peers of ${walk.stepped}`,
-    );
+    log(`  budget exhausted after stepping ${walk.stoppedAt ?? "never"} peers of ${walk.stepped}`);
     const cost = evaluationCost(sample, memories, budget);
     log(
       `  rule.evaluate calls for that one memory: today ${cost.today}, ` +

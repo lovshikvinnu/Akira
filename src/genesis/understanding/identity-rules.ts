@@ -1,11 +1,7 @@
 import { Story } from "../stories/types";
 import { memoryService } from "../memory/memory-service";
 import { IdentityCategory } from "./identity-types";
-import {
-  REFLECTIONS_ARC_TITLE,
-  isProjectArc,
-  isReflectionsArc,
-} from "../stories/story-identity";
+import { REFLECTIONS_ARC_TITLE, isProjectArc, isReflectionsArc } from "../stories/story-identity";
 
 export interface IdentityRule {
   name: string;

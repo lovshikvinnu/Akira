@@ -42,14 +42,12 @@ const { akira } = await import("../src/persistence/akira-store");
 const { memoryService } = await import("../src/genesis/memory/memory-service");
 const { storyService } = await import("../src/genesis/stories/story-service");
 const { importanceService } = await import("../src/genesis/importance/importance-service");
-const { relationshipService } = await import(
-  "../src/genesis/memory/relationships/relationship-service"
-);
+const { relationshipService } =
+  await import("../src/genesis/memory/relationships/relationship-service");
 const { buildUnderstandingGraph } = await import("../src/genesis/understanding/builder");
 const { personalDeclarationRule } = await import("../src/genesis/understanding/rules");
-const { setRetentionPolicy, resetRetentionPolicy } = await import(
-  "../src/genesis/retention/policy"
-);
+const { setRetentionPolicy, resetRetentionPolicy } =
+  await import("../src/genesis/retention/policy");
 
 function freshWorkspace(): void {
   const state = akira.getState() as AkiraState;
@@ -151,7 +149,9 @@ describe("understanding graph references", () => {
     for (const m of memories) {
       log(`  title ${JSON.stringify(m.title)}  description ${JSON.stringify(m.description)}`);
     }
-    log(`declaration fragments: ${fragments.length} ${JSON.stringify(fragments.map((f) => f.canonicalKey))}`);
+    log(
+      `declaration fragments: ${fragments.length} ${JSON.stringify(fragments.map((f) => f.canonicalKey))}`,
+    );
 
     // And the parser in isolation, to separate "the parser is broken" from
     // "nothing reaches the parser in a parseable shape".
@@ -172,7 +172,9 @@ describe("understanding graph references", () => {
       ],
       [],
     );
-    log(`parser given a bare declaration directly: ${direct.length} fragment(s) ${JSON.stringify(direct.map((f) => f.canonicalKey))}`);
+    log(
+      `parser given a bare declaration directly: ${direct.length} fragment(s) ${JSON.stringify(direct.map((f) => f.canonicalKey))}`,
+    );
   });
 
   it("U5: what survives of a note, by capture surface", () => {
@@ -182,7 +184,7 @@ describe("understanding graph references", () => {
     // The four quick-capture surfaces all call `addNote(string)`, which sets
     // title to "" -- Topbar.tsx:23, CommandPalette.tsx:173, search.tsx:281,
     // CaptureThoughtDialog.tsx:29. Only the notes route passes a title.
-    akira.addNote("zqfrobnicate the widget before shipping");           // brain dump
+    akira.addNote("zqfrobnicate the widget before shipping"); // brain dump
     akira.addNote({ title: "wibbleplugh", content: "bazquux details" }); // titled note
 
     const memories = memoryService.getMemories();

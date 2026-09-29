@@ -432,6 +432,5 @@ function useMemoReset<T>(open: boolean, dep: T, reset: (dep: T) => void) {
   const key = open ? "open" : "closed";
   useMemo(() => {
     if (open) reset(dep);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, dep]);
 }

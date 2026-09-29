@@ -165,9 +165,8 @@ describe("A: the Reflective trait is evidenced by reflections", () => {
     const before = deepWork()?.confidence;
     expect(before).toBeDefined();
 
-    const arcBefore = storyService
-      .getStories()
-      .find((st) => st.title.startsWith("Project Arc:"))!.relatedMemoryIds.length;
+    const arcBefore = storyService.getStories().find((st) => st.title.startsWith("Project Arc:"))!
+      .relatedMemoryIds.length;
 
     for (const t of [
       "My goal is to learn Verilog",
@@ -178,9 +177,8 @@ describe("A: the Reflective trait is evidenced by reflections", () => {
     }
     identityBuilder.flushDirtyStories();
 
-    const arcAfter = storyService
-      .getStories()
-      .find((st) => st.title.startsWith("Project Arc:"))!.relatedMemoryIds.length;
+    const arcAfter = storyService.getStories().find((st) => st.title.startsWith("Project Arc:"))!
+      .relatedMemoryIds.length;
 
     // The arc genuinely grew -- this is not a fixture that failed to add them.
     expect(arcAfter).toBeGreaterThan(arcBefore);
@@ -198,8 +196,9 @@ describe("A: the Reflective trait is evidenced by reflections", () => {
     };
     for (let i = 0; i < 3; i++) complete(`rw-${i}`);
     identityBuilder.flushDirtyStories();
-    const three = identityService.getObservations().find((o) => o.name === "Deep Work Focus")!
-      .confidence;
+    const three = identityService
+      .getObservations()
+      .find((o) => o.name === "Deep Work Focus")!.confidence;
 
     for (let i = 3; i < 6; i++) complete(`rw-${i}`);
     identityBuilder.flushDirtyStories();

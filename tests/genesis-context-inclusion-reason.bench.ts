@@ -46,9 +46,8 @@ const { akira } = await import("../src/persistence/akira-store");
 const { memoryService } = await import("../src/genesis/memory/memory-service");
 const { storyService } = await import("../src/genesis/stories/story-service");
 const { importanceService } = await import("../src/genesis/importance/importance-service");
-const { relationshipService } = await import(
-  "../src/genesis/memory/relationships/relationship-service"
-);
+const { relationshipService } =
+  await import("../src/genesis/memory/relationships/relationship-service");
 const { recallService } = await import("../src/genesis/recall/recall-service");
 const { recallBuilder } = await import("../src/genesis/recall/recall-builder");
 const { contextRules } = await import("../src/genesis/context/context-rules");
@@ -173,9 +172,7 @@ function reportNoteMechanism() {
   log("=== note recall mechanism ===");
   for (const m of notes.slice(0, 2)) {
     const story = storyService.findStoryContainingMemory(m.id);
-    const candidate = recallService
-      .getRecallCandidates()
-      .find((c) => c.memoryId === m.id);
+    const candidate = recallService.getRecallCandidates().find((c) => c.memoryId === m.id);
     log(
       `  note ${JSON.stringify(m.title)} project=${m.relatedProjectId ? "set" : "null"}` +
         ` reason=${JSON.stringify(m.reason)}` +
@@ -214,7 +211,11 @@ describe("context inclusion reason", () => {
       completeTask(pid, `ld-${i}`);
       // The difference from B: these notes belong to a project, so they can
       // join its story arc and be recalled through the Active Story rule.
-      akira.addNote({ title: `project thought ${i}`, content: `written by the user ${i}`, projectId: pid });
+      akira.addNote({
+        title: `project thought ${i}`,
+        content: `written by the user ${i}`,
+        projectId: pid,
+      });
     }
     measure("D  notes attached to a project");
     reportNoteMechanism();

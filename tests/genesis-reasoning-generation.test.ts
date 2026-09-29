@@ -152,7 +152,9 @@ describe("GENESIS v2.23 — Milestone 2: Reasoning Generation", () => {
       expect(results).toHaveLength(1);
       expect(results[0].strategyId).toBe("synthesis-strategy");
       expect(results[0].type).toBe("Synthesis");
-      expect(results[0].conclusion).toBe("synthesis:co-occurrence:type-recurrence:goal:ref-1+ref-2");
+      expect(results[0].conclusion).toBe(
+        "synthesis:co-occurrence:type-recurrence:goal:ref-1+ref-2",
+      );
       expect(Object.isFrozen(results[0])).toBe(true);
     });
 

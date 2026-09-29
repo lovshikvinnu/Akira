@@ -49,9 +49,8 @@ const { akira } = await import("../src/persistence/akira-store");
 const { memoryService } = await import("../src/genesis/memory/memory-service");
 const { storyService } = await import("../src/genesis/stories/story-service");
 const { importanceService } = await import("../src/genesis/importance/importance-service");
-const { relationshipService } = await import(
-  "../src/genesis/memory/relationships/relationship-service"
-);
+const { relationshipService } =
+  await import("../src/genesis/memory/relationships/relationship-service");
 const { recallService } = await import("../src/genesis/recall/recall-service");
 const { recallBuilder } = await import("../src/genesis/recall/recall-builder");
 const { contextRules } = await import("../src/genesis/context/context-rules");
@@ -59,9 +58,8 @@ const { eventService } = await import("../src/genesis/events/event-service");
 const { personalDeclarationRule } = await import("../src/genesis/understanding/rules");
 const { identityService } = await import("../src/genesis/understanding/identity-service");
 const { identityBuilder } = await import("../src/genesis/understanding/identity-builder");
-const { classifyDurability, resetRetentionPolicy } = await import(
-  "../src/genesis/retention/policy"
-);
+const { classifyDurability, resetRetentionPolicy } =
+  await import("../src/genesis/retention/policy");
 
 recallBuilder.initialize();
 
@@ -117,7 +115,9 @@ describe("chat intake", () => {
     }
     recallBuilder.rebuildRecallCandidates();
     const cache = recallService.getRecallCandidates();
-    log(`recall candidates ${cache.length}, active ${cache.filter((c) => c.status === "Active").length}`);
+    log(
+      `recall candidates ${cache.length}, active ${cache.filter((c) => c.status === "Active").length}`,
+    );
     log(`items reaching the prompt ${contextRules.filterActiveRecallCandidates(cache).length}`);
   });
 
@@ -138,7 +138,9 @@ describe("chat intake", () => {
     log("");
     log("=== B2  declarations typed into chat ===");
     log(`chat memories ${chatMemories().length}`);
-    log(`declaration fragments ${fragments.length}: ${JSON.stringify(fragments.map((f) => f.canonicalKey))}`);
+    log(
+      `declaration fragments ${fragments.length}: ${JSON.stringify(fragments.map((f) => f.canonicalKey))}`,
+    );
     log(
       `identity observations: ${JSON.stringify(
         identityService.getObservations().map((o) => `${o.category}:${o.name}`),
@@ -167,9 +169,7 @@ describe("chat intake", () => {
       .getRelationships()
       .filter((r) => ids.has(r.sourceMemoryId) || ids.has(r.targetMemoryId)).length;
     recallBuilder.rebuildRecallCandidates();
-    const asCandidates = recallService
-      .getRecallCandidates()
-      .filter((c) => ids.has(c.memoryId));
+    const asCandidates = recallService.getRecallCandidates().filter((c) => ids.has(c.memoryId));
     const inPrompt = contextRules
       .filterActiveRecallCandidates(recallService.getRecallCandidates())
       .filter((i) => ids.has(i.data.memoryId)).length;
@@ -180,7 +180,9 @@ describe("chat intake", () => {
     log(`story memberships        ${inStories}`);
     log(`importance profiles      ${withImportance}`);
     log(`relationship endpoints   ${inRelationships}`);
-    log(`recall candidates        ${asCandidates.length} (active ${asCandidates.filter((c) => c.status === "Active").length})`);
+    log(
+      `recall candidates        ${asCandidates.length} (active ${asCandidates.filter((c) => c.status === "Active").length})`,
+    );
     log(`reaching the prompt      ${inPrompt}`);
     log(
       `stories touched: ${JSON.stringify(
@@ -233,23 +235,33 @@ describe("chat intake", () => {
     // Worthy, so conversation volume feeds a trait about introspection.
     akira.addNote("A genuine reflection I chose to write down.");
     identityBuilder.flushDirtyStories();
-    const arcBefore = storyService.getStories().find((st) => st.title === "Personal Growth Reflections");
+    const arcBefore = storyService
+      .getStories()
+      .find((st) => st.title === "Personal Growth Reflections");
     const before = identityService.getObservations().find((o) => o.name === "Reflective");
 
     log("");
     log("=== B6  chat volume against the Reflective trait ===");
-    log(`after 1 written reflection: members ${arcBefore?.relatedMemoryIds.length ?? 0}, confidence ${before?.confidence ?? "none"}`);
+    log(
+      `after 1 written reflection: members ${arcBefore?.relatedMemoryIds.length ?? 0}, confidence ${before?.confidence ?? "none"}`,
+    );
 
     for (let i = 0; i < 60; i++) chat(`ordinary question ${i}`);
     identityBuilder.flushDirtyStories();
-    const arcAfter = storyService.getStories().find((st) => st.title === "Personal Growth Reflections");
+    const arcAfter = storyService
+      .getStories()
+      .find((st) => st.title === "Personal Growth Reflections");
     const after = identityService.getObservations().find((o) => o.name === "Reflective");
     const members = arcAfter?.relatedMemoryIds ?? [];
     const chatIds = new Set(chatMemories().map((m) => m.id));
     const chatMembers = members.filter((id) => chatIds.has(id)).length;
 
-    log(`after 60 chat messages:     members ${members.length}, confidence ${after?.confidence ?? "none"}`);
-    log(`  of those members, chat:   ${chatMembers} (${((chatMembers / Math.max(1, members.length)) * 100).toFixed(1)}%)`);
+    log(
+      `after 60 chat messages:     members ${members.length}, confidence ${after?.confidence ?? "none"}`,
+    );
+    log(
+      `  of those members, chat:   ${chatMembers} (${((chatMembers / Math.max(1, members.length)) * 100).toFixed(1)}%)`,
+    );
     log(`  provenance: ${JSON.stringify(after?.provenance ?? "")}`);
     log("  -- the trait says the user reflects; the evidence is that they typed");
   });

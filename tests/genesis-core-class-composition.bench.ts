@@ -47,13 +47,11 @@ const { akira } = await import("../src/persistence/akira-store");
 const { memoryService } = await import("../src/genesis/memory/memory-service");
 const { storyService } = await import("../src/genesis/stories/story-service");
 const { importanceService } = await import("../src/genesis/importance/importance-service");
-const { relationshipService } = await import(
-  "../src/genesis/memory/relationships/relationship-service"
-);
+const { relationshipService } =
+  await import("../src/genesis/memory/relationships/relationship-service");
 const { eventService } = await import("../src/genesis/events/event-service");
-const { classifyDurability, setRetentionPolicy, resetRetentionPolicy } = await import(
-  "../src/genesis/retention/policy"
-);
+const { classifyDurability, setRetentionPolicy, resetRetentionPolicy } =
+  await import("../src/genesis/retention/policy");
 
 function freshWorkspace(): void {
   const state = akira.getState() as AkiraState;
@@ -92,7 +90,14 @@ function coreComposition() {
   const notes = core.filter((m) => m.relatedNoteId && !isChat(m.description));
   const projects = core.filter((m) => m.eventType.startsWith("project_"));
   const other = core.length - chat.length - notes.length - projects.length;
-  return { total: memories.length, core: core.length, chat: chat.length, notes: notes.length, projects: projects.length, other };
+  return {
+    total: memories.length,
+    core: core.length,
+    chat: chat.length,
+    notes: notes.length,
+    projects: projects.length,
+    other,
+  };
 }
 
 describe("the Core class", () => {
@@ -112,7 +117,9 @@ describe("the Core class", () => {
     const c = coreComposition();
     log("=== C1  composition after one chatty session ===");
     log(`memories ${c.total}, of which Core ${c.core}`);
-    log(`  chat messages   ${c.chat}  (${((c.chat / Math.max(1, c.core)) * 100).toFixed(1)}% of Core)`);
+    log(
+      `  chat messages   ${c.chat}  (${((c.chat / Math.max(1, c.core)) * 100).toFixed(1)}% of Core)`,
+    );
     log(`  captured notes  ${c.notes}`);
     log(`  project events  ${c.projects}`);
     log(`  other           ${c.other}`);
@@ -140,15 +147,23 @@ describe("the Core class", () => {
 
     log("");
     log("=== C2  eviction at the Core boundary ===");
-    log(`before chat -- founding project: ${foundingProjectPresent()}, founding note: ${foundingNotePresent()}`);
+    log(
+      `before chat -- founding project: ${foundingProjectPresent()}, founding note: ${foundingNotePresent()}`,
+    );
 
     for (let i = 0; i < 30; i++) completeTask(pid, `bt-${i}`);
-    log(`after 30 task completions (Episodic) -- project: ${foundingProjectPresent()}, note: ${foundingNotePresent()}`);
+    log(
+      `after 30 task completions (Episodic) -- project: ${foundingProjectPresent()}, note: ${foundingNotePresent()}`,
+    );
 
     for (let i = 0; i < 100; i++) sendChatMessage(`chat ${i}`);
     const c = coreComposition();
-    log(`after 100 chat messages -- project: ${foundingProjectPresent()}, note: ${foundingNotePresent()}`);
-    log(`  Core now ${c.core}: chat ${c.chat}, notes ${c.notes}, projects ${c.projects}, other ${c.other}`);
+    log(
+      `after 100 chat messages -- project: ${foundingProjectPresent()}, note: ${foundingNotePresent()}`,
+    );
+    log(
+      `  Core now ${c.core}: chat ${c.chat}, notes ${c.notes}, projects ${c.projects}, other ${c.other}`,
+    );
 
     resetRetentionPolicy();
   });
@@ -166,9 +181,7 @@ describe("the Core class", () => {
     for (let i = 0; i < 300; i++) completeTask(pid, `et-${i}`);
 
     const project = memoryService.getMemories().some((m) => m.eventType === "project_created");
-    const note = memoryService
-      .getMemories()
-      .some((m) => m.description.includes("become a pilot"));
+    const note = memoryService.getMemories().some((m) => m.description.includes("become a pilot"));
     const c = coreComposition();
 
     log("");
@@ -197,9 +210,7 @@ describe("the Core class", () => {
     log("");
     log("=== C4  the durable stream at the Core event cap ===");
     log(`stream ${stream.length}, Core ${core.length}, of which chat ${chat.length}`);
-    log(
-      `founding project in the stream: ${stream.some((e) => e.eventType === "project_created")}`,
-    );
+    log(`founding project in the stream: ${stream.some((e) => e.eventType === "project_created")}`);
     log(
       `founding note in the stream:    ${stream.some((e) => e.description.includes("become a pilot") && !isChat(e.description))}`,
     );

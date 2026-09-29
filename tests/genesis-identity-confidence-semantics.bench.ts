@@ -13,7 +13,8 @@ const { akira } = await import("../src/persistence/akira-store");
 const { memoryService } = await import("../src/genesis/memory/memory-service");
 const { storyService } = await import("../src/genesis/stories/story-service");
 const { importanceService } = await import("../src/genesis/importance/importance-service");
-const { relationshipService } = await import("../src/genesis/memory/relationships/relationship-service");
+const { relationshipService } =
+  await import("../src/genesis/memory/relationships/relationship-service");
 const { identityService } = await import("../src/genesis/understanding/identity-service");
 const { identityBuilder } = await import("../src/genesis/understanding/identity-builder");
 const { eventService } = await import("../src/genesis/events/event-service");
@@ -24,21 +25,26 @@ const { resetRetentionPolicy } = await import("../src/genesis/retention/policy")
 function fresh() {
   const s = akira.getState() as AkiraState;
   akira.initializeState({ ...s, memories: [], tasks: [], notes: [], projects: [], chat: [] });
-  memoryService.clearHistory(); genesis.candidateService.clearHistory();
-  storyService.clearHistory(); importanceService.clearHistory();
-  relationshipService.clearHistory(); identityService.clearHistory();
+  memoryService.clearHistory();
+  genesis.candidateService.clearHistory();
+  storyService.clearHistory();
+  importanceService.clearHistory();
+  relationshipService.clearHistory();
+  identityService.clearHistory();
 }
 const obs = () => identityService.getObservations();
 const show = (label: string) => {
   const items = contextRules.filterIdentityObservations(obs());
   log(`  ${label}`);
   log(`    observations ${obs().length}, reaching prompt ${items.length}`);
-  for (const o of obs()) log(`      ${String(o.confidence).padEnd(5)} ${o.category.padEnd(12)} ${o.name}`);
+  for (const o of obs())
+    log(`      ${String(o.confidence).padEnd(5)} ${o.category.padEnd(12)} ${o.name}`);
 };
 
 describe("confidence semantics", () => {
   it("H1: the sporadic journaller -- five reflections, then two years of nothing", () => {
-    resetRetentionPolicy(); fresh();
+    resetRetentionPolicy();
+    fresh();
     for (let i = 0; i < 5; i++) akira.addNote(`Reflection ${i}: a thought about how I work.`);
     identityBuilder.flushDirtyStories();
     log("=== H1  five reflections, then silence ===");
@@ -48,7 +54,8 @@ describe("confidence semantics", () => {
   });
 
   it("H2: the heavy user -- 200 reflections", () => {
-    resetRetentionPolicy(); fresh();
+    resetRetentionPolicy();
+    fresh();
     for (let i = 0; i < 200; i++) akira.addNote(`Reflection ${i}: a distinct thought.`);
     identityBuilder.flushDirtyStories();
     log("");
@@ -58,7 +65,8 @@ describe("confidence semantics", () => {
   });
 
   it("H3: the task-only user -- lots of work, no reflection", () => {
-    resetRetentionPolicy(); fresh();
+    resetRetentionPolicy();
+    fresh();
     akira.addProject({ name: "Heads Down" });
     const pid = akira.getState().lastProjectId as string;
     for (let i = 0; i < 40; i++) {
@@ -74,8 +82,14 @@ describe("confidence semantics", () => {
   });
 
   it("D1: the same fact, scored by two different models", () => {
-    resetRetentionPolicy(); fresh();
-    eventService.record("declaration_captured", "Declaration Captured", "My goal is to learn Verilog", null);
+    resetRetentionPolicy();
+    fresh();
+    eventService.record(
+      "declaration_captured",
+      "Declaration Captured",
+      "My goal is to learn Verilog",
+      null,
+    );
     identityBuilder.flushDirtyStories();
 
     const emergent = obs().find((o) => o.category === "Aspiration");
@@ -94,7 +108,9 @@ describe("confidence semantics", () => {
       const nodeId = (g as { confidenceReference?: string }).confidenceReference;
       const conf = nodeId ? graph.identityConfidenceService.getConfidence(nodeId) : null;
       log(`    goal "${(g as { title?: string }).title}"`);
-      log(`      node ${nodeId ? "present" : "MISSING"}  score ${conf?.score}  level ${conf?.level}`);
+      log(
+        `      node ${nodeId ? "present" : "MISSING"}  score ${conf?.score}  level ${conf?.level}`,
+      );
       log(`      ${JSON.stringify(conf?.explanation?.summary ?? "")}`);
     }
   });

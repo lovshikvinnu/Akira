@@ -51,9 +51,8 @@ const { akira } = await import("../src/persistence/akira-store");
 const { memoryService } = await import("../src/genesis/memory/memory-service");
 const { storyService } = await import("../src/genesis/stories/story-service");
 const { importanceService } = await import("../src/genesis/importance/importance-service");
-const { relationshipService } = await import(
-  "../src/genesis/memory/relationships/relationship-service"
-);
+const { relationshipService } =
+  await import("../src/genesis/memory/relationships/relationship-service");
 const { personalDeclarationRule } = await import("../src/genesis/understanding/rules");
 const { eventService } = await import("../src/genesis/events/event-service");
 const { resetRetentionPolicy } = await import("../src/genesis/retention/policy");
@@ -89,7 +88,10 @@ function buildHistory(taskCount: number) {
   akira.addNote("My goal is to learn Verilog.");
   // Declaration in the title, ordinary body -- the case site 2 was written for.
   akira.addNote({ title: "I want to become a pilot", content: "Looked at flight schools today." });
-  akira.addNote({ title: "My dream is to ship AKIRA", content: "Notes from the planning session." });
+  akira.addNote({
+    title: "My dream is to ship AKIRA",
+    content: "Notes from the planning session.",
+  });
   // Ordinary titles that must NOT be read as declarations.
   for (const title of [
     "Groceries",
@@ -113,9 +115,9 @@ function instrumentedCounts() {
   let siteDescriptionCalls = 0;
   let siteTitleCalls = 0;
   let siteQueryCalls = 0;
-  let siteDescriptionMatches = 0;
-  let siteTitleMatches = 0;
-  let siteQueryMatches = 0;
+  const siteDescriptionMatches = 0;
+  const siteTitleMatches = 0;
+  const siteQueryMatches = 0;
 
   // The rule's own output is the oracle for "did site 1 match", so use it.
   const fragments = personalDeclarationRule.evaluate(memories, stories);
@@ -182,7 +184,9 @@ describe("declaration parse sites", () => {
     log(`titles that parse as a declaration: ${viaTitle.length} of ${c.distinctTitles.length}`);
     if (viaTitle.length > 0) log(`    ${JSON.stringify(viaTitle.map((f) => f.canonicalKey))}`);
 
-    log(`parse calls per rebuild: description ${c.siteDescriptionCalls}, title ${c.siteTitleCalls}`);
+    log(
+      `parse calls per rebuild: description ${c.siteDescriptionCalls}, title ${c.siteTitleCalls}`,
+    );
     log(`fragments the rule actually produces: ${c.fragments.length}`);
     log(`    ${JSON.stringify(c.fragments.map((f) => f.canonicalKey))}`);
   });
@@ -214,12 +218,14 @@ describe("declaration parse sites", () => {
 
     log("");
     log("=== D2  redirecting site 2 at metadata.title ===");
-    log(`memories carrying a non-empty metadata.title: ${
-      memories.filter((m) => {
-        const t = (m.metadata as { title?: unknown } | undefined)?.title;
-        return typeof t === "string" && t.trim().length > 0;
-      }).length
-    }`);
+    log(
+      `memories carrying a non-empty metadata.title: ${
+        memories.filter((m) => {
+          const t = (m.metadata as { title?: unknown } | undefined)?.title;
+          return typeof t === "string" && t.trim().length > 0;
+        }).length
+      }`,
+    );
     log(`fragments before: ${before.length} ${JSON.stringify(before)}`);
     log(`fragments after:  ${after.length} ${JSON.stringify(after)}`);
     log(`ADDED: ${added.length} ${JSON.stringify(added)}`);
@@ -253,7 +259,10 @@ describe("declaration parse sites", () => {
       ...m,
       title: ((m.metadata as { title?: unknown } | undefined)?.title as string) || m.title,
     }));
-    const fragments = personalDeclarationRule.evaluate(proposed as never, storyService.getStories());
+    const fragments = personalDeclarationRule.evaluate(
+      proposed as never,
+      storyService.getStories(),
+    );
 
     log("");
     log("=== D3  false-positive surface ===");
@@ -304,7 +313,9 @@ describe("declaration parse sites", () => {
     log(`unrestricted redirect adds: ${addedAll.length}`);
     log(`  Goals:  ${JSON.stringify(addedGoalsOnly.map((f) => f.canonicalKey))}`);
     log(`  other:  ${JSON.stringify(addedOther.map((f) => `${f.canonicalKey} (${f.category})`))}`);
-    log(`Goal-only restriction would add ${addedGoalsOnly.length} and suppress ${addedOther.length}`);
+    log(
+      `Goal-only restriction would add ${addedGoalsOnly.length} and suppress ${addedOther.length}`,
+    );
   });
 
   it("D6: removing site 2 changes no fragment, on every shape we can build", () => {

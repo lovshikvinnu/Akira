@@ -37,14 +37,20 @@ describe("GENESIS v2.24 — Decision Engine Foundation", () => {
 
       registry.register(strategy1);
       expect(() => registry.register(strategy2)).toThrow(
-        /Duplicate strategy ID registered: strat-dup/
+        /Duplicate strategy ID registered: strat-dup/,
       );
     });
 
     it("should reject invalid strategies", () => {
-      expect(() => registry.register(null as any)).toThrow(/Cannot register null or undefined strategy/);
-      expect(() => registry.register({ id: "" } as any)).toThrow(/Strategy must have a valid non-empty ID/);
-      expect(() => registry.register({ id: "   " } as any)).toThrow(/Strategy must have a valid non-empty ID/);
+      expect(() => registry.register(null as any)).toThrow(
+        /Cannot register null or undefined strategy/,
+      );
+      expect(() => registry.register({ id: "" } as any)).toThrow(
+        /Strategy must have a valid non-empty ID/,
+      );
+      expect(() => registry.register({ id: "   " } as any)).toThrow(
+        /Strategy must have a valid non-empty ID/,
+      );
     });
 
     it("should return registered strategies in deterministic alphabetical order by ID", () => {
@@ -202,9 +208,7 @@ describe("GENESIS v2.24 — Decision Engine Foundation", () => {
     it("should return fully frozen DecisionCollection and Decision objects", () => {
       const strategy: DecisionStrategy = {
         id: "strat-a",
-        decide: () => [
-          { id: "d-1", strategyId: "strat-a", type: "Choice", decision: "choice-1" },
-        ],
+        decide: () => [{ id: "d-1", strategyId: "strat-a", type: "Choice", decision: "choice-1" }],
       };
 
       registry.register(strategy);
@@ -225,7 +229,12 @@ describe("GENESIS v2.24 — Decision Engine Foundation", () => {
         id: "strat-a",
         decide: (input) => {
           return [
-            { id: "d-1", strategyId: "strat-a", type: "Choice", decision: input.items[0].conclusion },
+            {
+              id: "d-1",
+              strategyId: "strat-a",
+              type: "Choice",
+              decision: input.items[0].conclusion,
+            },
           ];
         },
       };

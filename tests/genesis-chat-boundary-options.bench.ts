@@ -42,9 +42,8 @@ const { akira } = await import("../src/persistence/akira-store");
 const { memoryService } = await import("../src/genesis/memory/memory-service");
 const { storyService } = await import("../src/genesis/stories/story-service");
 const { importanceService } = await import("../src/genesis/importance/importance-service");
-const { relationshipService } = await import(
-  "../src/genesis/memory/relationships/relationship-service"
-);
+const { relationshipService } =
+  await import("../src/genesis/memory/relationships/relationship-service");
 const { recallService } = await import("../src/genesis/recall/recall-service");
 const { recallBuilder } = await import("../src/genesis/recall/recall-builder");
 const { contextRules } = await import("../src/genesis/context/context-rules");
@@ -53,9 +52,8 @@ const { personalDeclarationRule } = await import("../src/genesis/understanding/r
 const { identityService } = await import("../src/genesis/understanding/identity-service");
 const { identityBuilder } = await import("../src/genesis/understanding/identity-builder");
 const { buildRecallEvaluationContext } = await import("../src/genesis/recall/recall-rules");
-const { classifyDurability, setRetentionPolicy, resetRetentionPolicy } = await import(
-  "../src/genesis/retention/policy"
-);
+const { classifyDurability, setRetentionPolicy, resetRetentionPolicy } =
+  await import("../src/genesis/retention/policy");
 
 recallBuilder.initialize();
 
@@ -151,18 +149,24 @@ describe("chat boundary options", () => {
     log(`declarations WITHOUT chat: ${JSON.stringify(declNoChat)}`);
     log(`  lost: ${JSON.stringify(declAll.filter((k) => !declNoChat.includes(k)))}`);
     log(
-      `story memberships held by chat: ${storyService
-        .getStories()
-        .flatMap((s) => s.relatedMemoryIds)
-        .filter((id) => chatIds.has(id)).length}`,
+      `story memberships held by chat: ${
+        storyService
+          .getStories()
+          .flatMap((s) => s.relatedMemoryIds)
+          .filter((id) => chatIds.has(id)).length
+      }`,
     );
     log(
-      `relationship endpoints on chat: ${relationshipService
-        .getRelationships()
-        .filter((r) => chatIds.has(r.sourceMemoryId) || chatIds.has(r.targetMemoryId)).length}`,
+      `relationship endpoints on chat: ${
+        relationshipService
+          .getRelationships()
+          .filter((r) => chatIds.has(r.sourceMemoryId) || chatIds.has(r.targetMemoryId)).length
+      }`,
     );
     log(`recall candidates that are chat: ${cache.filter((c) => chatIds.has(c.memoryId)).length}`);
-    log(`prompt slots taken by chat:      ${prompt.filter((i) => chatIds.has(i.data.memoryId)).length} of ${prompt.length}`);
+    log(
+      `prompt slots taken by chat:      ${prompt.filter((i) => chatIds.has(i.data.memoryId)).length} of ${prompt.length}`,
+    );
   });
 
   it("O3: reconstruction under C, simulated through the real replay path", () => {
@@ -206,9 +210,15 @@ describe("chat boundary options", () => {
 
     log("");
     log("=== O3  reconstruction under C ===");
-    log(`durable stream: ${streamBefore.length} events, chat ${streamBefore.filter((e) => isChat(e.description)).length}`);
-    log(`replayed WITH chat:    memories ${withChat.memories}, stories ${withChat.stories}, members ${JSON.stringify(withChat.arcMembers)}`);
-    log(`replayed WITHOUT chat: memories ${withoutChat.memories}, stories ${withoutChat.stories}, members ${JSON.stringify(withoutChat.arcMembers)}`);
+    log(
+      `durable stream: ${streamBefore.length} events, chat ${streamBefore.filter((e) => isChat(e.description)).length}`,
+    );
+    log(
+      `replayed WITH chat:    memories ${withChat.memories}, stories ${withChat.stories}, members ${JSON.stringify(withChat.arcMembers)}`,
+    );
+    log(
+      `replayed WITHOUT chat: memories ${withoutChat.memories}, stories ${withoutChat.stories}, members ${JSON.stringify(withoutChat.arcMembers)}`,
+    );
     log(`founding note survives replay: ${foundingNote}`);
     log(`project survives replay:       ${project}`);
     log(`conversation still on disk (s.chat): ${chatHistory} messages`);
@@ -233,7 +243,10 @@ describe("chat boundary options", () => {
       for (let i = 0; i < 20; i++) chatTurn(`question ${i}`, attachToProject ? pid : null);
 
       const chatIds = new Set(
-        memoryService.getMemories().filter((m) => isChat(m.description)).map((m) => m.id),
+        memoryService
+          .getMemories()
+          .filter((m) => isChat(m.description))
+          .map((m) => m.id),
       );
       recallBuilder.rebuildRecallCandidates();
       const cache = recallService.getRecallCandidates();
@@ -256,8 +269,12 @@ describe("chat boundary options", () => {
 
     log("");
     log("=== O5  zero output, or zero output without a project session ===");
-    log(`free-standing chat   active recall ${free.active}, prompt ${free.prompt}, relationships ${free.rels}, arc seats ${free.arcSeats}`);
-    log(`project-attached     active recall ${attached.active}, prompt ${attached.prompt}, relationships ${attached.rels}, arc seats ${attached.arcSeats}`);
+    log(
+      `free-standing chat   active recall ${free.active}, prompt ${free.prompt}, relationships ${free.rels}, arc seats ${free.arcSeats}`,
+    );
+    log(
+      `project-attached     active recall ${attached.active}, prompt ${attached.prompt}, relationships ${attached.rels}, arc seats ${attached.arcSeats}`,
+    );
     log("  -- chat.tsx passes currentProjectId, so attached is the companion-session case");
   });
 
@@ -291,7 +308,10 @@ describe("chat boundary options", () => {
       for (let i = 0; i < turns; i++) chatTurn(bank[i % bank.length], pid);
 
       const chatIds = new Set(
-        memoryService.getMemories().filter((m) => isChat(m.description)).map((m) => m.id),
+        memoryService
+          .getMemories()
+          .filter((m) => isChat(m.description))
+          .map((m) => m.id),
       );
       recallBuilder.rebuildRecallCandidates();
       const cache = recallService.getRecallCandidates();
@@ -357,7 +377,10 @@ describe("chat boundary options", () => {
       const cache = recallService.getRecallCandidates();
       const prompt = contextRules.filterActiveRecallCandidates(cache);
       const chatIds = new Set(
-        memoryService.getMemories().filter((m) => isChat(m.description)).map((m) => m.id),
+        memoryService
+          .getMemories()
+          .filter((m) => isChat(m.description))
+          .map((m) => m.id),
       );
       const scoreOf = (c: unknown) => (c as { recallScore?: number }).recallScore ?? -1;
       const chatScores = cache.filter((c) => chatIds.has(c.memoryId)).map(scoreOf);
@@ -378,7 +401,10 @@ describe("chat boundary options", () => {
     log("");
     log("=== O9  vocabulary overlap, controlled ===");
     log(`last user message drives semantic relevance; it is itself a chat memory`);
-    arm("uniform 'question N'", Array.from({ length: 20 }, (_, i) => `question ${i}`));
+    arm(
+      "uniform 'question N'",
+      Array.from({ length: 20 }, (_, i) => `question ${i}`),
+    );
     arm("varied real questions", VARIED);
   });
 
@@ -400,13 +426,23 @@ describe("chat boundary options", () => {
     log("");
     log("=== O8  the twelve slots, itemised ===");
     log(`context ${recallBuilder.resolveCurrentContext()}`);
-    log(`memories ${memoryService.getMemories().length}, candidates ${cache.length}, active ${cache.filter((c) => c.status === "Active").length}`);
+    log(
+      `memories ${memoryService.getMemories().length}, candidates ${cache.length}, active ${cache.filter((c) => c.status === "Active").length}`,
+    );
     for (const item of prompt) {
       const m = byId.get(item.data.memoryId);
-      const kind = !m ? "?" : isChat(m.description) ? "CHAT" : m.relatedNoteId ? "note" : m.eventType;
+      const kind = !m
+        ? "?"
+        : isChat(m.description)
+          ? "CHAT"
+          : m.relatedNoteId
+            ? "note"
+            : m.eventType;
       const sc = (item.data as { recallScore?: number }).recallScore;
       const au = (item.data as { userAuthored?: boolean }).userAuthored;
-      log(`  ${String(kind).padEnd(14)} score ${sc?.toFixed(2) ?? "n/a"}  authored ${au}  ${item.inclusionReason}`);
+      log(
+        `  ${String(kind).padEnd(14)} score ${sc?.toFixed(2) ?? "n/a"}  authored ${au}  ${item.inclusionReason}`,
+      );
     }
 
     // And the score distribution across all active candidates, by kind.
@@ -415,13 +451,21 @@ describe("chat boundary options", () => {
     const kinds = new Map<string, number[]>();
     for (const c of active) {
       const m = byId.get(c.memoryId);
-      const kind = !m ? "?" : isChat(m.description) ? "CHAT" : m.relatedNoteId ? "note" : m.eventType;
+      const kind = !m
+        ? "?"
+        : isChat(m.description)
+          ? "CHAT"
+          : m.relatedNoteId
+            ? "note"
+            : m.eventType;
       if (!kinds.has(kind)) kinds.set(kind, []);
       kinds.get(kind)!.push(scoreOf(c));
     }
     log("  score range by kind across all active candidates:");
     for (const [kind, scores] of kinds) {
-      log(`    ${kind.padEnd(14)} n=${String(scores.length).padStart(3)}  ${Math.min(...scores).toFixed(2)}..${Math.max(...scores).toFixed(2)}`);
+      log(
+        `    ${kind.padEnd(14)} n=${String(scores.length).padStart(3)}  ${Math.min(...scores).toFixed(2)}..${Math.max(...scores).toFixed(2)}`,
+      );
     }
   });
 
@@ -440,7 +484,10 @@ describe("chat boundary options", () => {
       for (let i = 0; i < chats; i++) chatTurn(`question ${i}`, pid);
 
       const chatIds = new Set(
-        memoryService.getMemories().filter((m) => isChat(m.description)).map((m) => m.id),
+        memoryService
+          .getMemories()
+          .filter((m) => isChat(m.description))
+          .map((m) => m.id),
       );
       recallBuilder.rebuildRecallCandidates();
       const cache = recallService.getRecallCandidates();
@@ -503,8 +550,12 @@ describe("chat boundary options", () => {
 
     log("");
     log("=== O6  stale Story Influence after arc eviction ===");
-    log(`notes before flood: in arc ${before.filter((b) => b.inArc).length}/${before.length}, with Story Influence ${before.filter((b) => b.hasStoryInfluence).length}`);
-    log(`notes after flood:  in arc ${after.filter((b) => b.inArc).length}/${after.length}, with Story Influence ${after.filter((b) => b.hasStoryInfluence).length}`);
+    log(
+      `notes before flood: in arc ${before.filter((b) => b.inArc).length}/${before.length}, with Story Influence ${before.filter((b) => b.hasStoryInfluence).length}`,
+    );
+    log(
+      `notes after flood:  in arc ${after.filter((b) => b.inArc).length}/${after.length}, with Story Influence ${after.filter((b) => b.hasStoryInfluence).length}`,
+    );
     const stale = after.filter((a) => !a.inArc && a.hasStoryInfluence).length;
     log(`memories holding Story Influence while NOT in any arc: ${stale}`);
 

@@ -35,9 +35,8 @@ const { akira } = await import("../src/persistence/akira-store");
 const { memoryService } = await import("../src/genesis/memory/memory-service");
 const { storyService } = await import("../src/genesis/stories/story-service");
 const { importanceService } = await import("../src/genesis/importance/importance-service");
-const { relationshipService } = await import(
-  "../src/genesis/memory/relationships/relationship-service"
-);
+const { relationshipService } =
+  await import("../src/genesis/memory/relationships/relationship-service");
 const { translatePlatformEvent } = await import("../src/genesis/events/event-translation");
 const { personalDeclarationRule } = await import("../src/genesis/understanding/rules");
 const { validationRules } = await import("../src/genesis/validation/validation-rules");
@@ -237,7 +236,10 @@ describe("the reflection validator decides on substance, not on wording", () => 
     // declaration suite depends on this path.
     expect(
       rule().evaluate(
-        candidate({ description: "User query: My dream is to become a pilot.", metadata: undefined }),
+        candidate({
+          description: "User query: My dream is to become a pilot.",
+          metadata: undefined,
+        }),
       ).outcome,
     ).toBe("Promote");
   });

@@ -13,19 +13,24 @@ const { akira } = await import("../src/persistence/akira-store");
 const { memoryService } = await import("../src/genesis/memory/memory-service");
 const { storyService } = await import("../src/genesis/stories/story-service");
 const { importanceService } = await import("../src/genesis/importance/importance-service");
-const { relationshipService } = await import("../src/genesis/memory/relationships/relationship-service");
+const { relationshipService } =
+  await import("../src/genesis/memory/relationships/relationship-service");
 const { identityService: emergent } = await import("../src/genesis/understanding/identity-service");
 const { identityBuilder } = await import("../src/genesis/understanding/identity-builder");
 const { eventService } = await import("../src/genesis/events/event-service");
 const g = await import("../src/genesis/identity");
-const { InMemoryIdentityRepository } = await import("../src/genesis/identity/repositories/InMemoryIdentityRepository");
+const { InMemoryIdentityRepository } =
+  await import("../src/genesis/identity/repositories/InMemoryIdentityRepository");
 
 function fresh() {
   const s = akira.getState() as AkiraState;
   akira.initializeState({ ...s, memories: [], tasks: [], notes: [], projects: [], chat: [] });
-  memoryService.clearHistory(); genesis.candidateService.clearHistory();
-  storyService.clearHistory(); importanceService.clearHistory();
-  relationshipService.clearHistory(); emergent.clearHistory();
+  memoryService.clearHistory();
+  genesis.candidateService.clearHistory();
+  storyService.clearHistory();
+  importanceService.clearHistory();
+  relationshipService.clearHistory();
+  emergent.clearHistory();
 }
 /** A process restart: the identity graph is in-memory only, so it starts empty. */
 function simulateReload() {
@@ -37,7 +42,8 @@ function simulateReload() {
 const goalNode = (needle: string) => {
   const id = g.identityService.getIdentity();
   if (!id) return undefined;
-  const gg = g.identityService.getGoals(id.id).find((x: any) => x.title.includes(needle)) as { confidenceReference: string } | undefined;
+  const gg = g.identityService.getGoals(id.id).find((x: any) => x.title.includes(needle)) as
+    { confidenceReference: string } | undefined;
   return gg?.confidenceReference;
 };
 
@@ -45,12 +51,18 @@ describe("decay lifecycle", () => {
   it("D1: does an aged trait survive a reload aged", () => {
     fresh();
     g.identityService.initialize(new InMemoryIdentityRepository());
-    eventService.record("declaration_captured", "Declaration Captured", "My goal is to learn Verilog", null);
+    eventService.record(
+      "declaration_captured",
+      "Declaration Captured",
+      "My goal is to learn Verilog",
+      null,
+    );
     identityBuilder.flushDirtyStories();
 
     const node = goalNode("Verilog")!;
     const memory = memoryService.getMemories().find((m) => m.description.includes("Verilog"))!;
-    for (let i = 0; i < 4; i++) g.identityService.addEvidence(node, "MemoryNode" as never, `${memory.id}-${i}`, "x");
+    for (let i = 0; i < 4; i++)
+      g.identityService.addEvidence(node, "MemoryNode" as never, `${memory.id}-${i}`, "x");
 
     const old = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString();
     for (const ev of g.identityEvidenceService.getEvidenceByNode(node)) {
@@ -64,7 +76,9 @@ describe("decay lifecycle", () => {
     const after = goalNode("Verilog");
     const conf = after ? g.identityConfidenceService.getConfidence(after) : null;
     const evs = after ? g.identityEvidenceService.getEvidenceByNode(after) : [];
-    log(`  after reload:  node ${after ? "rebuilt" : "MISSING"}  score ${conf?.score} level ${conf?.level}`);
+    log(
+      `  after reload:  node ${after ? "rebuilt" : "MISSING"}  score ${conf?.score} level ${conf?.level}`,
+    );
     log(`  evidence records after reload: ${evs.length}`);
     if (evs.length) {
       const days = (Date.now() - new Date(evs[0].createdAt).getTime()) / 86400000;
@@ -77,7 +91,9 @@ describe("decay lifecycle", () => {
     log("=== D2  the timestamp contract ===");
     log(`  addEvidence(nodeId, sourceType, sourceId, contentReference?, metadata?)`);
     log(`    createdAt is set to new Date() inside; not a parameter`);
-    log(`  updateEvidence patch type: Partial<Omit<IdentityEvidence, "id" | "nodeId" | "createdAt">>`);
+    log(
+      `  updateEvidence patch type: Partial<Omit<IdentityEvidence, "id" | "nodeId" | "createdAt">>`,
+    );
     log(`    -> createdAt is OMITTED from the patch type; D1 set it via a cast`);
     log(`  metadata accepts weight/status/originEngine, not a timestamp`);
   });
@@ -86,17 +102,25 @@ describe("decay lifecycle", () => {
     fresh();
     g.identityService.initialize(new InMemoryIdentityRepository());
     for (let i = 0; i < 20; i++) {
-      eventService.record("declaration_captured", "Declaration Captured", `My goal is to learn topic ${i}`, null);
+      eventService.record(
+        "declaration_captured",
+        "Declaration Captured",
+        `My goal is to learn topic ${i}`,
+        null,
+      );
     }
     identityBuilder.flushDirtyStories();
     const id = g.identityService.getIdentity()!;
     const goals = g.identityService.getGoals(id.id) as Array<{ confidenceReference: string }>;
     for (const gg of goals) {
-      for (let i = 0; i < 3; i++) g.identityService.addEvidence(gg.confidenceReference, "MemoryNode" as never, `e-${i}`, "x");
+      for (let i = 0; i < 3; i++)
+        g.identityService.addEvidence(gg.confidenceReference, "MemoryNode" as never, `e-${i}`, "x");
     }
 
     const t0 = performance.now();
-    for (let r = 0; r < 50; r++) for (const gg of goals) g.identityConfidenceService.calculateConfidence(gg.confidenceReference);
+    for (let r = 0; r < 50; r++)
+      for (const gg of goals)
+        g.identityConfidenceService.calculateConfidence(gg.confidenceReference);
     const ms = (performance.now() - t0) / 50;
     log("");
     log("=== D3  recalculation cost ===");

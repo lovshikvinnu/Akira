@@ -36,14 +36,20 @@ describe("GENESIS v2.23 — Reasoning Engine Foundation", () => {
 
       registry.register(strategy1);
       expect(() => registry.register(strategy2)).toThrow(
-        /Duplicate strategy ID registered: strat-dup/
+        /Duplicate strategy ID registered: strat-dup/,
       );
     });
 
     it("should reject invalid strategies", () => {
-      expect(() => registry.register(null as any)).toThrow(/Cannot register null or undefined strategy/);
-      expect(() => registry.register({ id: "" } as any)).toThrow(/Strategy must have a valid non-empty ID/);
-      expect(() => registry.register({ id: "   " } as any)).toThrow(/Strategy must have a valid non-empty ID/);
+      expect(() => registry.register(null as any)).toThrow(
+        /Cannot register null or undefined strategy/,
+      );
+      expect(() => registry.register({ id: "" } as any)).toThrow(
+        /Strategy must have a valid non-empty ID/,
+      );
+      expect(() => registry.register({ id: "   " } as any)).toThrow(
+        /Strategy must have a valid non-empty ID/,
+      );
     });
 
     it("should return registered strategies in deterministic alphabetical order by ID", () => {
@@ -159,9 +165,7 @@ describe("GENESIS v2.23 — Reasoning Engine Foundation", () => {
 
       const strategyA: ReasoningStrategy = {
         id: "strat-a",
-        reason: () => [
-          { id: "r-z", strategyId: "strat-a", type: "type-a", conclusion: "conc-z" },
-        ],
+        reason: () => [{ id: "r-z", strategyId: "strat-a", type: "type-a", conclusion: "conc-z" }],
       };
 
       registry.register(strategyB);
@@ -233,7 +237,12 @@ describe("GENESIS v2.23 — Reasoning Engine Foundation", () => {
         id: "strat-a",
         reason: (input) => {
           return [
-            { id: "r-1", strategyId: "strat-a", type: "Deduction", conclusion: input.items[0].insight },
+            {
+              id: "r-1",
+              strategyId: "strat-a",
+              type: "Deduction",
+              conclusion: input.items[0].insight,
+            },
           ];
         },
       };
