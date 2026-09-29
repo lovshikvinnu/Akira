@@ -1,0 +1,18 @@
+# Line-ending normalization.
+#
+# `core.autocrlf` is commonly `true` on the Windows machines this project is
+# developed on, which checks files out with CRLF. Prettier's `endOfLine` is
+# `lf`, so every CRLF line becomes a `prettier/prettier: Delete ␍` lint error:
+# before this file existed, `npm run lint` reported ~11,500 errors of which
+# ~99% were exactly that, burying the ~96 real ones. Declaring `eol=lf` here
+# takes precedence over `core.autocrlf`, so the working tree gets LF on
+# checkout regardless of each developer's git config.
+* text=auto eol=lf
+
+# SQLite test fixtures are binary. Without these, `text=auto` heuristics could
+# corrupt them on checkout.
+*.db      binary
+*.db-wal  binary
+*.db-shm  binary
+*.sqlite  binary
+*.sqlite3 binary
