@@ -22,6 +22,8 @@ import type { AkiraState } from "../src/shared/types/store-types";
 
 const FOCUS_SWITCH = "Workspace Focus Switch";
 let dbPath: string;
+/** The process a test booted and has not exited; released even if the test fails. */
+let open: { exit(): Promise<void> } | null = null;
 
 /** One application process, booted in `__root.tsx`'s order. */
 async function boot() {
@@ -52,27 +54,38 @@ async function boot() {
   const focusSwitches = () =>
     (habitService.getContext()?.observedHabits ?? []).filter((h) => h.name === FOCUS_SWITCH);
 
-  return {
+  const app = {
     akira,
     habitService,
     focusSwitches,
     async exit() {
+      open = null;
       await settlePendingPersistence();
       habitService.shutdown();
       closeDatabaseConnection();
     },
   };
+  open = app;
+  return app;
 }
 
 beforeEach(() => {
   dbPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "akira-habit-boot-")), "akira.db");
 });
 
-afterEach(() => {
+// A failed or timed-out case must not leave its process behind: its database
+// file stays locked (EPERM on the rm below, on Windows), and its pending
+// imports can land after the next case's `vi.resetModules()` -- handing that
+// case an already-hydrated store.
+afterEach(async () => {
+  await open?.exit();
   fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
 });
 
-describe("booting does not fabricate a focus switch", () => {
+// Each boot imports the whole module graph cold. The first took 5,049 ms in
+// isolation on a loaded machine -- over vitest's 5,000 ms default -- so the
+// default timed out on load, not on behaviour.
+describe("booting does not fabricate a focus switch", { timeout: 60_000 }, () => {
   it("on a first-ever start", async () => {
     const app = await boot();
 
@@ -107,7 +120,7 @@ describe("booting does not fabricate a focus switch", () => {
   });
 });
 
-describe("a genuine focus switch is still observed", () => {
+describe("a genuine focus switch is still observed", { timeout: 60_000 }, () => {
   it("when the user opens another project", async () => {
     const app = await boot();
     app.akira.addProject({ name: "First" });
