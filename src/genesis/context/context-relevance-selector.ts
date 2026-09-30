@@ -4,12 +4,23 @@ import { ContextPackage } from "./types";
 import { ResolvedContext } from "./context-resolution/types";
 import { Understanding } from "../understanding/types";
 import { IntentResolution } from "../understanding/intent-resolver";
+import type { HistoricalEvidence } from "../../contracts/historical-recall";
 
 export interface SelectedContext {
   contextPackage?: ContextPackage;
   resolvedContext?: ResolvedContext | null;
   workspaceRelevant: boolean;
   filterUnderstandings(understandings: Understanding[]): Understanding[];
+  /**
+   * Set only when the user explicitly asked to search past conversations.
+   * Quoted history, not GENESIS memory -- see contracts/historical-recall.ts.
+   */
+  historicalRecall?: {
+    terms: string[];
+    evidence: HistoricalEvidence[];
+    /** The search itself failed, as distinct from finding nothing. */
+    failed?: boolean;
+  };
 }
 
 export const contextRelevanceSelector = {

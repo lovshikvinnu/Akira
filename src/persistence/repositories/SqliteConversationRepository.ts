@@ -6,6 +6,10 @@ if (typeof window !== "undefined") {
 
 import type { ChatConversation, ChatMessage } from "../../shared/types/store-types";
 import type { ConversationRepository } from "../../contracts/repositories/ConversationRepository";
+import type {
+  HistoricalEvidence,
+  HistoricalSearchRequest,
+} from "../../contracts/historical-recall";
 import { getDatabaseConnection } from "../connection";
 
 /** The setting that holds the chat archive `routes/chat.tsx` reads. */
@@ -83,6 +87,57 @@ export class SqliteConversationRepository implements ConversationRepository {
       )
       .all(conversationId) as MessageRow[];
     return rows.map((r) => ({ id: r.id, role: r.role, text: r.text, createdAt: r.created_at }));
+  }
+
+  /**
+   * Keyword search over past messages through `fts_workspace`, ranked by bm25.
+   *
+   * Terms are OR'd: "what sensor did we use for FieldSense" has to match a
+   * message that says only "FieldSense uses the BME280", and bm25 already
+   * ranks a message holding the rarer term above one holding a common one.
+   * `search()` on the workspace ANDs its tokens, which is right for a search
+   * box and wrong here.
+   *
+   * The match is restricted to the `content` column. `fts_workspace` also
+   * indexes `entity_type` and `title` (the role, for a message), so an
+   * unrestricted term like "message" or "user" would match every row.
+   *
+   * Each term is reduced to letters and digits before it reaches MATCH, so
+   * user text can never form FTS5 syntax (quotes, NEAR, column filters).
+   */
+  searchMessages(request: HistoricalSearchRequest): HistoricalEvidence[] {
+    const terms = request.terms
+      .map((t) => t.replace(/[^\p{L}\p{N}]/gu, ""))
+      .filter((t) => t.length > 0);
+    if (terms.length === 0 || request.limit <= 0) return [];
+
+    const match = `content : (${terms.map((t) => `"${t}"*`).join(" OR ")})`;
+    const rows = this.getDb()
+      .prepare(
+        `SELECT m.id, m.conversation_id, m.role, m.text, m.created_at, bm25(fts_workspace) AS rank
+         FROM fts_workspace
+         JOIN chat_messages m ON m.id = fts_workspace.entity_id
+         WHERE fts_workspace MATCH ?
+           AND fts_workspace.entity_type = 'message'
+           AND (? IS NULL OR m.conversation_id <> ?)
+         ORDER BY rank ASC, m.created_at DESC
+         LIMIT ?`,
+      )
+      .all(
+        match,
+        request.excludeConversationId ?? null,
+        request.excludeConversationId ?? null,
+        request.limit,
+      ) as (MessageRow & { rank: number })[];
+
+    return rows.map((r) => ({
+      conversationId: r.conversation_id,
+      messageId: r.id,
+      role: r.role,
+      text: r.text,
+      createdAt: r.created_at,
+      rank: r.rank,
+    }));
   }
 
   /**

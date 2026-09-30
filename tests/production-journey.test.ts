@@ -69,6 +69,22 @@ async function boot() {
   const { providerRegistry } = await import("../src/genesis/context/ai/provider-registry");
   const { aiContextEngine } = await import("../src/genesis/context/ai/context-engine");
   const { eventService } = await import("../src/genesis/events/event-service");
+  // Loaded by chat.tsx through "@/akira-os" in production, which is what
+  // registers the Historical Recall provider.
+  const { conversationsService, historicalRecall } = await import("../src/akira-os/conversations");
+  const { getHistoricalRecallProvider, registerHistoricalRecallProvider } =
+    await import("../src/contracts/historical-recall");
+  const registeredAtLoad = getHistoricalRecallProvider();
+  // A server function's return value is RPC transport: under vitest its
+  // handler runs but the value does not come back (see the header of
+  // genesis-persisted-shape-validation.test.ts). So the one RPC hop is
+  // replaced by a provider calling exactly what that handler calls. The
+  // hop itself is pinned separately, in "the registered provider ...".
+  const recall = {
+    search: async (request: Parameters<typeof historicalRecall.search>[0]) =>
+      repos.conversationRepository.searchMessages(request),
+  };
+  registerHistoricalRecallProvider(recall);
 
   const writeErrors: string[] = [];
   const errorSpy = vi.spyOn(console, "error").mockImplementation((...a: unknown[]) => {
@@ -109,15 +125,25 @@ async function boot() {
   memoryService.initialize();
 
   let captured = "";
+  let answered = "";
   providerRegistry.registerProvider({
     name: "capture",
     async generateContent(request) {
       captured = request.systemInstruction ?? "";
+      // A stand-in for the model that can answer only from what it is handed:
+      // the quoted lines of the historical section, if there is one. So an
+      // answer here proves the evidence reached the request, not that a real
+      // model would phrase it well.
+      const section = captured.split("[FROM PAST CONVERSATIONS]")[1] ?? "";
+      answered = section
+        .split(String.fromCharCode(10))
+        .filter((l) => /^\[\d{4}-\d{2}-\d{2}\]/.test(l))
+        .join(String.fromCharCode(10));
       return {
         responseId: "r",
         provider: "capture",
         model: "capture",
-        content: "",
+        content: answered,
         finishReason: "stop",
       } as never;
     },
@@ -150,6 +176,22 @@ async function boot() {
       );
       return captured;
     },
+    /** A turn in conversation `conversationId`, as chat.tsx sends it: the request and the answer. */
+    async ask(question: string, conversationId: string) {
+      const response = await aiContextEngine.executeRequestStream(
+        question,
+        () => {},
+        contextService.getActiveContext() || undefined,
+        { systemInstruction: "You are AKIRA.", history: [], conversationId },
+      );
+      return { system: captured, answer: response.content ?? answered };
+    },
+    /** The chat archive, saved the way chat.tsx saves it. */
+    saveArchive: (conversations: Parameters<typeof conversationsService.save>[0]) =>
+      conversationsService.save(conversations),
+    historicalRecall,
+    registeredAtLoad,
+    recall,
     cognition() {
       return {
         // By content: memory ids are minted fresh on every replay (derived
@@ -408,5 +450,150 @@ describe.sequential("a user's journey through AKIRA", { timeout: 60_000 }, () =>
     expect(sessionTasks(app.repos.sessionRepository.getAll())).toEqual(["Planting"]);
     expect(app.writeErrors).toEqual([]);
     await app.exit();
+  });
+});
+
+/**
+ * Historical Recall v0: an explicit request to search past conversations
+ * reaches the archive, and what it finds reaches the model as dated evidence.
+ * Uses the same database and boot as the journey above; the archive is saved
+ * the way chat.tsx saves it, through conversationsService.
+ */
+describe.sequential("searching past conversations, when asked", { timeout: 60_000 }, () => {
+  const msg = (id: string, role: "user" | "akira", text: string, createdAt: string) => ({
+    id,
+    role,
+    text,
+    createdAt,
+  });
+  const conv = (id: string, title: string, messages: ReturnType<typeof msg>[]) => ({
+    id,
+    title,
+    messages,
+    createdAt: messages[0].createdAt,
+    updatedAt: messages[messages.length - 1].createdAt,
+  });
+
+  const fieldSense = conv("conv-A", "FieldSense", [
+    msg(
+      "a1",
+      "user",
+      "For FieldSense we settled on the BME280 sensor for humidity",
+      "2026-07-15T09:00:00.000Z",
+    ),
+    msg(
+      "a2",
+      "akira",
+      "Good choice. The BME280 also gives you pressure.",
+      "2026-07-15T09:00:05.000Z",
+    ),
+  ]);
+  const cooking = conv("conv-C", "Dinner", [
+    msg("c1", "user", "a pasta recipe with basil and garlic", "2026-07-20T18:00:00.000Z"),
+  ]);
+  const QUESTION = "Search our previous chats. What sensor did we use for FieldSense?";
+  // Conversation B holds the question itself, as chat.tsx saves it before sending.
+  const current = conv("conv-B", "Sensor question", [
+    msg("b1", "user", QUESTION, "2026-10-12T10:00:00.000Z"),
+  ]);
+
+  it("the registered provider is AKIRA OS's, and it queries the repository", async () => {
+    const app = await boot();
+    expect(app.registeredAtLoad, "loading the module registers the provider").toBe(
+      app.historicalRecall,
+    );
+    const query = vi.spyOn(app.repos.conversationRepository, "searchMessages");
+    const request = { terms: ["fieldsense"], limit: 5, excludeConversationId: "conv-B" };
+
+    await app.historicalRecall.search(request);
+
+    expect(query).toHaveBeenCalledWith(request);
+  });
+
+  it("finds the fact from conversation A and puts it, dated, in the model request", async () => {
+    vi.setSystemTime(new Date("2026-10-12T10:00:00.000Z"));
+    const app = await boot();
+    await app.saveArchive([current, cooking, fieldSense]);
+
+    const { system, answer } = await app.ask(QUESTION, "conv-B");
+
+    expect(system).toContain("[FROM PAST CONVERSATIONS]");
+    expect(system).toContain("[2026-07-15] User: For FieldSense we settled on the BME280 sensor");
+    expect(answer, "the model answers from the evidence").toContain("BME280");
+    // Irrelevant history stays out, and so does the question's own conversation.
+    expect(system).not.toContain("pasta");
+    expect(system).not.toContain(`User: ${QUESTION}`);
+  });
+
+  it("does not search at all without an explicit request", async () => {
+    const app = await boot();
+    const search = vi.spyOn(app.recall, "search");
+
+    const { system } = await app.ask("What sensor did we use for FieldSense?", "conv-B");
+
+    expect(search).not.toHaveBeenCalled();
+    expect(system).not.toContain("[FROM PAST CONVERSATIONS]");
+    expect(system).not.toContain("BME280");
+  });
+
+  it("finds it again after a restart", async () => {
+    const app = await boot();
+    const { system } = await app.ask(QUESTION, "conv-B");
+    expect(system).toContain("BME280");
+  });
+
+  it("does not turn what it retrieved into GENESIS memory", async () => {
+    const app = await boot();
+    const before = app.cognition();
+
+    await app.ask(QUESTION, "conv-B");
+    await app.settle();
+
+    expect(app.cognition()).toEqual(before);
+    expect(JSON.stringify(app.akira.getState().memories)).not.toContain("BME280");
+  });
+
+  it("quotes a bounded number of messages however many match", async () => {
+    const app = await boot();
+    const many = conv(
+      "conv-many",
+      "Zephyr",
+      Array.from({ length: 12 }, (_, i) =>
+        msg(
+          `z${i}`,
+          "user",
+          `zephyr note ${i}`,
+          `2026-08-01T10:${String(i).padStart(2, "0")}:00.000Z`,
+        ),
+      ),
+    );
+    await app.saveArchive([current, cooking, fieldSense, many]);
+
+    const { system } = await app.ask("search our old chats for zephyr", "conv-B");
+
+    const quoted = system.split(String.fromCharCode(10)).filter((l) => l.includes("zephyr note"));
+    expect(quoted).toHaveLength(5);
+  });
+
+  it("cannot retrieve a deleted conversation", async () => {
+    const app = await boot();
+    await app.saveArchive([current, cooking]); // conversation A deleted in the sidebar
+
+    const { system, answer } = await app.ask(QUESTION, "conv-B");
+
+    expect(system).not.toContain("BME280");
+    expect(system).toContain("No earlier message matched");
+    expect(answer).toBe("");
+  });
+
+  it("says the search failed rather than letting the model guess", async () => {
+    const app = await boot();
+    vi.spyOn(app.recall, "search").mockRejectedValueOnce(new Error("db locked"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { system } = await app.ask(QUESTION, "conv-B");
+    warn.mockRestore();
+
+    expect(system).toContain("The search failed");
   });
 });

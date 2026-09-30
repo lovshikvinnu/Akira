@@ -1,5 +1,10 @@
 import type { ChatConversation } from "../../../shared/types/store-types";
-import { persistSaveConversations } from "../server";
+import {
+  registerHistoricalRecallProvider,
+  type HistoricalRecallProvider,
+} from "../../../contracts/historical-recall";
+import { runInServerRuntime } from "../../../persistence/akira-store";
+import { persistSaveConversations, querySearchMessages } from "../server";
 
 export const conversationsService = {
   /**
@@ -8,6 +13,17 @@ export const conversationsService = {
    * so the two cannot drift. Reads stay on the blob.
    */
   async save(conversations: ChatConversation[]): Promise<void> {
-    await persistSaveConversations({ data: conversations });
+    await runInServerRuntime(() => persistSaveConversations({ data: conversations }));
   },
 };
+
+/**
+ * AKIRA OS's side of the Historical Recall contract: keyword search over the
+ * `chat_messages` mirror, reached over RPC from the browser. GENESIS holds only
+ * the contract, never this module.
+ */
+export const historicalRecall: HistoricalRecallProvider = {
+  search: (request) => runInServerRuntime(() => querySearchMessages({ data: request })),
+};
+
+registerHistoricalRecallProvider(historicalRecall);

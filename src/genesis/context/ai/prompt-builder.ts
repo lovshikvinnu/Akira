@@ -1,4 +1,5 @@
 import { SelectedContext } from "../context-relevance-selector";
+import { HISTORICAL_MESSAGE_CHARS } from "../historical-search-intent";
 import { getUnderstandingContext } from "../../understanding";
 import { getInsightContext } from "../../insights";
 import { getWorkspaceProvider } from "../../../contracts/workspace-provider";
@@ -81,6 +82,10 @@ export const promptBuilder = {
       if (resolvedBlock) {
         structuredSystemInstruction += `\n\n[RESOLVED CONTEXT]\n${resolvedBlock}`;
       }
+    }
+
+    if (selection.historicalRecall) {
+      structuredSystemInstruction += `\n\n${this.serializeHistoricalRecall(selection.historicalRecall)}`;
     }
 
     if (selection.workspaceRelevant) {
@@ -218,6 +223,41 @@ export const promptBuilder = {
      */
 
     return block.trim();
+  },
+
+  /**
+   * The Historical Recall section. Quotations, dated, oldest first, and framed
+   * as a record of what was said -- which may have changed since -- rather
+   * than as what GENESIS knows now. Every outcome is stated, including
+   * finding nothing: a model told only "search our chats" and handed no
+   * section would answer from nothing and sound like it had looked.
+   */
+  serializeHistoricalRecall(recall: NonNullable<SelectedContext["historicalRecall"]>): string {
+    const heading =
+      "[FROM PAST CONVERSATIONS]\nThe user asked you to search your earlier conversations with them.";
+    if (recall.failed) {
+      return `${heading} The search failed, so you have no record to go on. Say so plainly; do not guess what was said.`;
+    }
+    if (recall.terms.length === 0) {
+      return `${heading} They did not say what to look for. Ask them what you should find.`;
+    }
+    if (recall.evidence.length === 0) {
+      return `${heading} No earlier message matched (${recall.terms.join(", ")}). Say you found nothing; do not guess what was said.`;
+    }
+    const lines = [...recall.evidence]
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .map((e) => {
+        const text = e.text.replace(/\s+/g, " ").trim();
+        const quoted =
+          text.length > HISTORICAL_MESSAGE_CHARS
+            ? `${text.slice(0, HISTORICAL_MESSAGE_CHARS)}…`
+            : text;
+        return `[${e.createdAt.slice(0, 10)}] ${e.role === "user" ? "User" : "AKIRA"}: ${quoted}`;
+      });
+    return (
+      `${heading} These messages matched, quoted with the date they were written. They record what was said then, which may no longer be true; prefer anything newer you know. Answer from them, and say if they do not answer the question.\n` +
+      lines.join("\n")
+    );
   },
 
   serializeResolvedContext(resolved: ResolvedContext): string {

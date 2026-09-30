@@ -147,7 +147,7 @@ const pendingPersistence = new Set<Promise<void>>();
  * this code is running server-side, not a stand-in for a request. The import is
  * dynamic and guarded so node:async_hooks never reaches the browser bundle.
  */
-async function runInServerRuntime<T>(run: () => Promise<T>): Promise<T> {
+export async function runInServerRuntime<T>(run: () => Promise<T>): Promise<T> {
   if (typeof window !== "undefined") return run();
 
   const { getStartContext, runWithStartContext } = await import("@tanstack/start-storage-context");

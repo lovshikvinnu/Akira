@@ -8,6 +8,44 @@ import { getInsightContext } from "../../insights";
 import { contextRelevanceSelector } from "../context-relevance-selector";
 import { getWorkspaceProvider } from "../../../contracts/workspace-provider";
 import { promptBuilder } from "./prompt-builder";
+import { getHistoricalRecallProvider } from "../../../contracts/historical-recall";
+import { detectHistoricalSearch, HISTORICAL_RESULT_LIMIT } from "../historical-search-intent";
+import type { SelectedContext } from "../context-relevance-selector";
+
+/** Options every request accepts beyond the provider's own. */
+type EngineOptions = {
+  /**
+   * The conversation this request belongs to, so a historical search does not
+   * quote the conversation back to itself -- the question being asked is in it.
+   */
+  conversationId?: string;
+};
+
+/**
+ * Historical Recall stage: only when the user explicitly asked to search past
+ * conversations. Never a fallback for GENESIS having no answer, and nothing it
+ * retrieves is recorded anywhere -- it is quoted into this one request.
+ */
+async function recallHistory(
+  prompt: string,
+  conversationId: string | undefined,
+): Promise<SelectedContext["historicalRecall"]> {
+  const intent = detectHistoricalSearch(prompt);
+  if (!intent) return undefined;
+  const provider = getHistoricalRecallProvider();
+  if (!provider || intent.terms.length === 0) return { terms: intent.terms, evidence: [] };
+  try {
+    const evidence = await provider.search({
+      terms: intent.terms,
+      limit: HISTORICAL_RESULT_LIMIT,
+      excludeConversationId: conversationId,
+    });
+    return { terms: intent.terms, evidence: evidence.slice(0, HISTORICAL_RESULT_LIMIT) };
+  } catch (err) {
+    console.warn("Historical Recall search failed:", err);
+    return { terms: intent.terms, evidence: [], failed: true };
+  }
+}
 
 export const aiContextEngine = {
   /**
@@ -16,7 +54,7 @@ export const aiContextEngine = {
   async executeRequest(
     prompt: string,
     contextPackage?: ContextPackage,
-    options?: Omit<AIRequest, "prompt" | "contextPackage">,
+    options?: Omit<AIRequest, "prompt" | "contextPackage"> & EngineOptions,
   ): Promise<StandardAIResponse> {
     const provider = providerRegistry.getActiveProvider();
     if (!provider) {
@@ -35,7 +73,10 @@ export const aiContextEngine = {
       intentResolution,
     );
 
-    // 3. Prompt Builder Stage
+    // 3. Historical Recall Stage (explicit requests only)
+    selection.historicalRecall = await recallHistory(prompt, options?.conversationId);
+
+    // 4. Prompt Builder Stage
     const structuredSystemInstruction = promptBuilder.buildSystemInstruction(
       prompt,
       selection,
@@ -43,8 +84,9 @@ export const aiContextEngine = {
       options?.systemInstruction,
     );
 
+    const { conversationId: _conversationId, ...providerOptions } = options ?? {};
     const request: AIRequest = {
-      ...options,
+      ...providerOptions,
       prompt,
       systemInstruction: structuredSystemInstruction,
       contextPackage: selection.contextPackage,
@@ -60,7 +102,9 @@ export const aiContextEngine = {
     prompt: string,
     onChunk: (chunk: string) => void,
     contextPackage?: ContextPackage,
-    options?: Omit<AIRequest, "prompt" | "contextPackage"> & { signal?: AbortSignal },
+    options?: Omit<AIRequest, "prompt" | "contextPackage"> & {
+      signal?: AbortSignal;
+    } & EngineOptions,
   ): Promise<StandardAIResponse> {
     const provider = providerRegistry.getActiveProvider();
     if (!provider) {
@@ -79,7 +123,10 @@ export const aiContextEngine = {
       intentResolution,
     );
 
-    // 3. Prompt Builder Stage
+    // 3. Historical Recall Stage (explicit requests only)
+    selection.historicalRecall = await recallHistory(prompt, options?.conversationId);
+
+    // 4. Prompt Builder Stage
     const structuredSystemInstruction = promptBuilder.buildSystemInstruction(
       prompt,
       selection,
@@ -87,8 +134,9 @@ export const aiContextEngine = {
       options?.systemInstruction,
     );
 
+    const { conversationId: _conversationId, ...providerOptions } = options ?? {};
     const request: AIRequest = {
-      ...options,
+      ...providerOptions,
       prompt,
       systemInstruction: structuredSystemInstruction,
       contextPackage: selection.contextPackage,
