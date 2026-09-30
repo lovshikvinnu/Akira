@@ -1,5 +1,5 @@
 import { SelectedContext } from "../context-relevance-selector";
-import { HISTORICAL_MESSAGE_CHARS } from "../historical-search-intent";
+import { asksForProvenance, HISTORICAL_MESSAGE_CHARS } from "../historical-search-intent";
 import { getUnderstandingContext } from "../../understanding";
 import { getInsightContext } from "../../insights";
 import { getWorkspaceProvider } from "../../../contracts/workspace-provider";
@@ -85,7 +85,7 @@ export const promptBuilder = {
     }
 
     if (selection.historicalRecall) {
-      structuredSystemInstruction += `\n\n${this.serializeHistoricalRecall(selection.historicalRecall)}`;
+      structuredSystemInstruction += `\n\n${this.serializeHistoricalRecall(selection.historicalRecall, prompt)}`;
     }
 
     if (selection.workspaceRelevant) {
@@ -226,23 +226,33 @@ export const promptBuilder = {
   },
 
   /**
-   * The Historical Recall section. Quotations, dated, oldest first, and framed
-   * as a record of what was said -- which may have changed since -- rather
-   * than as what GENESIS knows now. Every outcome is stated, including
-   * finding nothing: a model told only "search our chats" and handed no
-   * section would answer from nothing and sound like it had looked.
+   * The Historical Recall section: internal supporting context, not a script.
+   *
+   * The evidence lines are unchanged -- dated, attributed, oldest first -- so
+   * provenance is always in the request. What changes with the question is
+   * what the model is told to do with it. By default it answers as someone
+   * who remembers: directly, without narrating a search, quoting, or dating
+   * anything. Only when the user asks where something came from (a source, a
+   * date, a quote, verification) is it told to cite. Every outcome is still
+   * stated, including finding nothing, so the model never answers from an
+   * absent section as if it had looked -- but a miss is said as "I don't
+   * recall", not as a report on the search.
    */
-  serializeHistoricalRecall(recall: NonNullable<SelectedContext["historicalRecall"]>): string {
+  serializeHistoricalRecall(
+    recall: NonNullable<SelectedContext["historicalRecall"]>,
+    prompt = "",
+  ): string {
     const heading =
-      "[FROM PAST CONVERSATIONS]\nThe user asked you to search your earlier conversations with them.";
+      "[FROM PAST CONVERSATIONS]\nInternal context from your earlier conversations with the user, for you only.";
+    const quiet = "Do not describe searching or looking anything up.";
     if (recall.failed) {
-      return `${heading} The search failed, so you have no record to go on. Say so plainly; do not guess what was said.`;
+      return `${heading} You could not check them just now. Tell the user briefly that you can't recall it at the moment; do not guess. ${quiet}`;
     }
     if (recall.terms.length === 0) {
-      return `${heading} They did not say what to look for. Ask them what you should find.`;
+      return `${heading} The user asked you to check them but did not say what for. Ask briefly what they want you to find.`;
     }
     if (recall.evidence.length === 0) {
-      return `${heading} No earlier message matched (${recall.terms.join(", ")}). Say you found nothing; do not guess what was said.`;
+      return `${heading} Nothing in them is about this. Tell the user briefly that you don't recall discussing it; do not guess. ${quiet}`;
     }
     const lines = [...recall.evidence]
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
@@ -254,8 +264,11 @@ export const promptBuilder = {
             : text;
         return `[${e.createdAt.slice(0, 10)}] ${e.role === "user" ? "User" : "AKIRA"}: ${quoted}`;
       });
+    const use = asksForProvenance(prompt)
+      ? "The user wants to know where this comes from: answer, then say when it was said (the date on the line) and quote the relevant words briefly."
+      : `Answer the user's question directly and concisely, as something you remember. ${quiet} Do not quote these messages, mention their dates, or say where the information came from, unless the user asks.`;
     return (
-      `${heading} These messages matched, quoted with the date they were written. They record what was said then, which may no longer be true; prefer anything newer you know. Answer from them, and say if they do not answer the question.\n` +
+      `${heading} Each line is dated and attributed. ${use} They record what was said then, which may no longer be true; prefer anything newer you know. If they do not answer the question, say briefly that you don't recall it.\n` +
       lines.join("\n")
     );
   },

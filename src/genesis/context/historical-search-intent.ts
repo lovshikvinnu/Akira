@@ -77,3 +77,26 @@ export function detectHistoricalSearch(prompt: string): HistoricalSearchIntent |
   }
   return { terms };
 }
+
+/**
+ * Does the user want to know where a recalled answer came from? Changes only
+ * how the Historical Recall section tells the model to answer -- cite the date
+ * and quote, instead of answering plainly -- never what is retrieved.
+ */
+const PROVENANCE = new RegExp(
+  [
+    String.raw`\b(?:source|sources|cite|citation|quote|verify|verification|proof)\b`,
+    String.raw`\bwhere\s+(?:did|does)\s+(?:that|this|it)\s+come\s+from\b`,
+    String.raw`\bwhere\s+did\s+you\s+(?:get|find|see|read)\b`,
+    String.raw`\bhow\s+do\s+you\s+know\b`,
+    String.raw`\bwhen\s+did\s+(?:we|i|you)\b`,
+    String.raw`\b(?:what|which)\s+(?:date|day|conversation|chat)\b`,
+    String.raw`\bshow\s+me\s+(?:the|that|where)\b`,
+    String.raw`\bexact\s+(?:words|message|wording)\b`,
+  ].join("|"),
+  "i",
+);
+
+export function asksForProvenance(prompt: string): boolean {
+  return PROVENANCE.test(prompt);
+}

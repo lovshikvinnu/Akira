@@ -8,7 +8,10 @@
  */
 import { describe, it, expect } from "vitest";
 
-import { detectHistoricalSearch } from "../src/genesis/context/historical-search-intent";
+import {
+  asksForProvenance,
+  detectHistoricalSearch,
+} from "../src/genesis/context/historical-search-intent";
 
 describe("explicit requests search past conversations", () => {
   const cases: [string, string[]][] = [
@@ -54,6 +57,38 @@ describe("mentions of history do not", () => {
   for (const prompt of negatives) {
     it(JSON.stringify(prompt), () => {
       expect(detectHistoricalSearch(prompt)).toBeNull();
+    });
+  }
+});
+
+describe("asking where a recalled answer came from", () => {
+  const asks = [
+    "what sensor did we use, and when did we decide that?",
+    "what's the source for that?",
+    "where did you get that from?",
+    "where did that come from?",
+    "which conversation was that in?",
+    "what date did I say it?",
+    "can you quote the exact words?",
+    "how do you know?",
+    "show me the message",
+    "please verify it",
+  ];
+  for (const prompt of asks) {
+    it(JSON.stringify(prompt), () => {
+      expect(asksForProvenance(prompt)).toBe(true);
+    });
+  }
+
+  const plain = [
+    "Search our previous chats. What sensor did we use for FieldSense?",
+    "find what we discussed about FieldSense",
+    "look through our old conversations for the tile supplier",
+    "what did we decide about the budget?",
+  ];
+  for (const prompt of plain) {
+    it(`not: ${JSON.stringify(prompt)}`, () => {
+      expect(asksForProvenance(prompt)).toBe(false);
     });
   }
 });

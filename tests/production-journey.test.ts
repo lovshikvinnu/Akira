@@ -130,15 +130,19 @@ async function boot() {
     name: "capture",
     async generateContent(request) {
       captured = request.systemInstruction ?? "";
-      // A stand-in for the model that can answer only from what it is handed:
-      // the quoted lines of the historical section, if there is one. So an
-      // answer here proves the evidence reached the request, not that a real
-      // model would phrase it well.
+      // A stand-in for the model that can answer only from what it is handed,
+      // and follows the historical section's instruction literally: cite the
+      // dated lines when told to, otherwise state what they say with no date
+      // or attribution. So an answer here proves the evidence -- and the
+      // instruction -- reached the request, not that a real model would
+      // phrase it well.
       const section = captured.split("[FROM PAST CONVERSATIONS]")[1] ?? "";
-      answered = section
+      const lines = section
         .split(String.fromCharCode(10))
-        .filter((l) => /^\[\d{4}-\d{2}-\d{2}\]/.test(l))
-        .join(String.fromCharCode(10));
+        .filter((l) => /^\[\d{4}-\d{2}-\d{2}\]/.test(l));
+      answered = section.includes("say when it was said")
+        ? lines.join(String.fromCharCode(10))
+        : lines.map((l) => l.replace(/^\[[^\]]+\] (?:User|AKIRA): /, "")).join(" ");
       return {
         responseId: "r",
         provider: "capture",
@@ -525,6 +529,38 @@ describe.sequential("searching past conversations, when asked", { timeout: 60_00
     expect(system).not.toContain(`User: ${QUESTION}`);
   });
 
+  it("answers plainly by default, keeping the dated source in the request", async () => {
+    const app = await boot();
+
+    const { system, answer } = await app.ask(QUESTION, "conv-B");
+
+    // Provenance is kept, internally.
+    expect(system).toContain("[2026-07-15] User: For FieldSense we settled on the BME280 sensor");
+    // The instruction is to answer, not to report on the search.
+    expect(system).toContain("Answer the user's question directly and concisely");
+    expect(system).toContain(
+      "Do not quote these messages, mention their dates, or say where the information came from",
+    );
+    expect(system).not.toContain("say when it was said");
+    // So the answer carries the fact and none of the machinery.
+    expect(answer).toContain("BME280");
+    expect(answer).not.toMatch(/\d{4}-\d{2}-\d{2}|User:|AKIRA:|\[/);
+  });
+
+  it("cites the date and the words when the user asks where it came from", async () => {
+    const app = await boot();
+    const asking =
+      "Search our previous chats: what sensor did we use for FieldSense, and when did we decide that?";
+
+    const { system, answer } = await app.ask(asking, "conv-B");
+
+    expect(system).toContain(
+      "say when it was said (the date on the line) and quote the relevant words briefly",
+    );
+    expect(system).not.toContain("Do not quote these messages");
+    expect(answer).toContain("[2026-07-15] User: For FieldSense we settled on the BME280 sensor");
+  });
+
   it("does not search at all without an explicit request", async () => {
     const app = await boot();
     const search = vi.spyOn(app.recall, "search");
@@ -582,7 +618,7 @@ describe.sequential("searching past conversations, when asked", { timeout: 60_00
     const { system, answer } = await app.ask(QUESTION, "conv-B");
 
     expect(system).not.toContain("BME280");
-    expect(system).toContain("No earlier message matched");
+    expect(system).toContain("you don't recall discussing it");
     expect(answer).toBe("");
   });
 
@@ -594,6 +630,7 @@ describe.sequential("searching past conversations, when asked", { timeout: 60_00
     const { system } = await app.ask(QUESTION, "conv-B");
     warn.mockRestore();
 
-    expect(system).toContain("The search failed");
+    expect(system).toContain("you can't recall it at the moment");
+    expect(system).toContain("Do not describe searching");
   });
 });
