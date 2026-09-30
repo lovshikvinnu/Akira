@@ -9,7 +9,11 @@ import { contextRelevanceSelector } from "../context-relevance-selector";
 import { getWorkspaceProvider } from "../../../contracts/workspace-provider";
 import { promptBuilder } from "./prompt-builder";
 import { getHistoricalRecallProvider } from "../../../contracts/historical-recall";
-import { detectHistoricalSearch, HISTORICAL_RESULT_LIMIT } from "../historical-search-intent";
+import {
+  detectHistoricalQuestion,
+  detectHistoricalSearch,
+  HISTORICAL_RESULT_LIMIT,
+} from "../historical-search-intent";
 import type { SelectedContext } from "../context-relevance-selector";
 
 /** Options every request accepts beyond the provider's own. */
@@ -22,15 +26,55 @@ type EngineOptions = {
 };
 
 /**
- * Historical Recall stage: only when the user explicitly asked to search past
- * conversations. Never a fallback for GENESIS having no answer, and nothing it
- * retrieves is recorded anywhere -- it is quoted into this one request.
+ * Does GENESIS already put the answer in front of the model? The v0 rule --
+ * a rule, not a score, because nothing upstream produces an answer-level
+ * confidence to threshold:
+ *
+ *   GENESIS is sufficient for a historical question when EVERY subject term of
+ *   the question appears, at the start of a word, in the GENESIS context the
+ *   model will receive: the serialized context package (recalled memories,
+ *   goals, identity), the understandings block, and the resolved context.
+ *
+ * Every term, not any: knowing "FieldSense" is not knowing which sensor
+ * FieldSense used. Word-prefix, so "sensor" is covered by "sensors" and
+ * "dream" by "dreams". Read from the text the model gets, so "sufficient"
+ * means the answer is in the request, not merely somewhere in memory.
+ */
+function genesisCovers(terms: string[], prompt: string, selection: SelectedContext): boolean {
+  const genesisText = [
+    selection.contextPackage ? promptBuilder.serializeContextPackage(selection.contextPackage) : "",
+    getUnderstandingContext(prompt, selection.filterUnderstandings) ?? "",
+    selection.resolvedContext
+      ? promptBuilder.serializeResolvedContext(selection.resolvedContext)
+      : "",
+  ]
+    .join("\n")
+    .toLowerCase();
+  // Terms are letters and digits only (see subjectTerms), so they need no escaping.
+  return terms.every((t) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${t}`, "u").test(genesisText));
+}
+
+/**
+ * Historical Recall stage. Two ways in, one search:
+ *
+ *   explicit  -- the user asked to search past conversations. Always searches.
+ *   automatic -- the question asks about the user's own past
+ *                (`detectHistoricalQuestion`) and GENESIS does not already
+ *                cover it (`genesisCovers`). An ordinary question never
+ *                reaches the archive merely because GENESIS lacks an answer.
+ *
+ * Nothing retrieved is recorded anywhere; it is quoted into this one request.
  */
 async function recallHistory(
   prompt: string,
   conversationId: string | undefined,
+  selection: SelectedContext,
 ): Promise<SelectedContext["historicalRecall"]> {
-  const intent = detectHistoricalSearch(prompt);
+  const explicit = detectHistoricalSearch(prompt);
+  const automatic = explicit ? null : detectHistoricalQuestion(prompt);
+  const intent =
+    explicit ??
+    (automatic && !genesisCovers(automatic.terms, prompt, selection) ? automatic : null);
   if (!intent) return undefined;
   const provider = getHistoricalRecallProvider();
   if (!provider || intent.terms.length === 0) return { terms: intent.terms, evidence: [] };
@@ -43,7 +87,9 @@ async function recallHistory(
     return { terms: intent.terms, evidence: evidence.slice(0, HISTORICAL_RESULT_LIMIT) };
   } catch (err) {
     console.warn("Historical Recall search failed:", err);
-    return { terms: intent.terms, evidence: [], failed: true };
+    // An automatic search the user never asked for has nothing to report: the
+    // question is answered as it would have been without one.
+    return explicit ? { terms: intent.terms, evidence: [], failed: true } : undefined;
   }
 }
 
@@ -74,7 +120,7 @@ export const aiContextEngine = {
     );
 
     // 3. Historical Recall Stage (explicit requests only)
-    selection.historicalRecall = await recallHistory(prompt, options?.conversationId);
+    selection.historicalRecall = await recallHistory(prompt, options?.conversationId, selection);
 
     // 4. Prompt Builder Stage
     const structuredSystemInstruction = promptBuilder.buildSystemInstruction(
@@ -124,7 +170,7 @@ export const aiContextEngine = {
     );
 
     // 3. Historical Recall Stage (explicit requests only)
-    selection.historicalRecall = await recallHistory(prompt, options?.conversationId);
+    selection.historicalRecall = await recallHistory(prompt, options?.conversationId, selection);
 
     // 4. Prompt Builder Stage
     const structuredSystemInstruction = promptBuilder.buildSystemInstruction(

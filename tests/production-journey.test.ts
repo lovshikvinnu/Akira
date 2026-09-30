@@ -561,11 +561,15 @@ describe.sequential("searching past conversations, when asked", { timeout: 60_00
     expect(answer).toContain("[2026-07-15] User: For FieldSense we settled on the BME280 sensor");
   });
 
-  it("does not search at all without an explicit request", async () => {
+  it("does not search for a question that is neither an explicit request nor about the past", async () => {
+    // This case once asked "What sensor did we use for FieldSense?" and
+    // expected no search. Automatic recall (below) now answers exactly that
+    // question from history, so the contract here is the narrower one: a
+    // question about the world, not the user's past, never reaches it.
     const app = await boot();
     const search = vi.spyOn(app.recall, "search");
 
-    const { system } = await app.ask("What sensor did we use for FieldSense?", "conv-B");
+    const { system } = await app.ask("Which humidity sensor is most accurate?", "conv-B");
 
     expect(search).not.toHaveBeenCalled();
     expect(system).not.toContain("[FROM PAST CONVERSATIONS]");
@@ -632,5 +636,171 @@ describe.sequential("searching past conversations, when asked", { timeout: 60_00
 
     expect(system).toContain("you can't recall it at the moment");
     expect(system).toContain("Do not describe searching");
+  });
+});
+
+/**
+ * Automatic Historical Recall v0: a question about the user's own past
+ * searches the archive -- with no "search" in it -- but only when GENESIS does
+ * not already put the answer in front of the model. Same provider, bounds and
+ * exclusion as the explicit search above.
+ */
+describe.sequential("recalling the past without being told to search", { timeout: 60_000 }, () => {
+  const msg = (id: string, role: "user" | "akira", text: string, createdAt: string) => ({
+    id,
+    role,
+    text,
+    createdAt,
+  });
+  const conv = (id: string, title: string, messages: ReturnType<typeof msg>[]) => ({
+    id,
+    title,
+    messages,
+    createdAt: messages[0].createdAt,
+    updatedAt: messages[messages.length - 1].createdAt,
+  });
+  const fieldSense = conv("auto-A", "FieldSense", [
+    msg(
+      "aa1",
+      "user",
+      "For FieldSense we settled on the BME280 sensor for humidity",
+      "2026-07-15T09:00:00.000Z",
+    ),
+  ]);
+  const dream = conv("auto-dream", "Dreams", [
+    msg("ad1", "user", "My dream is to become a pilot.", "2026-07-16T09:00:00.000Z"),
+  ]);
+  const ASK = "What was that sensor we used for FieldSense?";
+  const current = conv("auto-B", "Now", [msg("ab1", "user", ASK, "2026-10-13T10:00:00.000Z")]);
+
+  it("searches history for a past question GENESIS cannot answer, and the evidence reaches the model", async () => {
+    vi.setSystemTime(new Date("2026-10-13T10:00:00.000Z"));
+    const app = await boot();
+    await app.saveArchive([current, fieldSense, dream]);
+    const search = vi.spyOn(app.recall, "search");
+
+    const { system, answer } = await app.ask(ASK, "auto-B");
+
+    expect(search).toHaveBeenCalledOnce();
+    expect(search.mock.calls[0][0]).toMatchObject({ limit: 5, excludeConversationId: "auto-B" });
+    expect(system).toContain("[2026-07-15] User: For FieldSense we settled on the BME280 sensor");
+    expect(system).toContain("Answer the user's question directly and concisely");
+    expect(answer).toContain("BME280");
+    expect(answer).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+
+  it("says it does not recall, rather than inventing, when no history matches", async () => {
+    const app = await boot();
+    const search = vi.spyOn(app.recall, "search");
+
+    const { system, answer } = await app.ask(
+      "What did we decide about the solar inverter?",
+      "auto-B",
+    );
+
+    expect(search).toHaveBeenCalledOnce();
+    expect(system).toContain("you don't recall discussing it");
+    expect(answer).toBe("");
+  });
+
+  it("does not search for an ordinary factual question", async () => {
+    const app = await boot();
+    const search = vi.spyOn(app.recall, "search");
+
+    const { system } = await app.ask("What are the best sensors for soil monitoring?", "auto-B");
+
+    expect(search).not.toHaveBeenCalled();
+    expect(system).not.toContain("[FROM PAST CONVERSATIONS]");
+  });
+
+  it("does not search for past-sounding wording with no past act by the user", async () => {
+    const app = await boot();
+    const search = vi.spyOn(app.recall, "search");
+
+    await app.ask("Do you remember how a CPU works?", "auto-B");
+    await app.ask("What did Einstein say about time?", "auto-B");
+
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it("keeps the current conversation out of what it recalls", async () => {
+    const app = await boot();
+    const here = conv("auto-D", "Aquarium", [
+      msg("ad-1", "user", "for Aquarium we used the TMP117 sensor", "2026-10-13T11:00:00.000Z"),
+      msg("ad-2", "user", "What was that sensor we used for Aquarium?", "2026-10-13T11:01:00.000Z"),
+    ]);
+    await app.saveArchive([here, current, fieldSense, dream]);
+
+    const { system } = await app.ask("What was that sensor we used for Aquarium?", "auto-D");
+
+    expect(system).not.toContain("TMP117");
+  });
+
+  it("does not search when GENESIS already holds the answer", async () => {
+    const app = await boot();
+    app.say("My dream is to become a pilot."); // a declaration GENESIS keeps
+    await app.settle();
+    const search = vi.spyOn(app.recall, "search");
+
+    const { system } = await app.ask("What did I say my dream was?", "auto-B");
+
+    // Answered from GENESIS, though the archive also holds the sentence.
+    expect(system).toContain("become a pilot");
+    expect(search).not.toHaveBeenCalled();
+    expect(system).not.toContain("[FROM PAST CONVERSATIONS]");
+  });
+
+  it("still searches when GENESIS knows the subject but not the detail asked for", async () => {
+    const app = await boot();
+    app.akira.addProject({ name: "FieldSense" }); // GENESIS now knows FieldSense, not its sensor
+    await app.settle();
+    const search = vi.spyOn(app.recall, "search");
+
+    const { system } = await app.ask(ASK, "auto-B");
+
+    const genesisPart = system.split("[FROM PAST CONVERSATIONS]")[0];
+    expect(genesisPart, "the fixture must give GENESIS the subject").toContain("FieldSense");
+    expect(genesisPart).not.toContain("BME280");
+    expect(search).toHaveBeenCalledOnce();
+    expect(system).toContain("BME280");
+  });
+
+  it("answers normally, with nothing about a search, when an automatic search fails", async () => {
+    const app = await boot();
+    vi.spyOn(app.recall, "search").mockRejectedValueOnce(new Error("db locked"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { system } = await app.ask(ASK, "auto-B");
+    warn.mockRestore();
+
+    // The user never asked for a search, so a failed one is not reported.
+    expect(system).not.toContain("[FROM PAST CONVERSATIONS]");
+  });
+
+  it("does not turn what it recalled into GENESIS memory", async () => {
+    const app = await boot();
+    const before = app.cognition();
+
+    await app.ask(ASK, "auto-B");
+    await app.settle();
+
+    expect(app.cognition()).toEqual(before);
+    expect(JSON.stringify(app.akira.getState().memories)).not.toContain("BME280");
+  });
+
+  it("recalls it again after a restart", async () => {
+    const app = await boot();
+    const { system } = await app.ask(ASK, "auto-B");
+    expect(system).toContain("BME280");
+  });
+
+  it("cannot recall a deleted conversation", async () => {
+    const app = await boot();
+    await app.saveArchive([current, dream]); // FieldSense deleted in the sidebar
+
+    const { system } = await app.ask(ASK, "auto-B");
+
+    expect(system).not.toContain("BME280");
+    expect(system).toContain("you don't recall discussing it");
   });
 });

@@ -69,13 +69,76 @@ export function detectHistoricalSearch(prompt: string): HistoricalSearchIntent |
   if (!trigger) return null;
 
   const rest = text.slice(0, trigger.index) + " " + text.slice(trigger.index + trigger[0].length);
+  return { terms: subjectTerms(rest) };
+}
+
+/** The words that name what is being asked about: not stopwords, deduplicated, capped. */
+function subjectTerms(text: string, extraStopwords?: Set<string>): string[] {
   const terms: string[] = [];
-  for (const raw of rest.toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
-    if (raw.length < 2 || STOPWORDS.has(raw) || terms.includes(raw)) continue;
+  for (const raw of text.toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
+    if (raw.length < 2 || STOPWORDS.has(raw) || extraStopwords?.has(raw) || terms.includes(raw))
+      continue;
     terms.push(raw);
     if (terms.length === MAX_TERMS) break;
   }
-  return { terms };
+  return terms;
+}
+
+// ---------------------------------------------------------------------------
+// Automatic: a question about the user's own past, asked without "search".
+// ---------------------------------------------------------------------------
+
+/**
+ * A past act by the user or by the user and AKIRA together. Each pattern needs
+ * "I" or "we" *and* a past-tense construction *and* a verb of the kind a
+ * conversation records -- decided, used, said, chose -- so "what did Einstein
+ * say", "how does a CPU work" and "which sensor should we use" do not match.
+ * Conservative on purpose: a false positive quotes unrelated old messages.
+ */
+const PAST_ACT_VERB = String.raw`(?:discuss|talk|decide|choose|chose|pick|use|say|said|tell|told|mention|agree|settle|go\s+with|build|built|make|made|plan|name|call|work\s+on|buy|bought|want|need)\w*`;
+
+const PAST_REFERENCE: RegExp[] = [
+  // what / which ... did we|I <verb>: "what did we decide about the CPU"
+  new RegExp(
+    String.raw`\b(?:what|which|who|where|when|how)\b[^?.!]{0,40}?\b(?:did|had)\s+(?:we|i)\s+(?:(?:ever|once|originally|finally|actually|first)\s+)?${PAST_ACT_VERB}\b`,
+    "i",
+  ),
+  // that <thing> we|I <past verb>: "that sensor we used", "that thing we worked on"
+  new RegExp(
+    String.raw`\bthat\s+(?:\w+\s+){1,2}(?:we|i)\s+(?:used|chose|picked|built|made|mentioned|discussed|decided\s+on|settled\s+on|worked\s+on|talked\s+about|bought|planned|named|called|wanted)\b`,
+    "i",
+  ),
+  // do you remember what I said / we decided ...
+  new RegExp(
+    String.raw`\b(?:do|did)\s+you\s+(?:remember|recall)\s+(?:what|which|when|where|how|the)\b[^?.!]{0,40}?\b(?:i|we)\s+(?:said|told|mentioned|discussed|decided|chose|used|talked|wanted|planned|picked|settled)\b`,
+    "i",
+  ),
+];
+
+const QUESTION = /\?\s*$|^\s*(?:what|which|who|where|when|how|why|do|did|can|could|would)\b/i;
+
+/** Past-act verbs name the question's shape, not its subject. */
+const PAST_ACT_STOPWORDS = new Set(
+  "work worked working choose chose chosen pick picked settle settled mention mentioned want wanted need needed time went".split(
+    " ",
+  ),
+);
+
+/**
+ * A question that plausibly asks about the user's own past, and its subject.
+ *
+ * null unless all three hold: it is a question, it frames a past act by "I"
+ * or "we", and it names something -- "what did we do?" names nothing, so
+ * there is nothing to search for. This decides only that history *may* be
+ * searched; whether it is searched also depends on GENESIS not already
+ * holding the answer (see `genesisCovers` in context-engine).
+ */
+export function detectHistoricalQuestion(prompt: string): HistoricalSearchIntent | null {
+  const text = prompt.trim();
+  if (!text || !QUESTION.test(text)) return null;
+  if (!PAST_REFERENCE.some((re) => re.test(text))) return null;
+  const terms = subjectTerms(text, PAST_ACT_STOPWORDS);
+  return terms.length > 0 ? { terms } : null;
 }
 
 /**

@@ -10,6 +10,7 @@ import { describe, it, expect } from "vitest";
 
 import {
   asksForProvenance,
+  detectHistoricalQuestion,
   detectHistoricalSearch,
 } from "../src/genesis/context/historical-search-intent";
 
@@ -89,6 +90,56 @@ describe("asking where a recalled answer came from", () => {
   for (const prompt of plain) {
     it(`not: ${JSON.stringify(prompt)}`, () => {
       expect(asksForProvenance(prompt)).toBe(false);
+    });
+  }
+});
+
+describe("questions about the user's own past", () => {
+  const cases: [string, string[]][] = [
+    ["What did we discuss about my PCB project?", ["pcb", "project"]],
+    ["What was that sensor we used?", ["sensor"]],
+    ["What did I tell you about my internship?", ["internship"]],
+    ["What did we decide about the CPU?", ["cpu"]],
+    ["Do you remember what I said about that project?", ["project"]],
+    ["What was the name of that thing we worked on?", ["name"]],
+    ["Which approach did we choose last time?", ["approach"]],
+    ["What did I say my dream was?", ["dream"]],
+  ];
+  for (const [prompt, terms] of cases) {
+    it(JSON.stringify(prompt), () => {
+      expect(detectHistoricalQuestion(prompt)).toEqual({ terms });
+    });
+  }
+});
+
+describe("questions that are not about the user's past", () => {
+  const negatives = [
+    // The brief's negatives.
+    "What is a PCB?",
+    "How does a CPU work?",
+    "Explain Verilog.",
+    "What are the best sensors for soil monitoring?",
+    "Search the web for PCB design.",
+    "Tell me about ESP32.",
+    "What's the weather?",
+    "Create a project.",
+    // Historical-looking wording with no past act by the user.
+    "Do you remember how a CPU works?",
+    "What did Einstein say about time?",
+    "What did the Romans use for roads?",
+    "What was the Apollo program?",
+    "Which sensor should we use?",
+    "What will we use for the next project?",
+    // A past act, but nothing named to look for.
+    "What did we do?",
+    // Not a question.
+    "I told you about my internship already.",
+    "We decided on the BME280 sensor.",
+    "",
+  ];
+  for (const prompt of negatives) {
+    it(JSON.stringify(prompt), () => {
+      expect(detectHistoricalQuestion(prompt)).toBeNull();
     });
   }
 });
