@@ -1,6 +1,6 @@
 export interface SearchResult {
   id: string;
-  type: "project" | "note" | "task" | "session" | "timeline" | "memory";
+  type: "project" | "note" | "task" | "session" | "timeline" | "memory" | "message";
   title: string;
   description: string;
   score: number;
@@ -13,7 +13,7 @@ export interface SearchRequest {
   limit?: number;
 
   filters?: Record<string, any>;
-  scope?: ("project" | "note" | "task" | "session" | "timeline" | "memory")[];
+  scope?: ("project" | "note" | "task" | "session" | "timeline" | "memory" | "message")[];
   sort?: { field: string; order: "asc" | "desc" };
 }
 

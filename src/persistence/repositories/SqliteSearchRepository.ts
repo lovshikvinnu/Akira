@@ -8,6 +8,14 @@ import { SearchRequest, SearchResult } from "../../contracts/search";
 import { SearchRepository } from "../../contracts/repositories/SearchRepository";
 import { getDatabaseConnection } from "../connection";
 
+/**
+ * Chat messages are indexed in `fts_workspace`, but only a search that asks
+ * for them by scope sees them. The search page and the command palette search
+ * with no scope for "all", and their result set is the five workspace types;
+ * indexing conversation history must not change what they show.
+ */
+const UNSCOPED_EXCLUSION = "AND entity_type <> 'message'";
+
 export class SqliteSearchRepository implements SearchRepository {
   // Configurable ranking parameters
   public static BM25_WEIGHT = 10.0;
@@ -77,6 +85,8 @@ export class SqliteSearchRepository implements SearchRepository {
         const placeholders = scope.map(() => "?").join(", ");
         scopeClause = `AND entity_type IN (${placeholders})`;
         params.push(...scope);
+      } else {
+        scopeClause = UNSCOPED_EXCLUSION;
       }
 
       params.push(limit);
@@ -158,6 +168,8 @@ export class SqliteSearchRepository implements SearchRepository {
       const placeholders = scope.map(() => "?").join(", ");
       scopeClause = `AND entity_type IN (${placeholders})`;
       params.push(...scope);
+    } else {
+      scopeClause = UNSCOPED_EXCLUSION;
     }
     params.push(limit);
 

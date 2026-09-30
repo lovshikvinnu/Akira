@@ -60,13 +60,24 @@ export const persistGetSetting = createServerFn({ method: "GET" })
 export const persistSetSetting = createServerFn({ method: "POST" })
   .validator((input: { key: string; value: string }) => input)
   .handler(async ({ data: { key, value } }) => {
-    const { settingsRepository } = await import("../../../persistence/repositories");
+    const { settingsRepository, CHAT_ARCHIVE_KEY } =
+      await import("../../../persistence/repositories");
+    // The chat archive has a table mirror that only `conversationsService.save`
+    // keeps in step. Written here, the blob would change and the tables would
+    // not until the next start -- so refuse, loudly, rather than drift.
+    if (key === CHAT_ARCHIVE_KEY) {
+      throw new Error(`"${key}" is written through conversationsService.save, not settings.set`);
+    }
     settingsRepository.set(key, value);
   });
 
 export const persistDeleteSetting = createServerFn({ method: "POST" })
   .validator((key: string) => key)
   .handler(async ({ data: key }) => {
-    const { settingsRepository } = await import("../../../persistence/repositories");
+    const { settingsRepository, CHAT_ARCHIVE_KEY } =
+      await import("../../../persistence/repositories");
+    if (key === CHAT_ARCHIVE_KEY) {
+      throw new Error(`"${key}" is written through conversationsService.save, not settings.delete`);
+    }
     settingsRepository.delete(key);
   });

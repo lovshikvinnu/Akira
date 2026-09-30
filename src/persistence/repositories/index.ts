@@ -9,6 +9,7 @@ import { SqliteSearchRepository } from "./SqliteSearchRepository";
 import { SqliteVaultFileRepository } from "./SqliteVaultFileRepository";
 import { SqliteVaultFolderRepository } from "./SqliteVaultFolderRepository";
 import { SqliteVaultTagRepository } from "./SqliteVaultTagRepository";
+import { SqliteConversationRepository } from "./SqliteConversationRepository";
 
 export * from "./SqliteProjectRepository";
 export * from "./SqliteNoteRepository";
@@ -21,6 +22,7 @@ export * from "./SqliteSearchRepository";
 export * from "./SqliteVaultFileRepository";
 export * from "./SqliteVaultFolderRepository";
 export * from "./SqliteVaultTagRepository";
+export * from "./SqliteConversationRepository";
 
 // Expose instantiated singletons for application consumption
 export const projectRepository = new SqliteProjectRepository();
@@ -34,3 +36,4 @@ export const searchRepository = new SqliteSearchRepository();
 export const vaultFileRepository = new SqliteVaultFileRepository();
 export const vaultFolderRepository = new SqliteVaultFolderRepository();
 export const vaultTagRepository = new SqliteVaultTagRepository();
+export const conversationRepository = new SqliteConversationRepository();

@@ -6,7 +6,7 @@ if (typeof window !== "undefined") {
 import fs from "fs";
 import path from "path";
 import { getDatabaseConnection } from "./connection";
-import { sessionRepository } from "./repositories";
+import { conversationRepository, sessionRepository } from "./repositories";
 
 /**
  * Bootstraps the SQLite database.
@@ -543,4 +543,82 @@ export const initializeDatabase = (): void => {
   // path, and running it per request buys nothing: retention is measured in
   // days, so a boundary crossed mid-process is collected at the next start.
   sessionRepository.purgeExpired();
+
+  // Conversations as first-class rows. Defined here alone rather than also in
+  // schema.sql: this block is idempotent and runs on fresh and existing
+  // databases alike, so there is one definition to keep correct. It must
+  // follow the search migration above, which creates `fts_workspace`.
+  //
+  // `position` is the message's place in the conversation. Timestamps alone
+  // cannot order it: a conversation restored into the store is re-added
+  // within one millisecond, so ties are ordinary.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS conversations (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      text TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      CHECK (role IN ('user', 'akira')),
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation_created
+      ON chat_messages (conversation_id, created_at);
+
+    CREATE TRIGGER IF NOT EXISTS trg_chat_messages_insert AFTER INSERT ON chat_messages BEGIN
+      INSERT INTO fts_workspace(entity_id, entity_type, title, content, updated_at)
+      VALUES (new.id, 'message', new.role, new.text, new.created_at);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_chat_messages_update AFTER UPDATE ON chat_messages BEGIN
+      UPDATE fts_workspace
+      SET title = new.role, content = new.text, updated_at = new.created_at
+      WHERE entity_id = new.id AND entity_type = 'message';
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_chat_messages_delete AFTER DELETE ON chat_messages BEGIN
+      DELETE FROM fts_workspace WHERE entity_id = old.id AND entity_type = 'message';
+    END;
+  `);
+
+  // Backfill the search index. The search migration created `fts_workspace`
+  // and its triggers but indexed nothing that already existed, so every row
+  // older than that migration was unsearchable -- measured on a real database
+  // at 2 of 16 rows indexed. Each insert mirrors its entity's insert trigger,
+  // and skips rows already indexed, so this is a no-op once caught up.
+  db.exec(`
+    INSERT INTO fts_workspace(entity_id, entity_type, title, content, updated_at)
+      SELECT id, 'project', name, tag || ' ' || COALESCE(description, ''), updated_at FROM projects
+      WHERE id NOT IN (SELECT entity_id FROM fts_workspace WHERE entity_type = 'project');
+    INSERT INTO fts_workspace(entity_id, entity_type, title, content, updated_at)
+      SELECT id, 'task', title, COALESCE(description, ''), updated_at FROM tasks
+      WHERE id NOT IN (SELECT entity_id FROM fts_workspace WHERE entity_type = 'task');
+    INSERT INTO fts_workspace(entity_id, entity_type, title, content, updated_at)
+      SELECT id, 'note', title,
+        content || ' ' || replace(replace(replace(replace(COALESCE(tags, ''), '[', ''), ']', ''), '"', ''), ',', ' '),
+        updated_at FROM notes
+      WHERE id NOT IN (SELECT entity_id FROM fts_workspace WHERE entity_type = 'note');
+    INSERT INTO fts_workspace(entity_id, entity_type, title, content, updated_at)
+      SELECT id, 'session', task, COALESCE(notes, ''), updated_at FROM sessions
+      WHERE id NOT IN (SELECT entity_id FROM fts_workspace WHERE entity_type = 'session');
+    INSERT INTO fts_workspace(entity_id, entity_type, title, content, updated_at)
+      SELECT id, 'timeline', event_type,
+        COALESCE(json_extract(payload, '$.title'), json_extract(payload, '$.task'), json_extract(payload, '$.name'), ''),
+        timestamp FROM timeline_events
+      WHERE id NOT IN (SELECT entity_id FROM fts_workspace WHERE entity_type = 'timeline');
+  `);
+
+  // Mirror the chat archive into the tables. On the first start after this
+  // migration that imports the existing archive; on every later start it is
+  // a no-op unless the two have drifted, which it repairs.
+  conversationRepository.syncFromArchive();
 };

@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { Shell, PageHeader } from "@/app/shell/Shell";
 import { GhostButton } from "@/app/ui/primitives";
 import { useAkira, akira, type ChatMessage } from "@/akira-os";
+import type { ChatConversation } from "@/shared/types/store-types";
 import { eventService } from "@/genesis";
 import { describeProviderFailure } from "@/genesis/context/ai/provider-error";
 import { candidateService } from "@/genesis";
@@ -82,13 +83,7 @@ interface EmergentTrait {
 
 const CHAT_HISTORY_STORAGE_KEY = "akira:chat:history:v1";
 
-export interface ChatConversation {
-  id: string;
-  title: string;
-  messages: ChatMessage[];
-  createdAt: string;
-  updatedAt: string;
-}
+export type { ChatConversation };
 
 const uid = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -122,7 +117,7 @@ async function migrateLegacyChatHistory() {
   const MIGRATIONS_KEY = "akira:migrations";
   const MAIN_STATE_STORAGE_KEY = "akira:state:v1";
 
-  const { settingsService } = await import("@/akira-os");
+  const { settingsService, conversationsService } = await import("@/akira-os");
 
   // Check if migration is already complete
   try {
@@ -196,7 +191,7 @@ async function migrateLegacyChatHistory() {
 
           if (!isDuplicate) {
             const updatedHistory = [migratedConv, ...existingHistory];
-            await settingsService.set(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(updatedHistory));
+            await conversationsService.save(updatedHistory);
           }
         }
       }
@@ -282,8 +277,8 @@ function CompanionWorkspacePage() {
     setConversations((prev) => {
       const updated = typeof updater === "function" ? updater(prev) : updater;
       if (persist) {
-        import("@/akira-os").then(({ settingsService }) => {
-          settingsService.set(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(updated));
+        import("@/akira-os").then(({ conversationsService }) => {
+          conversationsService.save(updated);
         });
       }
       return updated;

@@ -34,6 +34,20 @@ import { createServerFn } from "@tanstack/react-start";
  * mode worse than deleting nothing. Whether reset should reach any of them is a
  * product question, not something to infer from a label.
  *
+ * THE CHAT ARCHIVE IS KEPT -- AN OPEN PRODUCT QUESTION
+ * ----------------------------------------------------
+ * "chat" above is the *open conversation* only. The archive of every past
+ * conversation -- the `akira:chat:history:v1` setting and its
+ * `conversations` / `chat_messages` mirror, with their search index rows --
+ * is not touched, so a reset leaves every earlier conversation in the
+ * sidebar and in the database. The dialog says "chat will be restored to
+ * defaults", which a user may reasonably read as the archive too.
+ *
+ * Deliberately unchanged in the storage-only phase that added the tables.
+ * It must be decided before anything feeds the archive to the model: once
+ * historical recall reads it, a reset that keeps it means a user's old
+ * conversations can resurface after they asked for a clean slate.
+ *
  * SESSIONS ARE DELETED, EXPLICITLY
  * --------------------------------
  * This comment used to list sessions as untouched, but `DELETE FROM projects`

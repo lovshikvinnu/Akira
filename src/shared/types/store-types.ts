@@ -48,6 +48,19 @@ export type ChatMessage = {
   createdAt: string;
 };
 
+/**
+ * One conversation in the chat archive, as `routes/chat.tsx` holds it and as
+ * the `akira:chat:history:v1` setting stores it. Mirrored into the
+ * `conversations` / `chat_messages` tables by `conversationsService`.
+ */
+export interface ChatConversation {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type HabitStreak = {
   id: string;
   label: string;
