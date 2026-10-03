@@ -1,0 +1,21 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/claude/format-edited-file.mjs",
+            "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "node scripts/claude/check-module-boundaries.mjs",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

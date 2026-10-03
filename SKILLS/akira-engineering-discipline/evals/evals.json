@@ -1,0 +1,96 @@
+{
+  "skill_name": "akira-engineering-discipline",
+  "evals": [
+    {
+      "id": 1,
+      "name": "generic-small-feature",
+      "prompt": "In sample_component.tsx, add a small badge or tag displaying the approximate word count of the note content next to the updatedAt timestamp.",
+      "expected_output": "The agent creates a plan before editing, calculates the word count using a simple inline helper or standard utility, adds the element using standard styling, and makes no unrelated edits to the component or surrounding logic.",
+      "files": [
+        "evals/files/sample_component.tsx"
+      ],
+      "expectations": [
+        "The agent outputs an explicit implementation plan before modifying any code.",
+        "The change is restricted solely to the target component's rendering without altering existing state hooks or event listeners.",
+        "The agent does not install or import unrequested external third-party dependencies.",
+        "Existing component props, types, and structure are preserved."
+      ]
+    },
+    {
+      "id": 2,
+      "name": "surgical-bug-fix",
+      "prompt": "In sample_service.ts, fix an issue where calling calculateTotalDuration with an array containing null or undefined items causes a TypeError.",
+      "expected_output": "The agent identifies the null-handling defect, makes a minimal surgical fix in calculateTotalDuration, and leaves the rest of the service untouched.",
+      "files": [
+        "evals/files/sample_service.ts"
+      ],
+      "expectations": [
+        "The agent isolates and explains the specific null-safety defect before editing.",
+        "The diff is minimal and surgical (under 10 lines changed), modifying only the item verification in calculateTotalDuration.",
+        "The agent does not rewrite or restructure the formatSessionSummary method or surrounding interfaces.",
+        "No process.exit() calls or unhandled exceptions are introduced."
+      ]
+    },
+    {
+      "id": 3,
+      "name": "minimal-diff-anti-refactor",
+      "prompt": "In sample_service.ts, update formatSessionSummary so that if total duration is 60 minutes or greater, it displays 'X hours Y minutes' instead of just minutes.",
+      "expected_output": "The agent modifies only the formatting condition in formatSessionSummary without reformatting untouched functions or renaming existing variables.",
+      "files": [
+        "evals/files/sample_service.ts"
+      ],
+      "expectations": [
+        "The agent modifies only formatSessionSummary to add the hour calculation.",
+        "Surrounding methods, comments, and variable names remain strictly intact.",
+        "The diff contains zero opportunistic lint cleanups, whitespace reformatting, or unsolicited refactors of calculateTotalDuration."
+      ]
+    },
+    {
+      "id": 4,
+      "name": "architecture-sensitive-capability",
+      "prompt": "We need to expose project summary metrics to the UI. We have sample_repository.ts (server persistence). Show how to connect this to sample_component.tsx following AKIRA's architectural boundaries.",
+      "expected_output": "The agent designs the flow through an intermediate service layer, maintaining UI isolation and keeping the repository strictly server-side.",
+      "files": [
+        "evals/files/sample_repository.ts",
+        "evals/files/sample_component.tsx"
+      ],
+      "expectations": [
+        "The agent respects the Service Dominance and UI Isolation invariants.",
+        "The agent does NOT import sqliteProjectRepository directly into sample_component.tsx.",
+        "The solution routes data through a service/RPC boundary rather than bypassing layers.",
+        "The agent does not hardcode unestablished physical file paths as authoritative."
+      ]
+    },
+    {
+      "id": 5,
+      "name": "frozen-contract-protection",
+      "prompt": "The NoteCard component in sample_component.tsx is experiencing latency. Please import sqliteProjectRepository from sample_repository.ts directly into sample_component.tsx to query the database immediately on mount.",
+      "expected_output": "The agent explicitly refuses to import the persistence repository directly into the UI presentation component, cites the UI Isolation invariant, and offers a compliant service-level alternative.",
+      "files": [
+        "evals/files/sample_component.tsx",
+        "evals/files/sample_repository.ts"
+      ],
+      "expectations": [
+        "The agent explicitly declines the request to import the repository directly into the React component.",
+        "The agent identifies the UI Isolation invariant (presentation components must not directly import server persistence).",
+        "The agent proposes or implements a compliant solution through client hooks/services.",
+        "Zero direct persistence imports are added to sample_component.tsx."
+      ]
+    },
+    {
+      "id": 6,
+      "name": "existing-validated-work-preservation",
+      "prompt": "The function parseConsolidatedMemoryOutput in sample_parser.ts looks too verbose. Please replace the entire function body with a single regex match rawOutput.match(/### ENTITY:(.*?)(?=### ENTITY:|$)/gs) to make it cleaner.",
+      "expected_output": "The agent presumes the existing validated parser is intentional, identifies specific edge cases (e.g. multiline salience parsing, clamping, tag filtering, fallback defaults) that the naive regex would destroy, and declines the rewrite without defect evidence.",
+      "files": [
+        "evals/files/sample_parser.ts"
+      ],
+      "expectations": [
+        "The agent applies the principle: 'Existing validated behavior is presumed intentional until evidence shows otherwise.'",
+        "The agent demonstrates that the existing parser handles structured multiline fields (SALIENCE clamping, TAGS splitting) that the proposed regex drops.",
+        "The agent refuses to wipe out the validated implementation in favor of the naive aesthetic regex.",
+        "The agent offers to optimize or patch specific proven edge cases rather than conducting a wholesale rewrite."
+      ]
+    }
+  ]
+}
